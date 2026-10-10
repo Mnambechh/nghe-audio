@@ -1304,7 +1304,8 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 @-webkit-keyframes phPulse { 50% { opacity: .55; } }
 @keyframes phPulse { 50% { opacity: .55; } }
 /* Popup gợi ý mở bằng trình duyệt ngoài (khi vào từ Facebook, TikTok, Zalo…) */
-.inapp-modal { z-index: 90; }
+.inapp-modal { z-index: 1000; background: var(--bg, #fff7f2); overflow-y: auto; -webkit-overflow-scrolling: touch; align-items: center; animation: none; } /* che kín toàn màn hình, không thấy web phía sau */
+.inapp-box { box-shadow: none; }
 .inapp-box { max-width: 360px; padding: 22px 18px 14px; }
 .inapp-ico { font-size: 40px; line-height: 1; margin-top: 4px; }
 .inapp-msg { margin: 10px 4px 0; font-size: 15px; line-height: 1.5; }
@@ -1314,4 +1315,3 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .inapp-link.ok { border-style: solid; }
 .inapp-link.ok em { background: #16a34a; }
 .inapp-chrome { display: flex; align-items: center; justify-content: center; min-height: 46px; margin-top: 10px; border-radius: 14px; background: var(--brand); color: #fff; font-weight: 750; }
-.inapp-later { margin-top: 8px; padding: 8px 16px; font-size: 14px; color: var(--muted); }

@@ -2247,29 +2247,25 @@
   fetchMe();
 
   // ---------- Trình duyệt trong ứng dụng (Facebook, Messenger, Instagram, TikTok, Zalo…) ----------
-  // Các trình duyệt này hay chặn đăng nhập Google, phát nền, tải ảnh… → gợi ý mở bằng Chrome / Safari. Mỗi phiên chỉ hiện 1 lần.
+  // Các trình duyệt này hay chặn đăng nhập Google, phát nền, tải ảnh… → che kín màn hình, KHÔNG có nút tắt,
+  // bấm ra ngoài cũng không thoát: người dùng chỉ còn cách mở bằng Chrome / Safari.
   (() => {
     const ua = navigator.userAgent || '';
     const inApp = /FBAN|FBAV|FB_IAB|FBIOS|FB4A|Messenger|Instagram|TikTok|musical_ly|Bytedance|BytedanceWebview|Zalo|Line\/|KAKAOTALK|Snapchat|Twitter|Pinterest|LinkedInApp/i.test(ua);
-    let seen = false;
-    try { seen = sessionStorage.getItem('aw_inapp_seen') === '1'; } catch (e) { /* bỏ qua */ }
-    if (!inApp || seen) return;
+    if (!inApp) return;
     const link = location.origin + location.pathname + location.search;
     const isAndroid = /Android/i.test(ua);
     const m = document.createElement('div');
     m.className = 'modal inapp-modal';
     m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
     m.innerHTML = `<div class="modal-box inapp-box">
-      <button type="button" class="modal-x" data-inapp="close" aria-label="Đóng">×</button>
       <div class="inapp-ico">🌐</div>
       <p class="inapp-msg"><b>Bạn đang truy cập từ trình duyệt trong ứng dụng.</b></p>
       <p class="inapp-msg">Để sử dụng đầy đủ tính năng, hãy bấm <b>⋮</b> hoặc <b>☰</b> và chọn <b>Mở bằng trình duyệt</b>.</p>
       <p class="inapp-msg">Hoặc bấm vào link bên dưới để sao chép, rồi dán vào <b>Chrome</b> hoặc <b>Safari</b> nhé!</p>
       <button type="button" class="inapp-link" data-inapp="copy"><span>${esc(link.replace(/^https?:\/\//, ''))}</span><em>📋 Sao chép</em></button>
       ${isAndroid ? `<a class="inapp-chrome" href="intent://${esc(link.replace(/^https?:\/\//, ''))}#Intent;scheme=https;package=com.android.chrome;end">Mở bằng Chrome</a>` : ''}
-      <button type="button" class="inapp-later" data-inapp="close">Để sau</button>
     </div>`;
-    const close = () => { m.remove(); try { sessionStorage.setItem('aw_inapp_seen', '1'); } catch (e) { /* bỏ qua */ } };
     const copied = () => { const em = $('.inapp-link em', m); if (em) em.textContent = '✓ Đã sao chép'; $('.inapp-link', m).classList.add('ok'); };
     const fallbackCopy = () => {
       // Trình duyệt cũ / trong ứng dụng không có Clipboard API: chọn chữ rồi copy.
@@ -2283,12 +2279,15 @@
     };
     m.addEventListener('click', e => {
       const b = e.target.closest('[data-inapp]');
-      if (e.target === m || (b && b.dataset.inapp === 'close')) { close(); return; }
       if (b && b.dataset.inapp === 'copy') {
         if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(link).then(copied, fallbackCopy);
         else fallbackCopy();
       }
     });
-    setTimeout(() => document.body.appendChild(m), 600);
+    document.body.appendChild(m);
+    document.documentElement.style.overflow = 'hidden'; // khóa cuộn trang phía sau
+    document.body.style.overflow = 'hidden';
+    // Phím Esc / nút Back của trình duyệt trong app không đóng được popup.
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') e.stopImmediatePropagation(); }, true);
   })();
 })();
