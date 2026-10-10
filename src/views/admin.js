@@ -18,20 +18,20 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/ads', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/pages', 'Trang'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/pages', 'Trang'], ['/admin/password', 'Tài khoản']];
 
 export function adminLayout(s, path, flash, content) {
   const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path;
   return shell(`Quản trị - ${s.site_name}`, `<body>
-<header class="ad-top">
-  <a class="ad-brand" href="/admin">${h(s.site_name)} <small>admin</small></a>
-  <nav class="ad-nav">${NAV.map(([p, l]) => `<a href="${p}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
-  <div class="ad-right">
+<header class="qt-top">
+  <a class="qt-brand" href="/admin">${h(s.site_name)} <small>admin</small></a>
+  <nav class="qt-nav">${NAV.map(([p, l]) => `<a href="${p}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
+  <div class="qt-right">
     <a href="/" target="_blank">Xem web ↗</a>
     <form method="post" action="/admin/logout"><button type="submit">Thoát</button></form>
   </div>
 </header>
-<main class="ad-main">
+<main class="qt-main">
   ${flash ? `<div class="flash ${h(flash[0])}">${h(flash[1])}</div>` : ''}
   ${content}
 </main>
@@ -177,7 +177,7 @@ export function adsView(s, ads, edit) {
   <div class="row-actions"><button class="btn" type="submit">Lưu cài đặt</button></div>
 </form>
 
-<form method="post" class="form card" enctype="multipart/form-data" id="adform">
+<form method="post" class="form card" enctype="multipart/form-data" id="qcform">
   <input type="hidden" name="action" value="save"><input type="hidden" name="id" value="${e.id}">
   <h2>${e.id ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}</h2>
   <label>Link Shopee (affiliate) *<input name="url" type="url" required value="${h(e.url)}" placeholder="https://s.shopee.vn/..."></label>
@@ -194,7 +194,7 @@ export function adsView(s, ads, edit) {
   <label class="check"><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}> Đang chạy</label>
   <div class="row-actions">
     <button class="btn" type="submit">Lưu sản phẩm</button>
-    ${e.id ? '<a class="btn ghost" href="/admin/ads">Hủy</a>' : ''}
+    ${e.id ? '<a class="btn ghost" href="/admin/qc">Hủy</a>' : ''}
   </div>
 </form>
 
@@ -207,7 +207,7 @@ export function adsView(s, ads, edit) {
     <span class="tnum">${fmtInt(a.shows)}<small>lượt hiện</small></span>
     <span class="tnum">${fmtInt(a.clicks)}<small>lượt bấm</small></span>
     <span class="tact">
-      <a href="?edit=${a.id}#adform">Sửa</a>
+      <a href="?edit=${a.id}#qcform">Sửa</a>
       <form method="post" onsubmit="return confirm('Xóa sản phẩm này?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="${a.id}"><button>Xóa</button></form>
     </span>
   </div>`).join('')}

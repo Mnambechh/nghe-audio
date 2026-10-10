@@ -9,16 +9,16 @@ h2 { font-size: 17px; margin: 22px 0 10px; }
 code, pre, .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
 pre { background: #10201a; color: #d8f5e6; padding: 12px; border-radius: 10px; overflow-x: auto; }
 
-.ad-top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.ad-brand { font-weight: 750; color: var(--text); }
-.ad-brand small { color: var(--brand); font-weight: 600; }
-.ad-nav { display: flex; gap: 4px; overflow-x: auto; order: 3; width: 100%; scrollbar-width: none; }
-.ad-nav a { padding: 7px 12px; border-radius: 8px; color: var(--muted); white-space: nowrap; }
-.ad-nav a.on { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-weight: 600; }
-.ad-right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 14px; }
-.ad-right button { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; }
-@media (min-width: 860px) { .ad-nav { order: 0; width: auto; } }
-.ad-main { max-width: 900px; margin: 0 auto; padding: 18px 16px 60px; }
+.qt-top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.qt-brand { font-weight: 750; color: var(--text); }
+.qt-brand small { color: var(--brand); font-weight: 600; }
+.qt-nav { display: flex; gap: 4px; overflow-x: auto; order: 3; width: 100%; scrollbar-width: none; }
+.qt-nav a { padding: 7px 12px; border-radius: 8px; color: var(--muted); white-space: nowrap; }
+.qt-nav a.on { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-weight: 600; }
+.qt-right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 14px; }
+.qt-right button { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; }
+@media (min-width: 860px) { .qt-nav { order: 0; width: auto; } }
+.qt-main { max-width: 900px; margin: 0 auto; padding: 18px 16px 60px; }
 
 .flash { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; }
 .flash.ok { background: #e3f6ec; color: #0d6b43; }

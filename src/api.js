@@ -50,7 +50,7 @@ export async function handleApi(request, db, path, ctx) {
     }
 
     // Thống kê hiển thị / bấm quảng cáo.
-    case '/api/ad': {
+    case '/api/stat': {
       const adId = parseInt(input.id, 10) || 0;
       const col = input.ev === 'click' ? 'clicks' : 'shows';
       if (adId > 0) await db.prepare(`UPDATE ads SET ${col} = ${col} + 1 WHERE id = ?`).bind(adId).run();

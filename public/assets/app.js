@@ -94,27 +94,32 @@
     if (!needAd()) return fn();
     const cfg = APP.ad;
     const ad = cfg.ads[Math.floor(Math.random() * cfg.ads.length)];
-    const m = $('#admodal');
-    $('.ad-msg', m).textContent = cfg.message;
-    $('.ad-note', m).textContent = cfg.note;
-    const btn = $('.ad-btn', m);
+    const m = $('#unlockbox');
+    $('.ul-msg', m).textContent = cfg.message;
+    $('.ul-note', m).textContent = cfg.note;
+    const btn = $('.ul-btn', m);
     btn.textContent = cfg.button || ad.url;
-    const card = $('.ad-card', m);
+    const card = $('.ul-card', m);
     card.hidden = !ad.image;
     if (ad.image) $('img', card).src = ad.image;
-    $('.ad-title', card).textContent = ad.title || '';
-    $('.ad-old', card).textContent = ad.old_price || '';
-    $('.ad-price', card).textContent = ad.price || '';
-    $('.ad-meta', card).hidden = !(ad.title || ad.price);
+    $('.ul-title', card).textContent = ad.title || '';
+    $('.ul-old', card).textContent = ad.old_price || '';
+    $('.ul-price', card).textContent = ad.price || '';
+    $('.ul-meta', card).hidden = !(ad.title || ad.price);
     [btn, card].forEach(a => { a.href = ad.url; });
     adAction = fn; adShown = ad;
     m.hidden = false;
-    beacon('/api/ad', { id: ad.id, ev: 'show' });
+    // Trình chặn quảng cáo ẩn nút: không khóa người nghe, phát luôn.
+    if (!btn.offsetHeight || getComputedStyle(btn).display === 'none') {
+      m.hidden = true; adAction = null;
+      return fn();
+    }
+    beacon('/api/stat', { id: ad.id, ev: 'show' });
   }
   function adGo() {
     store.set('ad_until', Date.now() + APP.ad.hours * 3600e3);
-    beacon('/api/ad', { id: adShown.id, ev: 'click' });
-    $('#admodal').hidden = true;
+    beacon('/api/stat', { id: adShown.id, ev: 'click' });
+    $('#unlockbox').hidden = true;
     const fn = adAction; adAction = null;
     if (fn) fn();  // vẫn trong cùng thao tác bấm nên trình duyệt cho phép phát
   }
@@ -400,8 +405,8 @@
         }
         openSheet(true);
         return;
-      case 'ad-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
-      case 'ad-close': $('#admodal').hidden = true; adAction = null; return;
+      case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
+      case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
       case 'toggle': toggle(); return;
       case 'expand': openSheet(); return;
       case 'collapse': closeSheet(); return;
@@ -429,7 +434,7 @@
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { if (!$('#admodal').hidden) $('#admodal').hidden = true; else if (!sheet.hidden) closeSheet(); }
+    if (e.key === 'Escape') { if (!$('#unlockbox').hidden) $('#unlockbox').hidden = true; else if (!sheet.hidden) closeSheet(); }
     if (e.code === 'Space' && cur && !/^(INPUT|TEXTAREA|BUTTON|A|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
   });
 

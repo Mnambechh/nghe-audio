@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '2';
+export const ASSET_V = '3';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -123,16 +123,16 @@ ${body}
   </div>
 </div>
 
-<div id="admodal" class="modal" hidden>
+<div id="unlockbox" class="modal" hidden>
   <div class="modal-box" role="dialog" aria-modal="true">
-    <button class="modal-x" type="button" data-act="ad-close" aria-label="Đóng">${ICON_X}</button>
-    <p class="ad-msg"></p>
-    <a class="ad-card" target="_blank" rel="noopener sponsored nofollow" data-act="ad-go">
+    <button class="modal-x" type="button" data-act="ul-close" aria-label="Đóng">${ICON_X}</button>
+    <p class="ul-msg"></p>
+    <a class="ul-card" target="_blank" rel="noopener sponsored nofollow" data-act="ul-go">
       <img alt="" loading="lazy">
-      <span class="ad-meta"><span class="ad-title"></span><span><s class="ad-old"></s> <b class="ad-price"></b></span></span>
+      <span class="ul-meta"><span class="ul-title"></span><span><s class="ul-old"></s> <b class="ul-price"></b></span></span>
     </a>
-    <a class="ad-btn" target="_blank" rel="noopener sponsored nofollow" data-act="ad-go"></a>
-    <p class="ad-note"></p>
+    <a class="ul-btn" target="_blank" rel="noopener sponsored nofollow" data-act="ul-go"></a>
+    <p class="ul-note"></p>
   </div>
 </div>
 
