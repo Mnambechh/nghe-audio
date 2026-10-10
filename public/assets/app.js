@@ -258,6 +258,7 @@
     body.classList.remove('is-playing', 'is-loading');
     renderTime();
     savePos();
+    syncHistory(true);
     ping(false);
   });
   audio.addEventListener('timeupdate', () => {
@@ -265,6 +266,7 @@
     if (now - lastPos > 250) { lastPos = now; renderTime(); }
     if (now - lastSave > 5000) { lastSave = now; savePos(); }
     if (!audio.paused && now - lastPing > 60000) ping(true);
+    if (!audio.paused) syncHistory();
     if (timer) checkTimer();
     if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && audio.duration && now - lastMs > 5000) {
       lastMs = now;
@@ -286,7 +288,7 @@
     if (timer) checkTimer();
     if (cur && !audio.paused && Date.now() - lastPing > 60000) ping(true);
   }, 1000);
-  window.addEventListener('pagehide', () => { savePos(); if (!audio.paused) ping(false); });
+  window.addEventListener('pagehide', () => { savePos(); syncHistory('beacon'); if (!audio.paused) ping(false); });
 
   // ---------- Thanh tua (cả thanh dưới và trình phát mở rộng) ----------
   document.addEventListener('input', e => {
@@ -360,19 +362,26 @@
     pageTrack = readTrack();
     initComments();
     if (pageTrack) {
-      const li = Math.min(store.get('lastidx_' + pageTrack.id, 0) || 0, pageTrack.parts.length - 1);
-      const pos = store.get(posKey(pageTrack.id, li), 0);
-      const btn = $('.btn-play[data-act="play-track"]');
-      const res = $('.resume');
-      if (btn && pos > 20) {
-        btn.dataset.part = li;
-        $('span', btn).textContent = 'Nghe tiếp';
-        res.hidden = false;
-        res.textContent = `Bạn đang nghe dở${pageTrack.parts.length > 1 ? ' phần ' + (li + 1) : ''} ở ${fmt(pos)}`;
-      }
+      updateResume();
       renderPage();
+      applyServerResume();
     }
+    loadHistory();
     refreshLive();
+  }
+
+  function updateResume() {
+    if (!pageTrack) return;
+    const li = Math.min(store.get('lastidx_' + pageTrack.id, 0) || 0, pageTrack.parts.length - 1);
+    const pos = store.get(posKey(pageTrack.id, li), 0);
+    const btn = $('.btn-play[data-act="play-track"]');
+    const res = $('.resume');
+    if (btn && pos > 20) {
+      btn.dataset.part = li;
+      $('span', btn).textContent = 'Nghe tiếp';
+      res.hidden = false;
+      res.textContent = `Bạn đang nghe dở${pageTrack.parts.length > 1 ? ' tập ' + (li + 1) : ''} ở ${fmt(pos)}`;
+    }
   }
 
   function refreshLive() {
@@ -422,6 +431,19 @@
           load(pageTrack, Math.min(store.get('lastidx_' + pageTrack.id, 0) || 0, pageTrack.parts.length - 1));
         }
         $('#timerpop').hidden = false;
+        return;
+      case 'login': openLogin(); return;
+      case 'login-close': $('#loginbox').hidden = true; return;
+      case 'logout': doLogout(); return;
+      case 'acct-menu': { const mm = $('.acct-menu'); mm.hidden = !mm.hidden; return; }
+      case 'hist-del': {
+        const row = t.closest('[data-hid]');
+        api('/api/history/delete', { track_id: +row.dataset.hid }).then(() => { row.remove(); histCache = null; });
+        return;
+      }
+      case 'hist-clear':
+        if (!confirm('Xóa toàn bộ lịch sử nghe?')) return;
+        api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); });
         return;
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
       case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
@@ -600,6 +622,8 @@
       inp.value = ''; e.target.closest('.sb-clear').hidden = true; hideSuggest(); inp.focus();
       return;
     }
+    const am = $('.acct-menu');
+    if (am && !am.hidden && (!e.target.closest('.acct') || e.target.closest('.acct-menu a'))) am.hidden = true;
     const pop = $('#timerpop');
     if (pop && !pop.hidden && !e.target.closest('#timerpop, [data-act="timer-pop"], [data-act="timer-open"]')) pop.hidden = true;
     if (e.target.closest('.sg-item, .sg-all')) { hideSuggest(); return; }
@@ -614,6 +638,115 @@
     inp.focus({ preventScroll: true });
   }
   window.addEventListener('hashchange', focusSearchFromHash);
+
+  // ---------- Tài khoản (đăng nhập Google) + lịch sử nghe ----------
+  let me = null, clientId = '', meLoaded = false, histCache = null, lastHist = 0;
+
+  function renderAcct() {
+    const box = $('#acct');
+    if (!box) return;
+    if (!me) { box.innerHTML = '<button class="btn-login" type="button" data-act="login">Đăng nhập</button>'; return; }
+    box.innerHTML = `<button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${avatar(me.name, me.avatar, 'acct-av')}<span>${esc(me.name)}</span></button>
+      <div class="acct-menu" hidden><p>${esc(me.name)}</p><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><button type="button" data-act="logout">Đăng xuất</button></div>`;
+  }
+
+  function setMe(m) {
+    me = m || null;
+    histCache = null;
+    renderAcct();
+  }
+
+  function fetchMe() {
+    return fetch(`${APP.base}/api/me`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok) return;
+      clientId = r.clientId || '';
+      setMe(r.me);
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); });
+  }
+
+  function openLogin() {
+    const m = $('#loginbox');
+    m.hidden = false;
+    const el = $('.login-g', m);
+    if (clientId) renderGoogleButton(el, clientId);
+    else el.innerHTML = '<span class="c-note">Đăng nhập Google chưa được bật.</span>';
+  }
+
+  function doLogout() {
+    api('/api/auth/logout', {}).then(() => {
+      setMe(null);
+      toast('Đã đăng xuất');
+      loadComments();
+      loadHistory();
+    });
+  }
+
+  // Lưu vị trí đang nghe lên tài khoản (90 giây/lần khi đang phát, ngay khi tạm dừng/rời trang).
+  function syncHistory(mode) {
+    if (!me || !cur || !audio.duration) return;
+    const t = Date.now();
+    if (!mode && t - lastHist < 90000) return;
+    lastHist = t;
+    const data = { track_id: cur.id, part: idx, pos: Math.floor(audio.currentTime), dur: Math.floor(audio.duration) };
+    if (mode === 'beacon') beacon('/api/history', data); else api('/api/history', data);
+    if (histCache) histCache = null;
+  }
+
+  function getHistory() {
+    if (!me) return Promise.resolve(null);
+    if (!histCache) histCache = fetch(`${APP.base}/api/history`, { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
+    return histCache;
+  }
+
+  // Máy mới chưa có vị trí nghe: lấy từ lịch sử trên tài khoản.
+  function applyServerResume() {
+    if (!me || !pageTrack || store.get('lastidx_' + pageTrack.id) !== null) return;
+    const id = pageTrack.id;
+    getHistory().then(r => {
+      const it = r && r.ok && r.items.find(x => x.id === id);
+      if (!it || !pageTrack || pageTrack.id !== id || store.get('lastidx_' + id) !== null) return;
+      store.set('lastidx_' + id, it.part);
+      store.set(posKey(id, it.part), it.pos);
+      updateResume();
+      renderPage();
+    });
+  }
+
+  function loadHistory() {
+    const box = $('#history');
+    if (!box || !meLoaded) return;
+    const clearBtn = $('[data-act="hist-clear"]');
+    if (!me) {
+      clearBtn.hidden = true;
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để lưu và xem lịch sử nghe trên mọi thiết bị.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    histCache = null;
+    getHistory().then(r => {
+      if (!r || !r.ok || $('#history') !== box) return;
+      clearBtn.hidden = !r.items.length;
+      box.innerHTML = r.items.length ? r.items.map(it => {
+        const pct = it.dur ? Math.min(100, it.pos / it.dur * 100) : 0;
+        return `<div class="row hist-row" data-hid="${it.id}">
+          <a class="row-icon" href="${APP.base}/track/${encodeURIComponent(it.slug)}" data-resume="${it.id}" data-part="${it.part}" data-pos="${it.pos}" aria-label="Nghe tiếp"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></a>
+          <a class="row-body" href="${APP.base}/track/${encodeURIComponent(it.slug)}" data-resume="${it.id}" data-part="${it.part}" data-pos="${it.pos}">
+            <span class="row-head"><b>${esc(it.title)}</b></span>
+            <span class="meta">${it.nparts > 1 ? `Tập ${it.part + 1}/${it.nparts} · ` : ''}${fmt(it.pos)} / ${fmt(it.dur)} · ${cDate(it.at)}</span>
+            <span class="hist-bar"><span style="width:${pct}%"></span></span>
+          </a>
+          <button class="hist-del" type="button" data-act="hist-del" aria-label="Xóa khỏi lịch sử">×</button>
+        </div>`;
+      }).join('') : '<p class="c-note">Bạn chưa nghe audio nào. Nghe xong sẽ hiện ở đây.</p>';
+    });
+  }
+
+  // Bấm "Nghe tiếp" trong lịch sử: đặt sẵn vị trí để trang audio phát tiếp đúng chỗ.
+  document.addEventListener('click', e => {
+    const a = e.target.closest('[data-resume]');
+    if (!a) return;
+    store.set('lastidx_' + a.dataset.resume, +a.dataset.part);
+    store.set(posKey(+a.dataset.resume, +a.dataset.part), +a.dataset.pos);
+  }, true);
 
   // ---------- Bình luận + đăng nhập Google ----------
   const EMOJIS = ['😂', '🤣', '😍', '🥰', '😘', '😊', '😁', '😅', '😢', '😭', '😡', '😤', '😱', '🤔', '😴', '🥺', '👍', '👏', '🙏', '💪', '❤️', '💔', '🔥', '🎧'];
@@ -699,6 +832,7 @@
     fetch(`${APP.base}/api/comments?track=${sec.dataset.track}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
       if (!r || !r.ok || $('#comments') !== sec) return;
       cState = r;
+      if ((r.me && (!me || me.id !== r.me.id)) || (!r.me && me)) setMe(r.me);
       renderComments();
     }).catch(() => { $('.c-list', sec).innerHTML = '<p class="c-note">Không tải được bình luận.</p>'; });
   }
@@ -746,7 +880,14 @@
 
   function onGoogleCredential(resp) {
     api('/api/auth/google', { credential: resp.credential }).then(r => {
-      if (r && r.ok) { toast('Xin chào ' + r.me.name + '!'); loadComments(); }
+      if (r && r.ok) {
+        toast('Xin chào ' + r.me.name + '!');
+        $('#loginbox').hidden = true;
+        setMe(r.me);
+        loadComments();
+        loadHistory();
+        applyServerResume();
+      }
       else toast((r && r.error) || 'Đăng nhập không thành công');
     });
   }
@@ -774,7 +915,7 @@
         return;
       }
       case 'logout':
-        api('/api/auth/logout', {}).then(() => { toast('Đã đăng xuất'); loadComments(); });
+        doLogout();
         return;
       case 'like': {
         if (!cState.me) { toast('Đăng nhập để thích bình luận'); $('#comments').scrollIntoView({ behavior: 'smooth' }); return; }
@@ -844,4 +985,5 @@
   if (last && last.track && last.track.parts && last.track.parts.length) load(last.track, last.idx || 0);
   initPage();
   focusSearchFromHash();
+  fetchMe();
 })();

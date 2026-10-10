@@ -41,7 +41,7 @@ Dự án → **Custom domains → Set up a custom domain** → nhập tên miề
    - Không cần Redirect URI. Bấm **Create**.
 4. Copy **Client ID** (dạng `123456-abc.apps.googleusercontent.com`) → vào trang quản trị **Cài đặt & SEO → Bình luận & đăng nhập Google** → dán vào → **Lưu**.
 
-Người nghe sẽ thấy nút **"Tiếp tục với Google"** dưới mỗi audio. Bình luận mới mặc định **chờ duyệt** (quản trị → **Bình luận**), muốn hiện ngay thì bỏ tick "Duyệt bình luận trước khi hiện". Bình luận có link luôn phải chờ duyệt.
+Người nghe bấm **Đăng nhập** ở góc trên (hoặc trong phần bình luận) để đăng nhập bằng Google. Đăng nhập xong có **Lịch sử nghe** (menu tài khoản → Lịch sử nghe): lưu tập và phút đang nghe, mở trên máy khác vẫn nghe tiếp được. Bình luận mới mặc định **chờ duyệt** (quản trị → **Bình luận**), muốn hiện ngay thì bỏ tick "Duyệt bình luận trước khi hiện". Bình luận có link luôn phải chờ duyệt.
 Chống spam: mỗi người cách nhau tối thiểu 15 giây, tối đa 50 bình luận/ngày. Admin có thể **Khóa người này** (ẩn mọi bình luận của họ).
 
 ## Audio trên R2

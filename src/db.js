@@ -61,6 +61,15 @@ const SCHEMA_V3 = [
   `CREATE TABLE IF NOT EXISTS comment_likes (comment_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (comment_id, user_id))`,
 ];
 
+// Bản 4: lịch sử nghe của người dùng đã đăng nhập.
+const SCHEMA_V4 = [
+  `CREATE TABLE IF NOT EXISTS history (
+    user_id INTEGER NOT NULL, track_id INTEGER NOT NULL, part INTEGER NOT NULL DEFAULT 0,
+    pos INTEGER NOT NULL DEFAULT 0, dur INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, track_id))`,
+  `CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_id, updated_at DESC)`,
+];
+
 let migrated = false;
 
 async function missing(db, table) {
@@ -77,6 +86,7 @@ export async function migrate(db) {
   if (await missing(db, 'cache')) await db.batch(SCHEMA.map(s => db.prepare(s)));
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
+  if (await missing(db, 'history')) await db.batch(SCHEMA_V4.map(s => db.prepare(s)));
   migrated = true;
 }
 

@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '8';
+export const ASSET_V = '9';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -45,6 +45,7 @@ export function layout(ctx, meta, body) {
 <meta name="description" content="${h(desc)}">
 ${s.seo_keywords ? `<meta name="keywords" content="${h(s.seo_keywords)}">` : ''}
 <link rel="canonical" href="${h(canonical)}">
+${meta.noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta name="theme-color" content="#ffffff">
 <meta property="og:type" content="${meta.ogType || 'website'}">
 <meta property="og:site_name" content="${h(s.site_name)}">
@@ -63,7 +64,11 @@ ${s.head_code || ''}
     ${s.logo ? `<img src="${h(s.logo)}" alt="${h(s.site_name)}" height="28">` : '<span class="brand-dot"></span>'}
     <span>${h(s.site_name)}</span>
   </a>
-  <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
+  <a class="nav-pill" href="/">Trang chủ</a>
+  <span class="top-right">
+    <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
+    <span class="acct" id="acct"><button class="btn-login" type="button" data-act="login">Đăng nhập</button></span>
+  </span>
 </header>
 <main id="main" data-title="${h(title)}">
 ${body}
@@ -150,6 +155,16 @@ ${body}
     </a>
     <a class="ul-btn" target="_blank" rel="noopener sponsored nofollow" data-act="ul-go"></a>
     <p class="ul-note"></p>
+  </div>
+</div>
+
+<div id="loginbox" class="modal" hidden>
+  <div class="modal-box login-box" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <button class="modal-x" type="button" data-act="login-close" aria-label="Đóng">${ICON_X}</button>
+    <h2 id="login-title">Đăng nhập</h2>
+    <p>Đăng nhập để bình luận, thả tim và lưu <b>lịch sử nghe</b> trên mọi thiết bị.</p>
+    <div class="g-btn login-g"></div>
+    <p class="login-note">Chúng tôi chỉ dùng tên và ảnh đại diện Google của bạn.</p>
   </div>
 </div>
 
@@ -320,4 +335,11 @@ export function notFoundPage(ctx) {
     <p class="sub">Audio này có thể đã bị gỡ hoặc đường dẫn không đúng.</p>
     <p><a class="btn-play inline" href="/">Về trang chủ</a></p></div>`;
   return layout(ctx, { title: `Không tìm thấy - ${ctx.s.site_name}` }, body);
+}
+
+export function historyPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <div class="bar-line"><h1 class="h1">Lịch sử nghe</h1><button type="button" class="link-btn" data-act="hist-clear" hidden>Xóa tất cả</button></div>
+    <div id="history" class="list"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Lịch sử nghe - ${ctx.s.site_name}`, canonical: ctx.origin + '/lich-su', noindex: true }, body);
 }

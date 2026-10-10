@@ -68,6 +68,23 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     return json({ ok: true, me: publicUser(me), config, total: items.filter(i => !i.pending).length, items });
   }
 
+  // Thông tin người đang đăng nhập (cho thanh đầu trang).
+  if (path === '/api/me') {
+    const me = await currentUser(request, db);
+    return json({ ok: true, me: publicUser(me), clientId: s.google_client_id || '' });
+  }
+
+  // Lịch sử nghe của người đang đăng nhập.
+  if (path === '/api/history' && request.method === 'GET') {
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    const items = await all(db, `SELECT h.track_id id, h.part, h.pos, h.dur, h.updated_at at, t.title, t.slug, t.duration total,
+        (SELECT COUNT(*) FROM parts p WHERE p.track_id = t.id) nparts
+      FROM history h JOIN tracks t ON t.id = h.track_id AND t.published = 1
+      WHERE h.user_id = ? ORDER BY h.updated_at DESC LIMIT 100`, me.id);
+    return json({ ok: true, items });
+  }
+
   if (request.method !== 'POST') return json({ ok: false }, 405);
   if (!sameOrigin(request)) return json({ ok: false, error: 'Yêu cầu không hợp lệ.' }, 400);
   let input = {};
@@ -98,7 +115,27 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
-  if (me.banned) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);
+  if (me.banned && path.startsWith('/api/comments')) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);
+
+  // Lưu vị trí đang nghe (gửi định kỳ khi đang phát, khi tạm dừng, khi rời trang).
+  if (path === '/api/history') {
+    const trackId = parseInt(input.track_id, 10) || 0;
+    if (trackId <= 0) return json({ ok: false }, 400);
+    const part = Math.max(0, parseInt(input.part, 10) || 0);
+    const pos = Math.max(0, Math.floor(+input.pos || 0));
+    const dur = Math.max(0, Math.floor(+input.dur || 0));
+    await db.prepare(`INSERT INTO history (user_id, track_id, part, pos, dur, updated_at)
+      SELECT ?, id, ?, ?, ?, ? FROM tracks WHERE id = ? AND published = 1
+      ON CONFLICT(user_id, track_id) DO UPDATE SET part = excluded.part, pos = excluded.pos, dur = excluded.dur, updated_at = excluded.updated_at`)
+      .bind(me.id, part, pos, dur, now(), trackId).run();
+    return json({ ok: true });
+  }
+
+  if (path === '/api/history/delete') {
+    if (input.all) await db.prepare('DELETE FROM history WHERE user_id = ?').bind(me.id).run();
+    else await db.prepare('DELETE FROM history WHERE user_id = ? AND track_id = ?').bind(me.id, parseInt(input.track_id, 10) || 0).run();
+    return json({ ok: true });
+  }
 
   // Viết bình luận / trả lời.
   if (path === '/api/comments') {
