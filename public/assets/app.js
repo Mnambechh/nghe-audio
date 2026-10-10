@@ -371,6 +371,7 @@
     loadHistory();
     loadProfile();
     loadQuests();
+    if (me && ($('#quests') || $('#withdraw'))) fetchMe(); // lấy tiến độ / số dư mới nhất khi chuyển trang
     loadWithdraw();
     markMenu();
     initRating();
@@ -1567,7 +1568,7 @@
       if (!r.item.pending) cState.total++;
       renderComments();
       if (r.item.pending) rewardToast('Đã gửi bình luận, bình luận sẽ hiện sau khi được duyệt.', '💬', 5000);
-      else showRewards(r.rewards, 'Bạn đã bình luận thành công', '💬');
+      else { showRewards(r.rewards, 'Bạn đã bình luận thành công', '💬'); fetchMe(); }
     });
   });
 
