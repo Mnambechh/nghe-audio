@@ -76,6 +76,13 @@ export async function gameStats(db, s, me) {
     checkedIn,
     checkinIn: checkedIn ? 0 : Math.max(0, num(s, 'checkin_wait') - (t - me.seen_at)),
     ckStones: num(s, 'checkin_stones'),
+    ckExp: num(s, 'checkin_exp'),
+    rateToday: me.rate_day === today ? me.rate_n : 0,
+    rateMax: num(s, 'rate_daily'),
+    cmtToday: me.cexp_day === today ? me.cexp_n : 0,
+    cmtMax: num(s, 'comment_exp_daily'),
+    cmtExp: num(s, 'comment_exp'),
+    levelStones: num(s, 'levelup_stones'),
     unread,
   };
 }

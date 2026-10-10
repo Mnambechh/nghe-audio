@@ -1,7 +1,7 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage } from './views/public.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, comingSoonPage } from './views/public.js';
 import { leaderboard } from './game.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
@@ -58,6 +58,9 @@ export async function handle(request, env, ctx) {
     const rows = await cached(db, 'leaderboard', 300, () => leaderboard(db, 50));
     return html(leaderboardPage(pageCtx, rows));
   }
+  if (path === '/nhiem-vu') return html(questsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
+  if (path === '/cua-hang') return html(comingSoonPage(pageCtx, 'Cửa hàng', '🛍️', 'Cửa hàng đổi Linh Thạch lấy vật phẩm đang được chuẩn bị. Hãy tích lũy Linh Thạch từ bây giờ nhé!'));
+  if (path === '/rut-linh-thach') return html(comingSoonPage(pageCtx, 'Rút Linh Thạch', '💎', 'Chức năng rút Linh Thạch đang được chuẩn bị. Linh Thạch bạn kiếm được vẫn được giữ nguyên trong tài khoản.'));
   if (path === '/tai-khoan') return html(profilePage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/lich-su') return html(historyPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
 

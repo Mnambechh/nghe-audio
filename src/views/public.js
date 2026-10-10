@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '15';
+export const ASSET_V = '16';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -75,8 +75,16 @@ ${safeHeadCode(s.head_code)}
   <span class="top-right">
     <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
     <span class="acct" id="acct"><button class="btn-login" type="button" data-act="login">Đăng nhập</button></span>
+    <button class="menu-btn" type="button" data-act="menu" aria-label="Menu" aria-controls="mainmenu"><svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
   </span>
 </header>
+<nav class="main-menu" id="mainmenu" hidden>
+  <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
+  <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
+</nav>
 <main id="main" data-title="${h(title)}">
 ${body}
 <footer class="footer">
@@ -397,4 +405,19 @@ export function leaderboardPage(ctx, rows) {
         <span class="meta">☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
     </div>`).join('') || '<p class="c-note">Chưa có ai tu luyện. Đăng nhập, điểm danh và đánh giá truyện để lên bảng!</p>'}</div></div>`;
   return layout(ctx, { title: `Bảng xếp hạng - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' }, body);
+}
+
+export function questsPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Nhiệm vụ kiếm Linh Thạch</h1>
+    <p class="sub">Làm nhiệm vụ mỗi ngày để nhận Linh Thạch và EXP tu luyện</p>
+    <div id="quests"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Nhiệm vụ - ${ctx.s.site_name}`, canonical: ctx.origin + '/nhiem-vu', noindex: true }, body);
+}
+
+export function comingSoonPage(ctx, title, icon, text) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">${h(title)}</h1>
+    <div class="soon"><span>${icon}</span><p>${text}</p><a class="btn-play inline" href="/nhiem-vu">Làm nhiệm vụ kiếm Linh Thạch</a></div></div>`;
+  return layout(ctx, { title: `${title} - ${ctx.s.site_name}`, canonical: ctx.origin + '/' + (title === 'Cửa hàng' ? 'cua-hang' : 'rut-linh-thach'), noindex: true }, body);
 }

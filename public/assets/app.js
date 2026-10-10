@@ -368,6 +368,8 @@
     }
     loadHistory();
     loadProfile();
+    loadQuests();
+    markMenu();
     initRating();
     refreshLive();
   }
@@ -439,6 +441,7 @@
       case 'logout': doLogout(); return;
       case 'acct-menu': { const mm = $('.acct-card'); mm.hidden = !mm.hidden; $('.notif-panel').hidden = true; return; }
       case 'bell': openNotifs(); return;
+      case 'menu': { const mm = $('#mainmenu'); mm.hidden = !mm.hidden; markMenu(); return; }
       case 'checkin': doCheckin(); return;
       case 'hist-del': {
         const row = t.closest('[data-hid]');
@@ -488,7 +491,7 @@
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeTopSearch();
+    if (e.key === 'Escape') { closeTopSearch(); const mm = $('#mainmenu'); if (mm) mm.hidden = true; }
     if (e.key === 'Escape') { ['.acct-card', '.notif-panel', '#timerpop'].forEach(sel => { const el = $(sel); if (el) el.hidden = true; }); }
     if (e.key === 'Escape') { if (!$('#unlockbox').hidden) $('#unlockbox').hidden = true; else if (!sheet.hidden) closeSheet(); }
     if (e.code === 'Space' && cur && !/^(INPUT|TEXTAREA|BUTTON|A|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
@@ -636,6 +639,8 @@
       inp.value = ''; e.target.closest('.sb-clear').hidden = true; hideSuggest(); inp.focus();
       return;
     }
+    const menu = $('#mainmenu');
+    if (menu && !menu.hidden && (!e.target.closest('#mainmenu, .menu-btn') || e.target.closest('#mainmenu a'))) menu.hidden = true;
     ['.acct-card', '.notif-panel'].forEach(sel => {
       const el = $(sel);
       if (el && !el.hidden && (!e.target.closest('.acct') || e.target.closest(sel + ' a'))) el.hidden = true;
@@ -645,6 +650,38 @@
     if (e.target.closest('.sg-item, .sg-all')) { hideSuggest(); return; }
     if (!e.target.closest('.searchbox')) hideSuggest();
   });
+
+  // Menu 3 gạch: tô hồng mục đang xem.
+  function markMenu() {
+    const p = location.pathname.replace(/\/+$/, '') || '/';
+    $$('#mainmenu [data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === p));
+  }
+
+  // Trang nhiệm vụ: tiến độ hôm nay.
+  function loadQuests() {
+    const box = $('#quests');
+    if (!box || !meLoaded) return;
+    if (!me || !game) {
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để làm nhiệm vụ và nhận Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    const g = game, ckLeft = Math.max(0, Math.ceil((ckDeadline - Date.now()) / 1000));
+    const q = (icon, title, desc, done, total, reward, btn) => {
+      const pct = total ? Math.min(100, done / total * 100) : 0, fin = done >= total;
+      return `<div class="quest${fin ? ' done' : ''}"><span class="q-ico">${icon}</span>
+        <span class="q-body"><b>${title}</b><small>${desc}</small>
+          <span class="q-bar"><span style="width:${pct}%"></span></span><small class="q-prog">${done}/${total}</small></span>
+        <span class="q-side"><span class="q-reward">${reward}</span>${fin ? '<span class="q-ok">✓ Xong</span>' : btn || ''}</span></div>`;
+    };
+    box.innerHTML = `<h2 class="h2">Hằng ngày</h2>
+      ${q('🎁', 'Điểm danh', ckLeft && !g.checkedIn ? `Online thêm ${fmt(ckLeft)} để điểm danh` : 'Điểm danh mỗi ngày', g.checkedIn ? 1 : 0, 1,
+        `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
+      ${q('⭐', 'Đánh giá truyện', 'Chấm sao cho truyện bạn đã nghe (mỗi truyện 1 lần)', g.rateToday, g.rateMax, '+1 EXP / lượt', `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)}
+      ${q('💬', 'Bình luận', 'Bình luận được duyệt sẽ được cộng EXP', g.cmtToday, g.cmtMax, `+${nf(g.cmtExp)} EXP / bình luận`, `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)}
+      <h2 class="h2">Tu luyện</h2>
+      ${q('⚡', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} 💎`, '')}
+      <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
+  }
 
   // Bấm kính lúp: hiện ô tìm kiếm ngay dưới thanh đầu trang (không chuyển trang).
   function openTopSearch() {
@@ -870,7 +907,7 @@
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); initRating(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); initRating(); });
   }
 
   setInterval(() => { if (me && !document.hidden) fetchMe(); }, 120000);

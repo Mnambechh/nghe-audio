@@ -32,7 +32,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, locked, session_ver FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   return u;
