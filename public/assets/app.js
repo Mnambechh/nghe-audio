@@ -1379,6 +1379,16 @@
     });
   }
 
+  // Ảnh đại diện lỗi (link Google hết hạn, ảnh hỏng…): thay bằng chữ cái đầu để không vỡ khung.
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.n || img.dataset.fallback) return;
+    img.dataset.fallback = '1';
+    const span = document.createElement('span');
+    span.className = img.className + ' av-letter';
+    span.textContent = (Array.from(img.dataset.n.trim())[0] || '?').toUpperCase();
+    img.replaceWith(span);
+  }, true);
   let rateWarnAt = 0;
   // Kệ cuộn ngang trên điện thoại: chấm trang bên dưới để biết còn kéo sang được.
   function initRailDots() {
@@ -1610,7 +1620,7 @@
   let gsiPromise = null, gsiClient = '';
 
   function avatar(name, url, cls = 'c-av') {
-    if (url) return `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+    if (url) return `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-n="${esc(String(name || '?'))}">`;
     const n = String(name || '?').trim();
     let hsh = 0;
     for (const ch of n) hsh = (hsh * 31 + ch.codePointAt(0)) >>> 0;

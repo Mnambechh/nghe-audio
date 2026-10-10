@@ -1108,3 +1108,28 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
   .shelf-head .tabs + .swipe-hint { margin-left: 8px; }
 }
 @media (max-width: 719px) { .shelf-head .tabs ~ .swipe-hint { display: none; } }
+
+/* ===== Chống vỡ giao diện ===== */
+html { background: var(--bg); -webkit-text-size-adjust: 100%; }
+body { overflow-x: hidden; min-height: 100vh; }
+img, svg, video { max-width: 100%; }
+/* Ảnh đại diện mọi nơi: luôn vuông → tròn, cắt vừa khung, không tràn dù ảnh gốc to/nhỏ/méo cỡ nào. */
+img.c-av, img.acct-av, img.lb-av, img.np-av, img.prof-img, .av-wrap > img {
+  flex: none; display: block; aspect-ratio: 1 / 1; object-fit: cover; object-position: center; border-radius: 50%; overflow: hidden; max-width: none; background: var(--surface2, #f3e6e3);
+}
+.av-wrap { flex: none; max-width: none; }
+.av-letter { display: grid; place-items: center; overflow: hidden; line-height: 1; color: #fff; font-weight: 700; }
+/* Chữ dài (tên, bình luận, tiêu đề không dấu cách) không đẩy vỡ khung. */
+.c-bubble, .c-bubble p, .np-body, .desc, .lb-name, .q-body, .nf-detail p, .gd-row p { overflow-wrap: anywhere; word-break: break-word; }
+.c-name b, .lb-name b, .ac-head b, .card-title, .row-head b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lb-name b, .ac-head b { white-space: nowrap; max-width: 100%; }
+.c-main, .row-body, .card-body, .lb-body, .np-body { min-width: 0; }
+.card-cover, .row-icon img, .hero-cover { image-rendering: auto; }
+/* Danh sách dài: trình duyệt bỏ qua vẽ phần ngoài màn hình → cuộn mượt hơn trên máy yếu. */
+.list > .row { content-visibility: auto; contain-intrinsic-size: auto 76px; }
+/* Hạn chế hiệu ứng nặng khi người dùng bật "giảm chuyển động". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.lb-av, .av-wrap > span.np-av { background: #C9708A; color: #fff; }
+.c-name b { white-space: nowrap; max-width: 100%; }

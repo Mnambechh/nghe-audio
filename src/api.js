@@ -9,7 +9,27 @@ import { handleCommentsApi } from './comments.js';
 // Đặt cao vì nhà mạng di động dùng chung IP cho nhiều người.
 const MAX_PLAYS_PER_IP_DAY = 300;
 
+// Chống spam / tấn công dồn dập ở tầng API (bộ nhớ tạm của máy chủ, không tốn lượt đọc/ghi D1):
+// mỗi IP tối đa 300 yêu cầu POST / phút và 600 yêu cầu GET / phút (nới rộng vì 4G dùng chung IP); dữ liệu gửi lên (trừ ảnh đại diện) tối đa 64KB.
+const ipHits = new Map();
+function overLimit(ip, kind, max) {
+  const key = kind + ip, t = Date.now();
+  let e = ipHits.get(key);
+  if (!e || t - e.start > 60000) { e = { start: t, n: 0 }; ipHits.set(key, e); }
+  e.n++;
+  if (ipHits.size > 20000) ipHits.clear();
+  return e.n > max;
+}
+
 export async function handleApi(request, db, path, ctx, info) {
+  const post = request.method === 'POST';
+  if (overLimit(info.ip, post ? 'P' : 'G', post ? 300 : 600)) {
+    if (Math.random() < 0.05) await logEvent(db, info, 'api_flood', path);
+    return json({ ok: false, silent: true, error: 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít giây.' }, 429);
+  }
+  const len = +(request.headers.get('Content-Length') || 0);
+  if (post && path !== '/api/profile/avatar' && len > 64 * 1024) return json({ ok: false, error: 'Dữ liệu quá lớn.' }, 413);
+  if (post && len > 3 * 1024 * 1024) return json({ ok: false, error: 'Dữ liệu quá lớn.' }, 413);
   if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path.startsWith('/api/profile') || path === '/api/me'
     || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/heart' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/')) return handleCommentsApi(request, db, path, info, ctx);
 

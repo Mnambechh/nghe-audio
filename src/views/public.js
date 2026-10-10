@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '59';
+export const ASSET_V = '61';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -69,7 +69,8 @@ ${meta.image ? `<meta property="og:image" content="${h(meta.image)}">
 ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="${asset('app.css')}">
 <style>:root{--brand:${h(s.theme_color)}}</style>
 ${safeHeadCode(s.head_code)}
@@ -263,7 +264,7 @@ function ratingWidget(t) {
 // Ảnh đại diện kèm số cấp; huy hiệu cảnh giới nhiều màu.
 export function lvAvatar(name, url, b, cls = 'c-av') {
   const img = url
-    ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-n="${h(String(name || '?'))}">`
     : `<span class="${cls} av-letter">${h(Array.from(String(name || '?').trim())[0] || '?').toUpperCase()}</span>`;
   return `<span class="av-wrap t${b.tier}">${img}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>`;
 }
