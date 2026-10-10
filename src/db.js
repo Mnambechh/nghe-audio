@@ -160,6 +160,12 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 18: ảnh bìa truyện (WebP lưu trong bảng media).
+  try {
+    await db.prepare('SELECT cover FROM tracks LIMIT 1').first();
+  } catch (e) {
+    await db.prepare(`ALTER TABLE tracks ADD COLUMN cover TEXT NOT NULL DEFAULT ''`).run();
+  }
   // Bản 17: vai trò thành viên (biên tập viên) và người đăng / sửa truyện.
   try {
     await db.prepare('SELECT role FROM users LIMIT 1').first();

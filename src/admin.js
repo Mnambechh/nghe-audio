@@ -75,6 +75,20 @@ async function saveUpload(db, file) {
   return `/media/${id}.${ext}`;
 }
 
+// Ảnh bìa: trình duyệt đã nén sang WebP (data URL). Máy chủ chỉ nhận đúng ảnh WebP/JPEG thật (kiểm tra chữ ký file), tối đa 1.5MB.
+async function saveCoverData(db, dataUrl) {
+  const m = String(dataUrl || '').match(/^data:image\/(webp|jpeg);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) throw new Error('Ảnh bìa không hợp lệ.');
+  const bin = atob(m[2]);
+  if (bin.length > 1.5 * 1024 * 1024) throw new Error('Ảnh bìa sau khi nén vẫn quá lớn.');
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const type = imageType(bytes);
+  if (type !== 'image/webp' && type !== 'image/jpeg') throw new Error('Ảnh bìa phải là ảnh thật (WebP/JPEG sau khi nén).');
+  const id = randomId(20);
+  await db.prepare('INSERT INTO media (id, type, data, created_at) VALUES (?, ?, ?, ?)').bind(id, type, toBase64(bytes), now()).run();
+  return `/media/${id}.${type === 'image/webp' ? 'webp' : 'jpg'}`;
+}
+
 async function deleteMedia(db, path) {
   const m = String(path || '').match(/^\/media\/([A-Za-z0-9]+)\./);
   if (m) await db.prepare('DELETE FROM media WHERE id = ?').bind(m[1]).run();
@@ -273,7 +287,14 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     else if (!newParts.length && !err) err = 'Cần ít nhất một link audio.';
     track = { ...track, title, slug: str(f, 'slug'), tag: str(f, 'tag'), description: str(f, 'description'), published: f.get('published') ? 1 : 0,
       seo_title: str(f, 'seo_title').slice(0, 120), seo_desc: str(f, 'seo_desc').replace(/\s+/g, ' ').slice(0, 320), seo_keywords: str(f, 'seo_keywords').slice(0, 300) };
+    // Ảnh bìa: mới / giữ nguyên / gỡ bỏ.
+    let cover = track.cover || '';
+    if (!err && str(f, 'cover_data')) {
+      try { cover = await saveCoverData(db, str(f, 'cover_data')); } catch (e) { err = e.message; }
+    } else if (!err && f.get('cover_remove')) cover = '';
     if (err) return view(V.trackForm({ track, parts: newParts, err, editor }), 400);
+    if (cover !== (track.cover || '') && track.cover) await deleteMedia(db, track.cover);
+    track.cover = cover;
 
     const slug = await uniqueSlug(db, 'tracks', slugify(track.slug || title), id);
     const t = now();
@@ -282,7 +303,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       await db.batch([
         db.prepare('UPDATE tracks SET title=?, slug=?, search=?, tag=?, description=?, published=?, duration=?, updated_at=? WHERE id=?')
           .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, id),
-        db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, updated_by=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, id),
+        db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, updated_by=?, cover=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, track.cover, id),
         ...(f.get('bump') ? [db.prepare('UPDATE tracks SET created_at = ? WHERE id = ?').bind(t, id)] : []),
         db.prepare('DELETE FROM parts WHERE track_id = ?').bind(id),
       ]);
@@ -290,8 +311,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const r = await db.prepare('INSERT INTO tracks (title, slug, search, tag, description, published, duration, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
         .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, t).run();
       id = r.meta.last_row_id;
-      await db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, created_by=?, updated_by=? WHERE id=?')
-        .bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, editor ? editor.id : 0, id).run();
+      await db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, created_by=?, updated_by=?, cover=? WHERE id=?')
+        .bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, editor ? editor.id : 0, track.cover, id).run();
     }
     const ins = db.prepare('INSERT INTO parts (track_id, pos, title, url, duration) VALUES (?,?,?,?,?)');
     await db.batch(newParts.map((p, i) => ins.bind(id, i, p.title, p.url, p.duration)));
@@ -302,6 +323,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
   m = path.match(/^\/admin\/track\/(\d+)\/delete$/);
   if (m && isPost) {
     const id = parseInt(m[1], 10);
+    const old = await first(db, 'SELECT cover FROM tracks WHERE id = ?', id);
+    if (old && old.cover) await deleteMedia(db, old.cover);
     await db.batch([
       db.prepare('DELETE FROM parts WHERE track_id = ?').bind(id),
       db.prepare('DELETE FROM views_daily WHERE track_id = ?').bind(id),

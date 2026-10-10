@@ -143,3 +143,54 @@ document.addEventListener('change', e => {
   form.addEventListener('input', update);
   update();
 })();
+
+// Ảnh bìa truyện: chỉ nhận ảnh cơ bản (JPG/PNG/WebP/GIF/BMP), thu nhỏ còn tối đa 1000px rồi nén sang WebP ngay trên trình duyệt.
+(() => {
+  const input = document.getElementById('coverFile');
+  if (!input) return;
+  const form = input.closest('form');
+  const out = form.querySelector('[name=cover_data]');
+  const prev = form.querySelector('.cover-prev');
+  const info = form.querySelector('.cover-info');
+  const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'];
+  const OK_EXT = /\.(jpe?g|png|webp|gif|bmp)$/i;
+  const fmtKB = n => n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.round(n / 1024) + 'KB';
+  // Kiểm tra chữ ký file thật (không tin đuôi file / MIME do trình duyệt đoán).
+  const magicOk = b => (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47)
+    || (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) || (b[0] === 0x42 && b[1] === 0x4d)
+    || (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50);
+  const readAs = (file, how) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = bad; r[how](file); });
+  const loadImg = src => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; });
+  const toData = (canvas, type, q) => canvas.toDataURL(type, q);
+
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    out.value = '';
+    if (!file) return;
+    const fail = msg => { info.innerHTML = `<b style="color:#c0392b">${msg}</b>`; input.value = ''; };
+    if (!OK_TYPES.includes(file.type) || !OK_EXT.test(file.name)) return fail('Chỉ nhận ảnh JPG, PNG, WebP, GIF, BMP.');
+    try {
+      const head = new Uint8Array(await readAs(file.slice(0, 16), 'readAsArrayBuffer'));
+      if (!magicOk(head)) return fail('File không phải ảnh hợp lệ.');
+      info.textContent = 'Đang nén ảnh…';
+      const img = await loadImg(await readAs(file, 'readAsDataURL'));
+      const MAX = 1000, k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      // Giảm chất lượng dần đến khi ≤ 350KB. Trình duyệt quá cũ không nén được WebP thì dùng JPEG.
+      let type = 'image/webp', data = toData(c, type, 0.85);
+      if (!data.startsWith('data:image/webp')) { type = 'image/jpeg'; data = toData(c, type, 0.85); }
+      for (let q = 0.75; data.length * 0.75 > 350 * 1024 && q >= 0.4; q -= 0.1) data = toData(c, type, q);
+      out.value = data;
+      prev.innerHTML = `<img src="${data}" alt="">`;
+      const rm = form.querySelector('[name=cover_remove]'); if (rm) rm.checked = false;
+      info.innerHTML = `Đã nén: ${fmtKB(file.size)} → <b>${fmtKB(Math.round(data.length * 0.75))}</b> (${type === 'image/webp' ? '.webp' : '.jpg'}, ${c.width}×${c.height}). Bấm Lưu để đăng.`;
+    } catch (e) {
+      fail('Không đọc được ảnh này, hãy thử ảnh khác.');
+    }
+  });
+})();

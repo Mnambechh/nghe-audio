@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '48';
+export const ASSET_V = '49';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -64,7 +64,8 @@ ${meta.extraHead || ''}
 <meta property="og:title" content="${h(title)}">
 <meta property="og:description" content="${h(desc)}">
 <meta property="og:url" content="${h(canonical)}">
-${s.logo ? `<meta property="og:image" content="${h(abs(ctx.origin, s.logo))}">` : ''}
+${meta.image ? `<meta property="og:image" content="${h(meta.image)}">
+<meta name="twitter:image" content="${h(meta.image)}">` : s.logo ? `<meta property="og:image" content="${h(abs(ctx.origin, s.logo))}">` : ''}
 ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -216,7 +217,8 @@ function liveBadge(t) {
 }
 
 function card(t, rank = null, views = null) {
-  return `<a class="card" href="/track/${h(t.slug)}">`
+  return `<a class="card${t.cover ? ' has-cover' : ''}" href="/track/${h(t.slug)}">`
+    + (t.cover ? `<img class="card-cover" src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : '')
     + (rank !== null ? `<span class="rank r${rank}">${rank}</span>` : '')
     + `<span class="card-body"><b class="card-title">${h(t.title)}</b>`
     + (t.tag ? `<span class="tag">${h(t.tag)}</span>` : '')
@@ -226,7 +228,7 @@ function card(t, rank = null, views = null) {
 
 function row(t) {
   return `<a class="row" href="/track/${h(t.slug)}">`
-    + `<span class="row-icon">${ICON_PLAY}</span>`
+    + `<span class="row-icon${t.cover ? ' has-cover' : ''}">${t.cover ? `<img src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : ''}${ICON_PLAY}</span>`
     + `<span class="row-body"><span class="row-head"><b>${h(t.title)}</b>${t.tag ? `<span class="tag">${h(t.tag)}</span>` : ''}</span>`
     + `<span class="row-meta"><span class="meta">${ICON_HEADPHONES}${fmtNum(t.views)} lượt nghe</span>${liveBadge(t)}</span></span>`
     + (t.duration > 0 ? `<span class="dur">${fmtTime(t.duration)}</span>` : '')
@@ -338,6 +340,7 @@ export function trackPage(ctx, t, related) {
   const data = { id: t.id, slug: t.slug, title: t.title, parts };
   const ld = {
     '@context': 'https://schema.org', '@type': 'AudioObject', name: t.title, description: desc, url: canonical, inLanguage: 'vi', keywords,
+    ...(t.cover ? { image: ctx.origin + t.cover, thumbnailUrl: ctx.origin + t.cover } : {}),
     genre: t.tag || undefined, publisher: { '@type': 'Organization', name: s.site_name, url: ctx.origin },
     dateModified: new Date((t.updated_at || t.created_at) * 1000).toISOString(),
     uploadDate: new Date(t.created_at * 1000).toISOString(), duration: `PT${t.duration}S`, contentUrl: parts[0]?.url || '',
@@ -350,7 +353,8 @@ export function trackPage(ctx, t, related) {
   const body = `<div class="wrap narrow">
   <a class="back" href="/">← Trang chủ</a>
   <article class="hero">
-    <div class="hero-art">
+    <div class="hero-art${t.cover ? ' has-cover' : ''}">
+      ${t.cover ? `<img class="hero-cover" src="${h(t.cover)}" alt="${h(t.title)}" fetchpriority="high">` : ''}
       <span class="eq big"><i></i><i></i><i></i><i></i><i></i></span>
       ${t.duration > 0 ? `<span class="dur">${fmtTime(t.duration)}</span>` : ''}
     </div>
@@ -401,7 +405,7 @@ export function trackPage(ctx, t, related) {
 <meta property="article:published_time" content="${new Date(t.created_at * 1000).toISOString()}">
 <meta property="article:modified_time" content="${new Date((t.updated_at || t.created_at) * 1000).toISOString()}">
 <script type="application/ld+json">${jsonScript(crumbs)}</script>`;
-  return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead }, body);
+  return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead, image: t.cover ? ctx.origin + t.cover : '' }, body);
 }
 
 export function staticPage(ctx, p) {

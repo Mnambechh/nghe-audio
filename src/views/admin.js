@@ -132,6 +132,17 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   </div>
   <label>Mô tả (hiện trên trang nghe)<textarea name="description" rows="3">${h(track.description)}</textarea></label>
 
+  <div class="cover-box">
+    <div class="cover-prev">${track.cover ? `<img src="${h(track.cover)}" alt="">` : '<span>Chưa có ảnh bìa</span>'}</div>
+    <div class="cover-ctl">
+      <b>Ảnh bìa</b>
+      <label class="btn ghost cover-pick">Chọn ảnh…<input type="file" id="coverFile" accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,image/jpeg,image/png,image/webp,image/gif,image/bmp" hidden></label>
+      <small class="muted cover-info">JPG, PNG, WebP, GIF, BMP — không giới hạn dung lượng. Ảnh tự thu nhỏ và nén sang <b>.webp</b> trước khi lưu.</small>
+      <input type="hidden" name="cover_data">
+      ${track.cover ? '<label class="check"><input type="checkbox" name="cover_remove" value="1"> Gỡ ảnh bìa</label>' : ''}
+    </div>
+  </div>
+
   <details class="seo-box"${track.seo_title || track.seo_desc || track.seo_keywords ? ' open' : ''}>
     <summary>🔎 SEO cho truyện này <small class="muted">(để trống = web tự tạo nội dung chuẩn SEO)</small></summary>
     <label>Tiêu đề SEO <small class="muted seo-count" data-for="seo_title" data-max="60"></small>
