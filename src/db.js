@@ -160,6 +160,15 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 14: thời gian online thật (chỉ tính khi đang mở tab web) cho điểm danh.
+  try {
+    await db.prepare('SELECT online_sec FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN online_sec INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN online_at INTEGER NOT NULL DEFAULT 0`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 13: SEO riêng cho từng truyện.
   try {
     await db.prepare('SELECT seo_title FROM tracks LIMIT 1').first();

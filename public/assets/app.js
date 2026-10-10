@@ -726,7 +726,7 @@
       box.innerHTML = '<div class="c-login"><p>Đăng nhập để làm nhiệm vụ và nhận Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
       return;
     }
-    const g = game, ckLeft = Math.max(0, Math.ceil((ckDeadline - Date.now()) / 1000));
+    const g = game, ckLeft = Math.max(0, Math.ceil(ckLeftSec));
     const q = (icon, title, desc, done, total, reward, btn) => {
       const pct = total ? Math.min(100, done / total * 100) : 0, fin = done >= total;
       return `<div class="quest${fin ? ' done' : ''}"><span class="q-ico">${icon}</span>
@@ -969,7 +969,7 @@
 
   const ICON_BELL = '<svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>';
   const ICON_OUT = '<svg viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5zm9-14H12v2h7v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>';
-  let game = null, ckTimer = 0, ckDeadline = 0, ckNotified = false, notifs = null;
+  let game = null, ckTimer = 0, ckLeftSec = 0, ckNotified = false, notifs = null;
 
   const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier}">${b.lvl}</i></span>` : avatar(name, url, cls);
   const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
@@ -1006,27 +1006,54 @@
   }
 
   function stopCk() { clearInterval(ckTimer); ckTimer = 0; }
-  // Đồng hồ đếm ngược điểm danh (máy chủ vẫn kiểm tra lại thời gian thật).
+  // Đếm ngược điểm danh: CHỈ chạy khi tab web đang hiện và đang được chọn (treo web rồi sang tab/ứng dụng khác thì dừng).
+  // Thời gian được báo về máy chủ mỗi 15 giây; máy chủ là bên quyết định cuối cùng.
+  let onlinePending = 0, onlineSending = false;
+  const pageActive = () => !document.hidden && (!document.hasFocus || document.hasFocus());
+  function sendOnline(force) {
+    if (!me || me.demo || !game || game.checkedIn || onlineSending) return;
+    const sec = Math.floor(onlinePending);
+    if (sec < 1 || (!force && sec < 15 && ckLeftSec > 0)) return;
+    onlineSending = true;
+    onlinePending -= sec;
+    api('/api/online', { sec }).then(r => {
+      if (r && r.ok) { ckLeftSec = r.left; renderCk(); }
+      else onlinePending += sec;
+    }).finally(() => { onlineSending = false; });
+  }
+  function renderCk() {
+    const left = Math.max(0, Math.ceil(ckLeftSec)), paused = left > 0 && !pageActive();
+    const t = $('.ck-time'), b = $('.ck-btn');
+    if (t) t.textContent = left ? ' · ' + fmt(left) + (paused ? ' (tạm dừng)' : '') : ' · Sẵn sàng!';
+    if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
+    const ql = $('.q-ck-left'), qb = $('.q-ck-btn');
+    if (ql) ql.innerHTML = left ? `Mở web thêm <b>${fmt(left)}</b> để điểm danh${paused ? ' <i>(tạm dừng khi rời trang)</i>' : ''}` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận';
+    if (qb) qb.disabled = left > 0;
+    return left;
+  }
   function tickCk() {
     stopCk();
     if (!game || game.checkedIn) { const t = $('.ck-time'); if (t) t.textContent = ''; return; }
+    let last = Date.now();
     const step = () => {
-      const left = Math.max(0, Math.ceil((ckDeadline - Date.now()) / 1000));
-      const t = $('.ck-time'), b = $('.ck-btn');
-      if (t) t.textContent = left ? ' · ' + fmt(left) : ' · Sẵn sàng!';
-      if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
-      // Trang Nhiệm vụ: đếm ngược chạy theo thời gian thực, không cần tải lại.
-      const ql = $('.q-ck-left'), qb = $('.q-ck-btn');
-      if (ql) ql.innerHTML = left ? `Online thêm <b>${fmt(left)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận';
-      if (qb) qb.disabled = left > 0;
-      if (!left) {
+      const nowMs = Date.now(), dt = Math.min(2, (nowMs - last) / 1000);
+      last = nowMs;
+      if (ckLeftSec > 0 && pageActive()) {
+        ckLeftSec = Math.max(0, ckLeftSec - dt);
+        onlinePending += dt;
+        if (ckLeftSec <= 0) sendOnline(true); else sendOnline(false);
+      }
+      if (!renderCk() && onlinePending < 1) {
         stopCk();
         if (!ckNotified) { ckNotified = true; updateBell(); }
       }
     };
     step();
-    if (ckDeadline > Date.now()) ckTimer = setInterval(step, 1000);
+    ckTimer = setInterval(step, 1000);
   }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) sendOnline(true); renderCk(); });
+  window.addEventListener('blur', () => { sendOnline(true); renderCk(); });
+  window.addEventListener('focus', renderCk);
 
   function updateBell() {
     const n = (game ? game.unread : 0) + (game && !game.checkedIn && ckNotified ? 1 : 0);
@@ -1182,13 +1209,17 @@
   }
 
   function doCheckin() {
-    once('checkin', () => api('/api/checkin', {}).then(r => {
+    // Gửi nốt thời gian online chưa báo rồi mới điểm danh.
+    const flush = onlinePending >= 1 && !onlineSending
+      ? (() => { const sec = Math.floor(onlinePending); onlinePending -= sec; return api('/api/online', { sec }); })()
+      : Promise.resolve();
+    once('checkin', () => flush.then(() => api('/api/checkin', {})).then(r => {
       if (r && r.ok) {
         showRewards(r.rewards, 'Bạn đã điểm danh thành công', '📅');
         ckNotified = false;
         fetchMe();
       } else {
-        if (r && r.wait) ckDeadline = Date.now() + r.wait * 1000;
+        if (r && r.wait) ckLeftSec = r.wait;
         toast((r && r.error) || 'Chưa điểm danh được');
         tickCk();
       }
@@ -1202,7 +1233,7 @@
     me = m || null;
     game = me ? (g || game) : null;
     if (prevLvl && game && game.level && game.level.lvl !== prevLvl) setTimeout(syncMyLevel);
-    if (game) { ckDeadline = Date.now() + (game.checkinIn || 0) * 1000; if (game.checkedIn) ckNotified = false; }
+    if (game) { ckLeftSec = Math.max(0, (game.checkinIn || 0) - onlinePending); if (game.checkedIn) ckNotified = false; }
     histCache = null;
     if (changed) renderAcct(); else renderGame();
     renderDemoBar();

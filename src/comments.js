@@ -35,7 +35,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen, online_sec FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   if (p.demo) u.demo = true; // admin đang xem thử tài khoản này
@@ -188,7 +188,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
   if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
   if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
-  if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate') {
+  if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate' || path === '/api/online') {
     return handleGameApi(request, db, s, path, me, input);
   }
   if (me.banned && path.startsWith('/api/comments')) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);

@@ -101,8 +101,8 @@ export async function onCommentApproved(db, s, c) {
 export async function gameStats(db, s, me) {
   const t = now(), today = vnDay();
   if (me.seen_day !== today) {
-    await db.prepare('UPDATE users SET seen_day = ?, seen_at = ? WHERE id = ?').bind(today, t, me.id).run();
-    me.seen_day = today; me.seen_at = t;
+    await db.prepare('UPDATE users SET seen_day = ?, seen_at = ?, online_sec = 0, online_at = 0 WHERE id = ?').bind(today, t, me.id).run();
+    me.seen_day = today; me.seen_at = t; me.online_sec = 0;
   }
   const unread = (await first(db, 'SELECT COUNT(*) c FROM notifications WHERE user_id = ? AND is_read = 0', me.id)).c;
   const checkedIn = me.checkin_day === today;
@@ -112,7 +112,7 @@ export async function gameStats(db, s, me) {
     comments: me.comments_n || 0,
     level: levelInfo(me.exp),
     checkedIn,
-    checkinIn: checkedIn ? 0 : Math.max(0, num(s, 'checkin_wait') - (t - me.seen_at)),
+    checkinIn: checkedIn ? 0 : Math.max(0, num(s, 'checkin_wait') - (me.online_sec || 0)),
     ckStones: num(s, 'checkin_stones'),
     ckExp: num(s, 'checkin_exp'),
     rateToday: me.rate_day === today ? me.rate_n : 0,
@@ -146,14 +146,32 @@ export async function handleGameApi(request, db, s, path, me, input) {
     return json({ ok: true, more: items.length === limit, items: items.map(n => ({ ...n, actor_badge: n.actor ? badge(n.actor_exp) : null })) });
   }
 
+  // Cộng thời gian đang mở tab web. Mỗi lần tối đa 20 giây và không quá thời gian thật trôi qua kể từ lần báo trước.
+  if (path === '/api/online') {
+    const t = now(), today = vnDay();
+    const need = num(s, 'checkin_wait');
+    const u = await first(db, 'SELECT seen_day, online_sec, online_at, checkin_day FROM users WHERE id = ?', me.id);
+    if (u.checkin_day === today) return json({ ok: true, sec: need, need, left: 0 });
+    const same = u.seen_day === today;
+    const before = same ? u.online_sec : 0;
+    const gap = same && u.online_at ? t - u.online_at + 2 : 20;
+    const credit = Math.max(0, Math.min(Math.floor(+input.sec || 0), 20, gap));
+    const after = Math.min(need, before + credit);
+    const w = await db.prepare(`UPDATE users SET seen_day = ?, seen_at = CASE WHEN seen_day = ? THEN seen_at ELSE ? END, online_sec = ?, online_at = ?
+      WHERE id = ? AND online_at = ? AND seen_day = ?`).bind(today, today, t, after, t, me.id, u.online_at, u.seen_day).run();
+    const sec = w.meta.changes ? after : before;
+    return json({ ok: true, sec, need, left: Math.max(0, need - sec) });
+  }
+
   // Điểm danh hằng ngày: phải online đủ thời gian trong ngày.
   if (path === '/api/checkin') {
     const t = now(), today = vnDay();
     if (me.checkin_day === today) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
-    const wait = num(s, 'checkin_wait') - (me.seen_day === today ? t - me.seen_at : 0);
+    // Chỉ tính thời gian đang mở tab web (máy khách báo về, máy chủ kiểm tra lại) — treo web rồi sang tab khác không được tính.
+    const wait = num(s, 'checkin_wait') - (me.seen_day === today ? me.online_sec || 0 : 0);
     if (me.seen_day !== today || wait > 0) {
-      if (me.seen_day !== today) await db.prepare('UPDATE users SET seen_day = ?, seen_at = ? WHERE id = ?').bind(today, t, me.id).run();
-      return json({ ok: false, error: 'Chưa đủ thời gian online.', wait: Math.max(1, Math.ceil(wait)) }, 400);
+      if (me.seen_day !== today) await db.prepare('UPDATE users SET seen_day = ?, seen_at = ?, online_sec = 0, online_at = 0 WHERE id = ?').bind(today, t, me.id).run();
+      return json({ ok: false, error: 'Chưa đủ thời gian online trên web.', wait: Math.max(1, Math.ceil(me.seen_day === today ? wait : num(s, 'checkin_wait'))) }, 400);
     }
     const r = await db.prepare("UPDATE users SET checkin_day = ?, stones = stones + ? WHERE id = ? AND checkin_day != ?")
       .bind(today, num(s, 'checkin_stones'), me.id, today).run();
