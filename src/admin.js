@@ -9,7 +9,7 @@ import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
 import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
-import { QUEST_DEFAULTS, listenConfig } from './quests.js';
+import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -384,6 +384,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         if (!c) return;
         await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(cid).run();
         await onCommentApproved(db, s, c);
+        await onCommentQuest(db, s, c.user_id);
         await notify(db, c.user_id, 'approved', { track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });
       };
       if (act === 'approve' && id) await approve(id);
@@ -429,13 +430,17 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const int = k => Math.max(0, Math.min(1000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
       const cleanUrl = u => /^https?:\/\/\S+$/i.test(u) ? u.slice(0, 1000) : '';
       if (act === 'listen') {
+        const mins = f.getAll('t_min'), st = f.getAll('t_stones'), ex = f.getAll('t_exp');
+        const tiers = parseTiers(mins.map((m, i) => `${m}:${st[i] || 0}:${ex[i] || 0}`).join('\n'));
         await saveSettings(db, {
           listen_quest_enabled: f.get('listen_quest_enabled') ? '1' : '0',
-          listen_quest_minutes: String(Math.max(1, Math.min(600, int('listen_quest_minutes') || 20))),
-          listen_quest_stones: String(int('listen_quest_stones')),
-          listen_quest_exp: String(int('listen_quest_exp')),
+          listen_quest_tiers: tiers.map(t => `${t.min}:${t.stones}:${t.exp}`).join('\n') || '0',
         });
         return go(back, ['ok', 'Đã lưu nhiệm vụ nghe audio.']);
+      }
+      if (act === 'comment') {
+        await saveSettings(db, { comment_quest_enabled: f.get('comment_quest_enabled') ? '1' : '0', comment_quest_stones: String(int('comment_quest_stones')) });
+        return go(back, ['ok', 'Đã lưu nhiệm vụ bình luận.']);
       }
       if (act === 'add' || act === 'save') {
         const title = str(f, 'title').slice(0, 80);
@@ -460,7 +465,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       all(db, 'SELECT quest_id, COUNT(*) n FROM quest_done WHERE day = ? GROUP BY quest_id', today),
     ]);
     const counts = Object.fromEntries(doneToday.map(r => [r.quest_id, r.n]));
-    return view(V.questsView({ quests, counts, listen: listenConfig(s) }));
+    return view(V.questsView({ quests, counts, listen: listenConfig(s), comment: commentConfig(s) }));
   }
 
   // Rút Linh Thạch: duyệt yêu cầu

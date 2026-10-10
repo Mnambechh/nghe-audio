@@ -590,7 +590,7 @@ export function withdrawalsView({ rows, counts, status }) {
 
 // ---------- Nhiệm vụ ----------
 
-export function questsView({ quests, counts, listen }) {
+export function questsView({ quests, counts, listen, comment }) {
   const fields = (q = {}) => `
     <label>Tên nhiệm vụ<input name="title" value="${h(q.title || '')}" maxlength="80" placeholder="Mở quảng cáo TikTok" required></label>
     <label>Link mở khi bấm<input name="url" value="${h(q.url || '')}" placeholder="https://vt.tiktok.com/..." inputmode="url"></label>
@@ -606,13 +606,22 @@ export function questsView({ quests, counts, listen }) {
 
 <form method="post" class="form card"><input type="hidden" name="action" value="listen">
   <h2>🎧 Nghe audio</h2>
-  <label class="check"><input type="checkbox" name="listen_quest_enabled" value="1"${listen.enabled ? ' checked' : ''}> Bật nhiệm vụ nghe audio</label>
-  <div class="grid3">
-    <label>Số phút cần nghe<input name="listen_quest_minutes" inputmode="numeric" value="${listen.minutes}"></label>
-    <label>Linh Thạch thưởng<input name="listen_quest_stones" inputmode="numeric" value="${listen.stones}"></label>
-    <label>EXP thưởng<input name="listen_quest_exp" inputmode="numeric" value="${listen.exp}"></label>
-  </div>
-  <small class="muted">Tính theo thời gian thật đang phát (nghe 1.5× hay 2× vẫn cần đủ số phút đồng hồ); tua không được cộng thời gian. Máy chủ kiểm tra lại để chống gửi khống. Hôm nay đã có <b>${fmtInt(counts[0] || 0)}</b> người hoàn thành.</small>
+  <label class="check"><input type="checkbox" name="listen_quest_enabled" value="1"${listen.on ? ' checked' : ''}> Bật nhiệm vụ nghe audio</label>
+  <p class="muted">Mỗi dòng là một mốc trong ngày (vd. nghe đủ 20 phút +10 Linh Thạch, đủ 30 phút +15 Linh Thạch). Để trống số phút để bỏ mốc đó.</p>
+  ${[...listen.tiers, {}, {}].slice(0, Math.max(3, listen.tiers.length + 1)).map(t => `<div class="grid3 tier">
+    <label>Nghe đủ (phút)<input name="t_min" inputmode="numeric" value="${t.min || ''}" placeholder="vd. 45"></label>
+    <label>Linh Thạch thưởng<input name="t_stones" inputmode="numeric" value="${t.min ? t.stones : ''}"></label>
+    <label>EXP thưởng<input name="t_exp" inputmode="numeric" value="${t.min ? t.exp : ''}"></label>
+  </div>${t.min ? `<small class="muted">Hôm nay ${fmtInt(counts[100000 + t.min] || 0)} người đạt mốc ${t.min} phút.</small>` : ''}`).join('')}
+  <small class="muted">Tính theo thời gian thật đang phát (nghe 1.5× hay 2× vẫn cần đủ số phút đồng hồ); tua, tạm dừng không được cộng. Máy chủ kiểm tra lại để chống gửi khống.</small>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>
+
+<form method="post" class="form card"><input type="hidden" name="action" value="comment">
+  <h2>💬 Bình luận hợp lệ</h2>
+  <label class="check"><input type="checkbox" name="comment_quest_enabled" value="1"${comment.enabled ? ' checked' : ''}> Bật nhiệm vụ bình luận</label>
+  <label>Linh Thạch thưởng (1 lần mỗi ngày)<input name="comment_quest_stones" inputmode="numeric" value="${comment.stones}"></label>
+  <small class="muted">Thưởng cho bình luận <b>được hiện</b> đầu tiên trong ngày (bình luận bị bộ lọc giữ lại thì nhận khi bạn duyệt). EXP bình luận vẫn tính riêng theo Cài đặt. Hôm nay đã có <b>${fmtInt(counts[-1] || 0)}</b> người hoàn thành.</small>
   <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>
 

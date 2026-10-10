@@ -4,7 +4,7 @@ import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageT
 import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
-import { handleQuestApi, questStats } from './quests.js';
+import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
 import { badge } from './levels.js';
 import { matchWords } from './wordfilter.js';
 import { handleWithdrawApi } from './withdraw.js';
@@ -245,7 +245,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const r = await db.prepare('INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(trackId, me.id, parent, body, status, t, info.ip).run();
     const rewards = status === 'approved'
-      ? await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body })
+      ? [...await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body }), ...await onCommentQuest(db, s, me.id)]
       : [];
     return json({
       ok: true,

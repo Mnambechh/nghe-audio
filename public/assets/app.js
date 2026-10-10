@@ -680,6 +680,8 @@
       ${q('🎁', 'Điểm danh', ckLeft && !g.checkedIn ? `Online thêm ${fmt(ckLeft)} để điểm danh` : 'Điểm danh mỗi ngày', g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
+      ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
+        `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
       ${((g.quests && g.quests.links) || []).map(x => q('🎯', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
         rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`)).join('')}
       <p class="c-note">Nhiệm vụ hằng ngày làm mới lúc 0h.</p>
@@ -690,15 +692,17 @@
 
   const rewardText = (stones, exp) => [stones && `+${nf(stones)} 💎`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
 
-  // Nhiệm vụ nghe audio: tiến độ tính bằng phút:giây đã nghe hôm nay.
+  // Nhiệm vụ nghe audio: mỗi mốc (20 phút, 30 phút…) một dòng, tiến độ chung là thời gian đã nghe hôm nay.
   function listenQuest(q) {
     const L = game && game.quests && game.quests.listen;
     if (!L) return '';
-    const sec = Math.min(L.need, L.sec + (L.done ? 0 : lq.pending));
-    const mins = Math.round(L.need / 60);
-    return q('🎧', `Nghe audio ${mins} phút`, L.done ? 'Đã nghe đủ hôm nay' : `Đã nghe ${fmt(sec)} / ${mins}:00 · tua không được tính`,
-      L.done ? 1 : Math.floor(sec / 60), L.done ? 1 : mins, rewardText(L.stones, L.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)
-      .replace(/<small class="q-prog">[^<]*<\/small>/, `<small class="q-prog">${L.done ? '✓' : Math.floor(sec / 60) + '/' + mins + ' phút'}</small>`);
+    const sec = Math.min(L.need, L.sec + lq.pending);
+    return L.tiers.map(t => {
+      const need = t.min * 60, s2 = Math.min(sec, need);
+      return q('🎧', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Đã nghe ${fmt(s2)} / ${t.min}:00 · tua không được tính`,
+        t.done ? 1 : Math.floor(s2 / 60), t.done ? 1 : t.min, rewardText(t.stones, t.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)
+        .replace(/<small class="q-prog">[^<]*<\/small>/, `<small class="q-prog">${t.done ? '✓' : Math.floor(s2 / 60) + '/' + t.min + ' phút'}</small>`);
+    }).join('');
   }
 
   // Bấm "Mở" nhiệm vụ link: trình duyệt mở link (tab mới), máy chủ ghi nhận và phát thưởng.
@@ -719,7 +723,7 @@
   const lq = { pending: 0, since: 0, sending: false };
   function lqActive() {
     const L = game && game.quests && game.quests.listen;
-    return !!(me && L && !L.done);
+    return !!(me && L && L.tiers.some(t => !t.done));
   }
   function lqStop() {
     if (lq.since) { lq.pending += Math.min(120, (Date.now() - lq.since) / 1000); lq.since = 0; }
@@ -730,15 +734,16 @@
     if (!lqActive() || lq.sending) return;
     const L = game.quests.listen;
     const sec = Math.floor(lq.pending);
-    if (sec < 1 || (!force && sec < 30 && L.sec + sec < L.need)) return;
+    const nextMin = (L.tiers.find(t => !t.done) || {}).min || 0;
+    if (sec < 1 || (!force && sec < 30 && L.sec + sec < nextMin * 60)) return;
     lq.sending = true;
     lq.pending -= sec;
     api('/api/quest/listen', { sec }).then(r => {
       if (r && r.ok) {
         L.sec = r.sec;
-        if (r.completed) {
-          L.done = true;
-          showRewards(r.rewards, `Bạn đã nghe đủ ${r.minutes} phút hôm nay`, '🎧');
+        if (r.reached && r.reached.length) {
+          L.tiers.forEach(t => { if (r.reached.includes(t.min)) t.done = true; });
+          showRewards(r.rewards, `Bạn đã nghe đủ ${r.reached[r.reached.length - 1]} phút hôm nay`, '🎧');
           fetchMe();
         }
       } else lq.pending += sec;
