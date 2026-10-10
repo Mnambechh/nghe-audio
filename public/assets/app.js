@@ -709,8 +709,8 @@
     const c = wd.config, vnd = n => nf(Math.floor(n * c.rate)) + 'đ';
     const STATUS = { pending: ['Chờ duyệt', 'st-pending'], paid: ['Đã chuyển', 'st-paid'], rejected: ['Từ chối, đã hoàn', 'st-rejected'] };
     box.innerHTML = `
-      <div class="wd-balance"><span>Số dư</span><b>${nf(wd.balance)} 💎</b><small>≈ ${vnd(wd.balance)} · 1 Linh Thạch = ${String(c.rate).replace('.', ',')}đ</small></div>
-      <p class="wd-rules">Rút tối thiểu <b>${nf(c.min)}</b> Linh Thạch · cần đạt <b>cấp ${c.minLevel}</b> · tài khoản tạo từ <b>${c.minDays} ngày</b> · ${c.daily} lần/ngày. Admin duyệt và chuyển khoản thủ công, thường trong 24–48 giờ.</p>
+      <div class="wd-balance"><span>Số dư</span><b>${nf(wd.balance)} 💎</b>${c.rate !== 1 ? `<small>≈ ${vnd(wd.balance)}</small>` : ''}</div>
+      <p class="wd-rules">Rút tối thiểu <b>${nf(c.min)}</b> Linh Thạch${c.daily ? ` · ${c.daily} lần/ngày` : ''}. Admin duyệt và chuyển khoản thủ công, thường trong 24–48 giờ.</p>
       ${wd.blocked ? `<div class="wd-warn">${esc(wd.blocked)}</div>` : ''}
 
       <h2 class="h2">Tạo yêu cầu rút</h2>
@@ -721,7 +721,7 @@
           <input name="amount" inputmode="numeric" placeholder="${nf(c.min)}" autocomplete="off"></label>
         <div class="wd-quick">${[c.min, c.min * 2, c.min * 5].filter(n => n <= wd.balance).map(n => `<button type="button" data-amt="${n}">${nf(n)}</button>`).join('')}
           ${wd.balance >= c.min ? `<button type="button" data-amt="${wd.balance}">Tất cả</button>` : ''}</div>
-        <p class="wd-vnd">Bạn sẽ nhận: <b>0đ</b></p>
+        ${c.rate !== 1 ? '<p class="wd-vnd">Bạn sẽ nhận: <b>0đ</b></p>' : ''}
         <button class="btn-play inline" type="submit"${wd.blocked || wd.balance < c.min ? ' disabled' : ''}>Gửi yêu cầu rút</button>
       </form>` : '<p class="c-note">Hãy thêm tài khoản nhận tiền bên dưới trước khi rút.</p>'}
 
@@ -756,7 +756,8 @@
     const f = e.target.closest('#wdForm');
     if (!f || e.target.name !== 'amount' || !wd) return;
     const n = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0;
-    $('.wd-vnd b', f).textContent = nf(Math.floor(n * wd.config.rate)) + 'đ';
+    const v = $('.wd-vnd b', f);
+    if (v) v.textContent = nf(Math.floor(n * wd.config.rate)) + 'đ';
   });
   document.addEventListener('click', e => {
     const q = e.target.closest('[data-amt]');
@@ -785,10 +786,10 @@
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
       const amount = parseInt(String(d.amount).replace(/\D/g, ''), 10) || 0;
-      if (!confirm(`Rút ${nf(amount)} Linh Thạch (≈ ${nf(Math.floor(amount * wd.config.rate))}đ)?`)) return;
+      if (!confirm(`Rút ${nf(amount)} Linh Thạch?`)) return;
       api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
-        rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)}</b> Linh Thạch (≈ ${nf(r.vnd)}đ). Admin sẽ duyệt sớm.`, '💎', 6000);
+        rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)}</b> Linh Thạch. Admin sẽ duyệt sớm.`, '💎', 6000);
         loadWithdraw(); fetchMe();
       });
     }

@@ -1,14 +1,11 @@
 // Rút Linh Thạch: tài khoản nhận tiền (ngân hàng, MoMo, ViettelPay, ZaloPay) và yêu cầu rút (admin duyệt tay).
 import { all, first } from './db.js';
 import { json, now, vnDay, vnPlain } from './util.js';
-import { levelInfo } from './levels.js';
 
 export const WITHDRAW_DEFAULTS = {
   withdraw_enabled: '1',
   withdraw_min: '10000',       // Linh Thạch tối thiểu mỗi lần rút
   withdraw_rate: '1',          // 1 Linh Thạch = bao nhiêu đồng
-  withdraw_min_level: '3',     // cấp tối thiểu được rút
-  withdraw_min_days: '3',      // tài khoản tạo tối thiểu bao nhiêu ngày
   withdraw_daily: '1',         // số lần rút mỗi ngày
 };
 
@@ -29,8 +26,6 @@ export function withdrawConfig(s) {
     enabled: s.withdraw_enabled !== '0',
     min: num(s, 'withdraw_min'),
     rate: num(s, 'withdraw_rate'),
-    minLevel: num(s, 'withdraw_min_level'),
-    minDays: num(s, 'withdraw_min_days'),
     daily: num(s, 'withdraw_daily'),
   };
 }
@@ -40,10 +35,6 @@ async function blocker(db, s, u) {
   const c = withdrawConfig(s);
   if (!c.enabled) return 'Chức năng rút Linh Thạch đang tạm đóng.';
   if (u.banned || u.locked) return 'Tài khoản của bạn đang bị khóa.';
-  const lvl = levelInfo(u.exp).lvl;
-  if (lvl < c.minLevel) return `Cần đạt cấp ${c.minLevel} để rút (bạn đang cấp ${lvl}).`;
-  const days = (now() - (u.created_at || now())) / 86400;
-  if (days < c.minDays) return `Tài khoản cần tạo ít nhất ${c.minDays} ngày mới được rút.`;
   const pending = await first(db, "SELECT 1 x FROM withdrawals WHERE user_id = ? AND status = 'pending'", u.id);
   if (pending) return 'Bạn đang có một yêu cầu chờ duyệt, vui lòng đợi xử lý xong.';
   const today = await first(db, "SELECT COUNT(*) c FROM withdrawals WHERE user_id = ? AND day = ? AND status != 'rejected'", u.id, vnDay());

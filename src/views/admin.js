@@ -268,8 +268,6 @@ export function settingsView(s, origin) {
   <div class="grid2">
     <label>Tỷ giá: 1 Linh Thạch = ? đồng<input name="withdraw_rate" inputmode="decimal" value="${h(s.withdraw_rate)}"></label>
     <label>Rút tối thiểu (Linh Thạch)<input name="withdraw_min" inputmode="numeric" value="${h(s.withdraw_min)}"></label>
-    <label>Cấp tối thiểu được rút<input name="withdraw_min_level" inputmode="numeric" value="${h(s.withdraw_min_level)}"></label>
-    <label>Tài khoản tạo tối thiểu (ngày)<input name="withdraw_min_days" inputmode="numeric" value="${h(s.withdraw_min_days)}"></label>
     <label>Số lần rút mỗi ngày<input name="withdraw_daily" inputmode="numeric" value="${h(s.withdraw_daily)}"></label>
   </div>
 
