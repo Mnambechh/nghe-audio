@@ -2,6 +2,7 @@
 import { first, liveCounts } from './db.js';
 import { json, now, vnDay, LIVE_WINDOW } from './util.js';
 import { logEvent } from './security.js';
+import { searchTracks } from './search.js';
 
 // Tối đa số lượt nghe được tính cho một IP mỗi ngày (chống bơm lượt nghe).
 // Đặt cao vì nhà mạng di động dùng chung IP cho nhiều người.
@@ -10,6 +11,15 @@ const MAX_PLAYS_PER_IP_DAY = 300;
 export async function handleApi(request, db, path, ctx, info) {
   // Cập nhật số đang nghe cho các thẻ trên trang.
   if (path === '/api/live') return json({ ok: true, live: await liveCounts(db) });
+
+  // Gợi ý khi gõ ô tìm kiếm.
+  if (path === '/api/suggest') {
+    const q = (new URL(request.url).searchParams.get('q') || '').slice(0, 80);
+    const items = (await searchTracks(db, q, 8)).map(t => ({ title: t.title, slug: t.slug, tag: t.tag, views: t.views, duration: t.duration }));
+    return new Response(JSON.stringify({ ok: true, items }), {
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' },
+    });
+  }
 
   if (request.method !== 'POST') return json({ ok: false }, 405);
   let input = {};

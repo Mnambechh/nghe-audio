@@ -1,13 +1,14 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '4';
+export const ASSET_V = '5';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
 const ICON_HEADPHONES = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a2 2 0 0 0 2 2h2v-7H5v-2a7 7 0 0 1 14 0v2h-2v7h2a2 2 0 0 0 2-2v-7a9 9 0 0 0-9-9z"/></svg>';
 const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg>';
 const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 1 0 9.6 13A8 8 0 0 1 12.3 2z"/></svg>';
+const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
 
 // ---------- Khung trang ----------
@@ -62,10 +63,7 @@ ${s.head_code || ''}
     ${s.logo ? `<img src="${h(s.logo)}" alt="${h(s.site_name)}" height="28">` : '<span class="brand-dot"></span>'}
     <span>${h(s.site_name)}</span>
   </a>
-  <form class="topsearch" action="/" method="get" role="search">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
-    <input type="search" name="q" placeholder="Tìm audio..." value="${h(ctx.q || '')}" aria-label="Tìm audio">
-  </form>
+  <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
 </header>
 <main id="main" data-title="${h(title)}">
 ${body}
@@ -179,18 +177,29 @@ function rail(tracks, { ranked = false, periodKey = '', attrs = '' } = {}) {
   return `<div class="rail"${attrs}>` + tracks.map((t, i) => card(t, ranked ? i + 1 : null, periodKey ? t[periodKey] : null)).join('') + '</div>';
 }
 
+// Ô tìm kiếm lớn có gợi ý khi gõ.
+function searchBox(q = '') {
+  return `<form class="searchbox" action="/" method="get" role="search" autocomplete="off">
+    ${ICON_SEARCH}
+    <input id="search" type="search" name="q" value="${h(q)}" placeholder="Tìm audio..." aria-label="Tìm audio"
+      autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="suggest">
+    <button type="button" class="sb-clear" aria-label="Xóa"${q ? '' : ' hidden'}>${ICON_X}</button>
+    <div class="suggest" id="suggest" role="listbox" hidden></div>
+  </form>`;
+}
+
 // ---------- Trang ----------
 
 export function homePage(ctx, d) {
   const s = ctx.s;
   let body = '<div class="wrap">';
   if (d.q) {
-    body += `<h1 class="h1">Kết quả cho “${h(d.q)}”</h1><p class="sub">${d.results.length} audio</p>`
+    body += searchBox(d.q) + `<h1 class="h1 results-h">Kết quả cho “${h(d.q)}”</h1><p class="sub">${d.results.length} audio</p>`
       + `<div class="list">${d.results.map(row).join('')}</div>`
       + (d.results.length ? '' : '<p class="empty">Không tìm thấy audio nào. Thử từ khóa khác nhé.</p>');
   } else {
     if (d.page === 1) {
-      body += `<h1 class="h1">Nghe gì hôm nay?</h1><p class="sub">${fmtInt(d.total)} audio · ${h(s.site_tagline)}</p>`;
+      body += `<h1 class="h1">Nghe gì hôm nay?</h1><p class="sub">${fmtInt(d.total)} audio · ${h(s.site_tagline)}</p>` + searchBox();
       if (d.latest.length) body += shelf('Mới cập nhật', rail(d.latest));
       if (d.hot.length) body += shelf('Đang nghe nhiều', rail(d.hot, { ranked: true }));
       if (d.top.month.length) {
@@ -204,6 +213,8 @@ export function homePage(ctx, d) {
         }).join('');
         body += shelf('Top lượt nghe', panes, tabs);
       }
+    } else {
+      body += searchBox();
     }
     body += '<section class="all"><h2 class="h2">Tất cả audio</h2>'
       + (d.all.length ? '' : '<p class="empty">Chưa có audio nào.</p>')

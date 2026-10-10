@@ -457,11 +457,10 @@
         const a = $(sel), b = doc.querySelector(sel);
         if (a && b) a.replaceWith(b);
       });
-      const q = $('.topsearch input'), nq = doc.querySelector('.topsearch input');
-      if (q && nq) q.value = nq.value;
       if (push) history.pushState({}, '', href);
       window.scrollTo(0, 0);
       initPage();
+      focusSearchFromHash();
     } catch (err) {
       location.href = href;
     }
@@ -477,16 +476,125 @@
   });
   document.addEventListener('submit', e => {
     const f = e.target;
-    if (!f.classList.contains('topsearch')) return;
+    if (!f.classList.contains('searchbox')) return;
     e.preventDefault();
+    const active = $('.suggest [data-i].on', f);
+    if (active) { hideSuggest(); navigate(active.href); return; }
+    hideSuggest();
     const q = new FormData(f).get('q').trim();
     navigate(APP.base + '/' + (q ? '?q=' + encodeURIComponent(q) : ''));
     $('input', f).blur();
   });
   window.addEventListener('popstate', () => navigate(location.href, false));
 
+  // ---------- Gợi ý tìm kiếm ----------
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const plainChar = c => c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').charAt(0) || c;
+  const fmtNum = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '').replace('.', ',') + ' Tr'
+    : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '').replace('.', ',') + ' N' : String(n);
+
+  // Tô màu phần khớp (so khớp không dấu, giữ nguyên chữ có dấu khi hiển thị).
+  function highlight(title, q) {
+    const chars = Array.from(title);
+    const plain = chars.map(plainChar).join('');
+    const mark = new Array(chars.length).fill(false);
+    const tokens = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').split(/[^a-z0-9]+/).filter(Boolean);
+    tokens.forEach(tok => {
+      const re = new RegExp('(^|[^a-z0-9])(' + tok + ')', 'g');
+      let m, found = false;
+      while ((m = re.exec(plain))) { found = true; const st = m.index + m[1].length; for (let i = st; i < st + tok.length; i++) mark[i] = true; }
+      if (!found) { const i = plain.indexOf(tok); if (i >= 0) for (let j = i; j < i + tok.length; j++) mark[j] = true; }
+    });
+    let out = '', open = false;
+    chars.forEach((c, i) => {
+      if (mark[i] && !open) { out += '<mark>'; open = true; }
+      if (!mark[i] && open) { out += '</mark>'; open = false; }
+      out += esc(c);
+    });
+    return out + (open ? '</mark>' : '');
+  }
+
+  const sugCache = new Map();
+  let sugTimer = 0, sugSeq = 0;
+
+  function hideSuggest() {
+    const box = $('#suggest');
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    const inp = $('#search');
+    if (inp) inp.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderSuggest(q, items) {
+    const box = $('#suggest'), inp = $('#search');
+    if (!box || !inp || inp.value.trim() !== q) return;
+    const all = `<a class="sg-all" data-i="${items.length}" href="${APP.base}/?q=${encodeURIComponent(q)}">Xem tất cả kết quả cho “${esc(q)}”</a>`;
+    box.innerHTML = items.length
+      ? items.map((t, i) => `<a class="sg-item" role="option" data-i="${i}" href="${APP.base}/track/${encodeURIComponent(t.slug)}">
+          <span class="sg-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+          <span class="sg-body"><span class="sg-title">${highlight(t.title, q)}</span>
+          <span class="sg-meta">${t.duration ? fmt(t.duration) + ' · ' : ''}${fmtNum(t.views || 0)} lượt nghe</span></span></a>`).join('') + all
+      : `<div class="sg-empty">Không tìm thấy audio nào cho “${esc(q)}”</div>`;
+    box.hidden = false;
+    inp.setAttribute('aria-expanded', 'true');
+  }
+
+  function requestSuggest(q) {
+    if (sugCache.has(q)) return renderSuggest(q, sugCache.get(q));
+    const seq = ++sugSeq;
+    fetch(`${APP.base}/api/suggest?q=${encodeURIComponent(q)}`).then(r => r.json()).then(r => {
+      if (!r || !r.ok) return;
+      sugCache.set(q, r.items);
+      if (seq === sugSeq) renderSuggest(q, r.items);
+    }).catch(() => {});
+  }
+
+  document.addEventListener('input', e => {
+    if (e.target.id !== 'search') return;
+    const q = e.target.value.trim();
+    const clear = $('.sb-clear');
+    if (clear) clear.hidden = !e.target.value;
+    clearTimeout(sugTimer);
+    if (!q) { sugSeq++; hideSuggest(); return; }
+    sugTimer = setTimeout(() => requestSuggest(q), sugCache.has(q) ? 0 : 160);
+  });
+  document.addEventListener('focusin', e => {
+    if (e.target.id === 'search' && e.target.value.trim()) requestSuggest(e.target.value.trim());
+  });
+  document.addEventListener('keydown', e => {
+    if (e.target.id !== 'search') return;
+    const box = $('#suggest');
+    if (e.key === 'Escape') { hideSuggest(); return; }
+    if (!box || box.hidden || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+    e.preventDefault();
+    const items = $$('[data-i]', box);
+    let i = items.findIndex(x => x.classList.contains('on'));
+    i = e.key === 'ArrowDown' ? (i + 1) % items.length : (i <= 0 ? items.length - 1 : i - 1);
+    items.forEach((x, j) => x.classList.toggle('on', j === i));
+    items[i].scrollIntoView({ block: 'nearest' });
+  });
+  // Bấm ra ngoài thì đóng gợi ý; bấm nút xóa thì xóa chữ.
+  document.addEventListener('click', e => {
+    if (e.target.closest('.sb-clear')) {
+      const inp = $('#search');
+      inp.value = ''; e.target.closest('.sb-clear').hidden = true; hideSuggest(); inp.focus();
+      return;
+    }
+    if (e.target.closest('.sg-item, .sg-all')) { hideSuggest(); return; }
+    if (!e.target.closest('.searchbox')) hideSuggest();
+  });
+
+  function focusSearchFromHash() {
+    if (location.hash !== '#search') return;
+    const inp = $('#search');
+    if (!inp) return;
+    inp.scrollIntoView({ block: 'center' });
+    inp.focus({ preventScroll: true });
+  }
+  window.addEventListener('hashchange', focusSearchFromHash);
+
   // ---------- Khởi động ----------
   const last = store.get('last');
   if (last && last.track && last.track.parts && last.track.parts.length) load(last.track, last.idx || 0);
   initPage();
+  focusSearchFromHash();
 })();

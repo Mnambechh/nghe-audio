@@ -1,10 +1,11 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
-import { h, html, vnDay, vnPlain, fromBase64 } from './util.js';
+import { h, html, vnDay, fromBase64 } from './util.js';
 import { homePage, trackPage, staticPage, notFoundPage } from './views/public.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
 import { handleAdmin, handleInstall } from './admin.js';
+import { searchTracks } from './search.js';
 import { ADMIN, clientInfo, isBlocked, isProbe, logEvent, withSecurityHeaders } from './security.js';
 
 export async function handle(request, env, ctx) {
@@ -92,8 +93,7 @@ async function homeData(db, s, url) {
   const live = await liveCounts(db);
 
   if (q) {
-    const like = '%' + vnPlain(q).replace(/[\\%_]/g, c => '\\' + c) + '%';
-    const results = await all(db, "SELECT * FROM tracks WHERE published = 1 AND search LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 100", like);
+    const results = await searchTracks(db, q, 100);
     return { q, page: 1, results: await withLive(db, results, live) };
   }
 
