@@ -429,6 +429,7 @@
     loadNotifPage();
     if (me && ($('#quests') || $('#withdraw'))) fetchMe(); // lấy tiến độ / số dư mới nhất khi chuyển trang
     loadWithdraw();
+    loadShop();
     markMenu();
     initRating();
     initHeart();
@@ -952,6 +953,65 @@
     }
   });
 
+  // ---------- Cửa hàng: hiệu ứng tên ----------
+  let shop = null;
+  function loadShop() {
+    const box = $('#shop');
+    if (!box || !meLoaded) return;
+    fetch(`${APP.base}/api/shop`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('#shop') !== box) return;
+      shop = r;
+      renderShop();
+    }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
+  }
+  const fxLeft = until => {
+    if (!until) return 'vĩnh viễn';
+    const d = Math.floor((until - Date.now() / 1000) / 86400);
+    return d >= 1 ? `còn ${d} ngày` : 'còn dưới 1 ngày';
+  };
+  function renderShop() {
+    const box = $('#shop');
+    if (!box || !shop) return;
+    const name = me ? me.name : 'Tên của bạn';
+    const own = {};
+    shop.owned.forEach(o => { own[o.fx] = o; });
+    const mine = shop.owned.length ? `<h2 class="h2">Hiệu ứng của bạn</h2><div class="sh-own">
+      ${shop.owned.map(o => `<button type="button" class="sh-chip${shop.using === o.fx ? ' on' : ''}" data-fx-use="${esc(o.fx)}"><b${fxCls(o.fx)}>${esc(shop.names[o.fx] || o.fx)}</b><small>${shop.using === o.fx ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></button>`).join('')}
+      <button type="button" class="sh-chip${shop.using ? '' : ' on'}" data-fx-use=""><b>Tên thường</b><small>Không hiệu ứng</small></button></div>` : '';
+    box.innerHTML = `${me ? `<div class="wd-balance"><span>Số dư</span><b>${nf(shop.stones)} 💎</b></div>`
+      : '<div class="c-login"><p>Đăng nhập để mua hiệu ứng tên.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>'}
+      ${mine}
+      <h2 class="h2">Hiệu ứng tên</h2>
+      <div class="sh-grid">${shop.items.map(i => {
+        const o = own[i.fx], perm = !!o && !o.until;
+        return `<div class="sh-item"><div class="sh-prev"><span class="nfx nfx-${esc(i.fx)}">${esc(name)}</span></div>
+          <b class="sh-name">${esc(i.name)}</b>
+          <small class="sh-dur">${i.days ? `${i.days} ngày` : 'Vĩnh viễn'}${o ? ` · bạn có: ${fxLeft(o.until)}` : ''}</small>
+          <button type="button" class="sh-buy" data-buy="${i.id}"${perm ? ' disabled' : ''}>${perm ? 'Đã sở hữu' : `${o ? 'Gia hạn' : 'Mua'} · ${nf(i.price)} 💎`}</button></div>`;
+      }).join('') || '<p class="c-note">Cửa hàng đang cập nhật gói mới.</p>'}</div>`;
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-buy]'), u = e.target.closest('[data-fx-use]');
+    if (!b && !u) return;
+    if (!me) { openLogin(); return; }
+    if (b) {
+      const it = shop && shop.items.find(x => x.id === +b.dataset.buy);
+      if (!it) return;
+      if (shop.stones < it.price) { toast('Bạn không đủ Linh Thạch'); return; }
+      if (!confirm(`Mua "${it.name}" (${it.days ? it.days + ' ngày' : 'vĩnh viễn'}) giá ${nf(it.price)} Linh Thạch?`)) return;
+      once('shop', () => api('/api/shop/buy', { id: it.id }).then(r => {
+        if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa mua được'); return; }
+        rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
+        me.fx = r.fx; loadShop(); fetchMe();
+      }));
+    } else {
+      once('shop', () => api('/api/shop/use', { fx: u.dataset.fxUse }).then(r => {
+        if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
+        me.fx = r.fx; toast(r.fx ? 'Đã đổi hiệu ứng tên' : 'Đã tắt hiệu ứng tên'); loadShop(); renderGame();
+      }));
+    }
+  });
+
   // Bấm kính lúp: hiện ô tìm kiếm ngay dưới thanh đầu trang (không chuyển trang).
   function openTopSearch() {
     const pageBox = $('#main #search');
@@ -998,6 +1058,8 @@
   const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>` : avatar(name, url, cls);
   const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
   const nf = n => String(Math.floor(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  // Hiệu ứng tên mua ở Cửa hàng (chữ đa sắc chạy từ phải qua trái).
+  const fxCls = fx => /^[a-z]+$/.test(fx || '') ? ` class="nfx nfx-${fx}"` : '';
 
   function renderAcct() {
     const box = $('#acct');
@@ -1017,7 +1079,7 @@
     if (!card || !me) return;
     const g = game || { stones: 0, exp: 0, comments: 0, level: { lvl: me.lvl || 1, tier: me.tier || 0, realm: me.realm || 'Luyện Khí 1', cur: 0, need: 100, pct: 0 }, checkedIn: false, checkinIn: 0, unread: 0 };
     const L = g.level;
-    card.innerHTML = `<div class="ac-head"><b>${esc(me.name)}</b><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
+    card.innerHTML = `<div class="ac-head"><b${fxCls(me.fx)}>${esc(me.name)}</b><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
       <div class="ac-stones"><b>${nf(g.stones)}</b> Linh Thạch</div>
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
@@ -1294,14 +1356,14 @@
   function syncMyLevel() {
     if (!me || !game || !cState) return;
     const L = game.level, b = { lvl: L.lvl, tier: L.tier, realm: L.realm };
-    cState.items.forEach(c => { if (c.mine) Object.assign(c, b); });
+    cState.items.forEach(c => { if (c.mine) Object.assign(c, b, { fx: me.fx || '' }); });
     if (cState.me) Object.assign(cState.me, b);
     $$('#comments .c-item').forEach(el => {
       const c = cState.items.find(x => String(x.id) === el.dataset.cid);
       if (!c || !c.mine) return;
       el.firstElementChild.outerHTML = lvAv(c.name, c.avatar, c, 'c-av');
       const name = $(':scope > .c-main > .c-bubble .c-name', el);
-      if (name) name.innerHTML = `<b>${esc(c.name)}</b>${realmTag(c)}`;
+      if (name) name.innerHTML = `<b${fxCls(c.fx)}>${esc(c.name)}</b>${realmTag(c)}`;
     });
     $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av'); });
   }
@@ -1315,7 +1377,7 @@
       avatarMaxMb = r.avatarMaxMb || 5;
       editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadShop(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1701,7 +1763,7 @@
     return `<div class="c-item${c.parent ? ' c-reply' : ''}" data-cid="${c.id}">
       ${lvAv(c.name, c.avatar, c.lvl ? c : null, 'c-av')}
       <div class="c-main">
-        <div class="c-bubble"><span class="c-name"><b>${esc(c.name)}</b>${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
+        <div class="c-bubble"><span class="c-name"><b${fxCls(c.fx)}>${esc(c.name)}</b>${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
           <span class="c-hearts"${c.likes ? '' : ' hidden'}>❤️ <b>${c.likes}</b></span></div>
         <div class="c-actions">
           <span>${cDate(c.at)}</span>

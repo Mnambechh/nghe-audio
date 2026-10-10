@@ -1,7 +1,8 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
+import { fxOf } from '../shop.js';
 
-export const ASSET_V = '74';
+export const ASSET_V = '75';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -588,7 +589,7 @@ export function leaderboardPage(ctx, rows, kind = 'level') {
     <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
       <span class="lb-rank">${i + 1}</span>
       ${lvAvatar(r.name, r.avatar, r, 'lb-av')}
-      <span class="lb-body"><span class="lb-name"><b>${h(r.name)}</b>${realmBadge(r)}</span>
+      <span class="lb-body"><span class="lb-name"><b${fxOf(r) ? ` class="nfx nfx-${fxOf(r)}"` : ''}>${h(r.name)}</b>${realmBadge(r)}</span>
         <span class="meta">Cấp ${r.lvl} · ☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
       <b class="lb-val">${B.val(r)}</b>
     </div>`).join('') || '<p class="c-note">Chưa có ai trên bảng này. Đăng nhập, điểm danh, bình luận và thả tim để lên bảng!</p>'}</div></div>`;
@@ -611,6 +612,14 @@ export function questsPage(ctx) {
     <div id="quests"><p class="c-note">Đang tải…</p></div>
     ${promaxQuest(ctx.s)}</div>`;
   return layout(ctx, { title: `Nhiệm vụ - ${ctx.s.site_name}`, canonical: ctx.origin + '/nhiem-vu', noindex: true }, body);
+}
+
+export function shopPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Cửa hàng</h1>
+    <p class="sub">Đổi Linh Thạch lấy hiệu ứng tên đa sắc — tên bạn sẽ đổi màu lấp lánh ở bình luận và bảng xếp hạng</p>
+    <div id="shop"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Cửa hàng - ${ctx.s.site_name}`, canonical: ctx.origin + '/cua-hang', noindex: true }, body);
 }
 
 export function withdrawPage(ctx) {

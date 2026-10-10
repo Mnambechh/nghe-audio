@@ -160,6 +160,26 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 27: cửa hàng hiệu ứng tên (gói do admin cài, hiệu ứng thành viên sở hữu, hiệu ứng đang dùng).
+  if (await missing(db, 'shop_items')) {
+    const t = Math.floor(Date.now() / 1000);
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS shop_items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, fx TEXT NOT NULL, price INTEGER NOT NULL DEFAULT 0,
+        days INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`,
+      `CREATE TABLE IF NOT EXISTS user_fx (user_id INTEGER NOT NULL, fx TEXT NOT NULL, until INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, fx))`,
+      ...[['Băng Tâm', 'bang', 500], ['Hỏa Diệm', 'lua', 500], ['Hoa Đào', 'hoadao', 500], ['Thiên Không', 'thien', 500], ['Hải Lam', 'hai', 500],
+        ['Hoàng Kim', 'kim', 800], ['Tử Vi', 'tim', 800], ['Bích Ngọc', 'ngoc', 800], ['Hoàng Hôn', 'hoanghon', 800], ['Cực Quang', 'cucquang', 1000],
+        ['Huyết Nguyệt', 'huyet', 1000], ['Thất Sắc Cầu Vồng', 'cauvong', 1500]]
+        .map(([n, fx, p], i) => `INSERT INTO shop_items (name, fx, price, days, active, pos, created_at) VALUES ('${n}', '${fx}', ${p}, 30, 1, ${i}, ${t})`),
+    ].map(q => db.prepare(q)));
+  }
+  try { await db.prepare('SELECT name_fx FROM users LIMIT 1').first(); }
+  catch {
+    await db.batch([
+      "ALTER TABLE users ADD COLUMN name_fx TEXT NOT NULL DEFAULT ''",
+      'ALTER TABLE users ADD COLUMN name_fx_until INTEGER NOT NULL DEFAULT 0',
+    ].map(q => db.prepare(q)));
+  }
   // Bản 26: mốc giờ điểm danh — chống điểm danh 2 lần trong ngày khi đổi múi giờ.
   try { await db.prepare('SELECT checkin_at FROM users LIMIT 1').first(); }
   catch { await db.prepare('ALTER TABLE users ADD COLUMN checkin_at INTEGER DEFAULT 0').run(); }

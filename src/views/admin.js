@@ -4,6 +4,7 @@ import { ASSET_V } from './public.js';
 import { ADMIN, EVENT_LABELS, deviceOf } from '../security.js';
 import { levelInfo } from '../levels.js';
 import { matchWords } from '../wordfilter.js';
+import { NAME_FX } from '../shop.js';
 import { parseLevelTiers } from '../game.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
@@ -22,7 +23,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/shop', 'Cửa hàng'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -903,6 +904,37 @@ ${quests.map(q => `<form method="post" class="form card">
     <label>Chữ trên nút<input name="promax_button" value="${h(s.promax_button)}" maxlength="40"></label>
   </div>
   <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>`;
+}
+
+// ---------- Cửa hàng ----------
+
+export function shopView({ items, sold }) {
+  const fxSelect = cur => `<select name="fx">${Object.entries(NAME_FX).map(([k, v]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${h(v[0])}</option>`).join('')}</select>`;
+  const fields = (i = {}) => `
+    <label>Tên gói<input name="name" value="${h(i.name || '')}" maxlength="60" placeholder="vd. Hỏa Diệm 30 ngày" required></label>
+    <label>Hiệu ứng${fxSelect(i.fx)}</label>
+    <div class="grid3">
+      <label>Giá (Linh Thạch)<input name="price" inputmode="numeric" value="${i.price ?? 500}"></label>
+      <label>Số ngày (0 = vĩnh viễn)<input name="days" inputmode="numeric" value="${i.days ?? 30}"></label>
+      <label>Thứ tự<input name="pos" inputmode="numeric" value="${i.pos ?? 0}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="active" value="1"${i.active === 0 ? '' : ' checked'}> Đang bán</label>`;
+  return `
+<h1>Cửa hàng</h1>
+<p class="muted">Thành viên đổi Linh Thạch lấy <b>hiệu ứng tên</b> (chữ đa sắc chạy từ phải qua trái) hiện ở bình luận, bảng xếp hạng và thẻ tài khoản. Mua gói có hạn nhiều lần sẽ cộng dồn ngày; gói vĩnh viễn chỉ mua được 1 lần. Máy chủ trừ Linh Thạch có điều kiện đủ số dư → bấm mua dồn dập không bị trừ sai.</p>
+<div class="card"><h2>Các hiệu ứng có sẵn</h2><div class="fx-demo">${Object.entries(NAME_FX).map(([k, v]) => `<span class="nfx nfx-${k}">${h(v[0])}</span>`).join('')}</div></div>
+${items.map(i => `<form method="post" class="form card">
+  <input type="hidden" name="action" value="save"><input type="hidden" name="id" value="${i.id}">
+  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <span class="nfx nfx-${h(i.fx)} fx-big">${h(i.name)}</span> <small class="muted">Đã bán: ${fmtInt(sold[i.fx] || 0)} người sở hữu hiệu ứng này</small></p>
+  ${fields(i)}
+  <div class="row-actions"><button class="btn">Lưu</button>
+    <button class="btn ghost danger-txt" name="action" value="delete" formnovalidate data-confirm="Xóa gói ${h(i.name)}? (người đã mua vẫn giữ hiệu ứng)">Xóa</button></div>
+</form>`).join('')}
+<form method="post" class="form card"><input type="hidden" name="action" value="add">
+  <h2>➕ Thêm gói</h2>
+  ${fields()}
+  <div class="row-actions"><button class="btn">Thêm</button></div>
 </form>`;
 }
 

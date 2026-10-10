@@ -274,3 +274,25 @@ a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(
 .pass-form input { min-width: 240px; }
 .ipcheck { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: #f8f9fb; border: 1px dashed var(--line); font-size: 13.5px; line-height: 1.8; }
 .confirm-box { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: #fff8ec; border: 1px solid #f5d9a8; display: flex; flex-direction: column; gap: 4px; }
+
+/* ---------- Hiệu ứng tên (Cửa hàng): chữ đa sắc chạy từ phải qua trái ---------- */
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .nfx { background-size: 200% 100%; background-repeat: repeat-x; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; font-weight: 800; -webkit-animation: nfx 3s linear infinite; animation: nfx 3s linear infinite; }
+  .nfx-bang { background-image: linear-gradient(90deg, #93c5fd 0%, #c4b5fd 12.5%, #f9a8d4 25%, #a5b4fc 37.5%, #93c5fd 50%, #c4b5fd 62.5%, #f9a8d4 75%, #a5b4fc 87.5%, #93c5fd 100%); }
+  .nfx-lua { background-image: linear-gradient(90deg, #dc2626 0%, #f97316 12.5%, #facc15 25%, #fb923c 37.5%, #dc2626 50%, #f97316 62.5%, #facc15 75%, #fb923c 87.5%, #dc2626 100%); }
+  .nfx-hoadao { background-image: linear-gradient(90deg, #f472b6 0%, #f9a8d4 12.5%, #ec4899 25%, #fbcfe8 37.5%, #f472b6 50%, #f9a8d4 62.5%, #ec4899 75%, #fbcfe8 87.5%, #f472b6 100%); }
+  .nfx-thien { background-image: linear-gradient(90deg, #93c5fd 0%, #60a5fa 12.5%, #2563eb 25%, #1e40af 37.5%, #93c5fd 50%, #60a5fa 62.5%, #2563eb 75%, #1e40af 87.5%, #93c5fd 100%); }
+  .nfx-hai { background-image: linear-gradient(90deg, #1d4ed8 0%, #06b6d4 12.5%, #2563eb 25%, #38bdf8 37.5%, #1d4ed8 50%, #06b6d4 62.5%, #2563eb 75%, #38bdf8 87.5%, #1d4ed8 100%); }
+  .nfx-cauvong { background-image: linear-gradient(90deg, #ef4444 0%, #f97316 6.3%, #eab308 12.5%, #22c55e 18.8%, #06b6d4 25%, #3b82f6 31.3%, #a855f7 37.5%, #ec4899 43.8%, #ef4444 50%, #f97316 56.3%, #eab308 62.5%, #22c55e 68.8%, #06b6d4 75%, #3b82f6 81.3%, #a855f7 87.5%, #ec4899 93.8%, #ef4444 100%); }
+  .nfx-kim { background-image: linear-gradient(90deg, #b45309 0%, #f59e0b 12.5%, #facc15 25%, #d97706 37.5%, #b45309 50%, #f59e0b 62.5%, #facc15 75%, #d97706 87.5%, #b45309 100%); }
+  .nfx-tim { background-image: linear-gradient(90deg, #7c3aed 0%, #c026d3 12.5%, #a78bfa 25%, #db2777 37.5%, #7c3aed 50%, #c026d3 62.5%, #a78bfa 75%, #db2777 87.5%, #7c3aed 100%); }
+  .nfx-ngoc { background-image: linear-gradient(90deg, #059669 0%, #10b981 12.5%, #2dd4bf 25%, #0d9488 37.5%, #059669 50%, #10b981 62.5%, #2dd4bf 75%, #0d9488 87.5%, #059669 100%); }
+  .nfx-huyet { background-image: linear-gradient(90deg, #991b1b 0%, #e11d48 12.5%, #f43f5e 25%, #be123c 37.5%, #991b1b 50%, #e11d48 62.5%, #f43f5e 75%, #be123c 87.5%, #991b1b 100%); }
+  .nfx-hoanghon { background-image: linear-gradient(90deg, #f43f5e 0%, #fb923c 12.5%, #facc15 25%, #a855f7 37.5%, #f43f5e 50%, #fb923c 62.5%, #facc15 75%, #a855f7 87.5%, #f43f5e 100%); }
+  .nfx-cucquang { background-image: linear-gradient(90deg, #06b6d4 0%, #84cc16 12.5%, #6366f1 25%, #d946ef 37.5%, #06b6d4 50%, #84cc16 62.5%, #6366f1 75%, #d946ef 87.5%, #06b6d4 100%); }
+}
+@-webkit-keyframes nfx { from { background-position: 0 0; } to { background-position: 100% 0; } }
+@keyframes nfx { from { background-position: 0 0; } to { background-position: 100% 0; } }
+@media (prefers-reduced-motion: reduce) { .nfx { -webkit-animation: none; animation: none; } }
+.fx-demo { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 20px; }
+.fx-big { font-size: 18px; margin: 0 6px; }

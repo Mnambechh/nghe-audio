@@ -8,6 +8,7 @@ import { mailConfig, sendMail, resetMailHtml } from './mailer.js';
 import { attachReferrer, handleReferralApi } from './referral.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
+import { handleShopApi, shopData, fxOf } from './shop.js';
 import { badge } from './levels.js';
 import { matchWords } from './wordfilter.js';
 import { handleWithdrawApi } from './withdraw.js';
@@ -38,7 +39,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen, online_sec, role FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen, online_sec, role, name_fx, name_fx_until FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   if (p.demo) u.demo = true; // admin đang xem thử tài khoản này
@@ -51,7 +52,7 @@ export async function demoLoginCookie(db, u) {
   return setCookie(USER_COOKIE, token, { maxAge: 3600 });
 }
 
-const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
+const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, fx: fxOf(u), ...badge(u.exp) };
 // Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
 const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked, demo: !!u.demo, editor: u.role === 'editor' && !u.demo };
 
@@ -120,7 +121,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const me = await currentUser(request, db);
     const config = { enabled, clientId: s.google_client_id || '', moderation: s.comment_moderation === '1' };
     if (!enabled || !trackId) return json({ ok: true, me: publicUser(me), config, total: 0, items: [] });
-    const rows = await all(db, `SELECT c.id, c.parent_id, c.body, c.status, c.likes, c.created_at, c.user_id, u.name, u.avatar, u.exp
+    const rows = await all(db, `SELECT c.id, c.parent_id, c.body, c.status, c.likes, c.created_at, c.user_id, u.name, u.avatar, u.exp, u.name_fx, u.name_fx_until
       FROM comments c JOIN users u ON u.id = c.user_id
       WHERE c.track_id = ? AND (c.status = 'approved' OR (c.status = 'pending' AND c.user_id = ?))
       ORDER BY c.created_at DESC LIMIT 300`, trackId, me ? me.id : -1);
@@ -132,7 +133,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     }
     const items = rows.map(r => ({
       id: r.id, parent: r.parent_id, body: r.body, pending: r.status === 'pending', likes: r.likes, at: r.created_at,
-      name: r.name, avatar: r.avatar, mine: !!me && r.user_id === me.id, liked: liked.has(r.id), ...badge(r.exp),
+      name: r.name, avatar: r.avatar, fx: fxOf(r), mine: !!me && r.user_id === me.id, liked: liked.has(r.id), ...badge(r.exp),
     }));
     return json({ ok: true, me: publicUser(me), config, total: items.filter(i => !i.pending).length, items });
   }
@@ -164,6 +165,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     ]);
     return json({ ok: true, count: tr ? tr.hearts : 0, mine: !!mine });
   }
+  if (request.method === 'GET' && path === '/api/shop') return json(await shopData(db, await currentUser(request, db)));
   if (request.method === 'GET' && path === '/api/referral') {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
@@ -351,6 +353,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
   if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
   if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
+  if (path.startsWith('/api/shop/')) return handleShopApi(request, db, s, path, me, input);
   if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate' || path === '/api/online' || path === '/api/heart') {
     return handleGameApi(request, db, s, path, me, input);
   }
@@ -431,7 +434,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     return json({
       ok: true,
       rewards,
-      item: { id: r.meta.last_row_id, parent, body, pending: status === 'pending', likes: 0, at: t, name: me.name, avatar: me.avatar, mine: true, liked: false, ...badge(me.exp) },
+      item: { id: r.meta.last_row_id, parent, body, pending: status === 'pending', likes: 0, at: t, name: me.name, avatar: me.avatar, fx: fxOf(me), mine: true, liked: false, ...badge(me.exp) },
     });
   }
 

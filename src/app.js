@@ -1,7 +1,7 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, comingSoonPage, withdrawPage } from './views/public.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
 import { withdrawConfig, METHODS } from './withdraw.js';
@@ -90,7 +90,7 @@ async function handleInner(request, env, ctx) {
   if (path === '/huong-dan') return html(guidePage(pageCtx, await guideData(db, s)));
   if (path === '/thong-bao') return html(notificationsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/nhiem-vu') return html(questsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
-  if (path === '/cua-hang') return html(comingSoonPage(pageCtx, 'Cửa hàng', '🛍️', 'Cửa hàng đổi Linh Thạch lấy vật phẩm đang được chuẩn bị. Hãy tích lũy Linh Thạch từ bây giờ nhé!'));
+  if (path === '/cua-hang') return html(shopPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/rut-linh-thach') return html(withdrawPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/tai-khoan') return html(profilePage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/lich-su') return html(historyPage(pageCtx), 200, { 'Cache-Control': 'no-store' });

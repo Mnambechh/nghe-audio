@@ -14,6 +14,7 @@ import { demoLoginCookie, currentUser } from './comments.js';
 import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
 import { mailConfig, sendMail } from './mailer.js';
 import { checkIp, hostingByAsn } from './proxycheck.js';
+import { NAME_FX } from './shop.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -640,6 +641,35 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
     ]);
     const counts = Object.fromEntries(doneToday.map(r => [r.quest_id, r.n]));
     return view(V.questsView({ quests, counts, listen: listenConfig(s), comment: commentConfig(s), s }));
+  }
+
+  // Cửa hàng: gói hiệu ứng tên (tên gói, hiệu ứng, giá Linh Thạch, số ngày).
+  if (path === '/admin/shop') {
+    const back = ADMIN + '/shop';
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.getAll('action').pop();
+      const int = k => Math.max(0, Math.min(100000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
+      if (act === 'add' || act === 'save') {
+        const name = str(f, 'name').slice(0, 60), fx = str(f, 'fx');
+        if (!name) return go(back, ['err', 'Nhập tên gói.']);
+        if (!NAME_FX[fx]) return go(back, ['err', 'Chọn hiệu ứng.']);
+        const vals = [name, fx, int('price'), Math.min(3650, int('days')), f.get('active') ? 1 : 0, int('pos')];
+        if (act === 'add') await db.prepare('INSERT INTO shop_items (name, fx, price, days, active, pos, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(...vals, now()).run();
+        else await db.prepare('UPDATE shop_items SET name = ?, fx = ?, price = ?, days = ?, active = ?, pos = ? WHERE id = ?').bind(...vals, parseInt(f.get('id'), 10) || 0).run();
+        return go(back, ['ok', act === 'add' ? 'Đã thêm gói.' : 'Đã lưu gói.']);
+      }
+      if (act === 'delete') {
+        await db.prepare('DELETE FROM shop_items WHERE id = ?').bind(parseInt(f.get('id'), 10) || 0).run();
+        return go(back, ['ok', 'Đã xóa gói.']);
+      }
+      return go(back);
+    }
+    const [items, owned] = await Promise.all([
+      all(db, 'SELECT * FROM shop_items ORDER BY pos, price, id'),
+      all(db, 'SELECT fx, COUNT(*) n FROM user_fx GROUP BY fx'),
+    ]);
+    return view(V.shopView({ items, sold: Object.fromEntries(owned.map(r => [r.fx, r.n])) }));
   }
 
   // Rút Linh Thạch: duyệt yêu cầu

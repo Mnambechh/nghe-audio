@@ -294,13 +294,13 @@ export async function handleGameApi(request, db, s, path, me, input) {
 // Bảng xếp hạng (lưu đệm phía gọi): cấp độ, Linh Thạch, bình luận, tim nhận được trên bình luận.
 export const BOARDS = ['level', 'stones', 'comments', 'hearts'];
 export async function leaderboard(db, kind = 'level', limit = 50) {
-  const base = 'SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n FROM users u WHERE u.banned = 0 AND u.locked = 0';
+  const base = 'SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.name_fx, u.name_fx_until FROM users u WHERE u.banned = 0 AND u.locked = 0';
   let rows;
   if (kind === 'stones') rows = await all(db, `${base} AND u.stones > 0 ORDER BY u.stones DESC, u.id LIMIT ?`, limit);
   else if (kind === 'comments') rows = await all(db, `${base} AND u.comments_n > 0 ORDER BY u.comments_n DESC, u.exp DESC LIMIT ?`, limit);
   else if (kind === 'hearts') {
     // Tim người khác thả vào bình luận của mình (tự thả tim cho mình không tính).
-    rows = await all(db, `SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, h.n hearts FROM (
+    rows = await all(db, `SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.name_fx, u.name_fx_until, h.n hearts FROM (
         SELECT c.user_id uid, COUNT(*) n FROM comment_likes l JOIN comments c ON c.id = l.comment_id
         WHERE c.status = 'approved' AND l.user_id != c.user_id GROUP BY c.user_id) h
       JOIN users u ON u.id = h.uid WHERE u.banned = 0 AND u.locked = 0 ORDER BY h.n DESC, u.exp DESC LIMIT ?`, limit);
