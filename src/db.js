@@ -210,6 +210,7 @@ export const DEFAULT_SETTINGS = {
   per_page: '15',
   comments_enabled: '1',
   avatar_max_mb: '5',
+  levelup_tiers: '5:200\n20:500\n50:1000\n70:1500', // thưởng Linh Thạch lên cấp theo khoảng cấp (xem game.js)
   comment_moderation: '0',   // 1 = duyệt mọi bình luận; 0 = chỉ duyệt bình luận có link hoặc chứa từ trong bộ lọc
   comment_words: DEFAULT_WORDS,
   google_client_id: '',

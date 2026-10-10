@@ -4,6 +4,7 @@ import { ASSET_V } from './public.js';
 import { ADMIN, EVENT_LABELS } from '../security.js';
 import { levelInfo } from '../levels.js';
 import { matchWords } from '../wordfilter.js';
+import { parseLevelTiers } from '../game.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 
@@ -261,11 +262,16 @@ export function settingsView(s, origin) {
     <label>Điểm danh: Linh Thạch<input name="checkin_stones" inputmode="numeric" value="${h(s.checkin_stones)}"></label>
     <label>Điểm danh: EXP<input name="checkin_exp" inputmode="numeric" value="${h(s.checkin_exp)}"></label>
     <label>Phải online bao lâu mới điểm danh được (giây)<input name="checkin_wait" inputmode="numeric" value="${h(s.checkin_wait)}"></label>
-    <label>Thưởng Linh Thạch mỗi lần lên cấp<input name="levelup_stones" inputmode="numeric" value="${h(s.levelup_stones)}"></label>
     <label>EXP mỗi bình luận được duyệt<input name="comment_exp" inputmode="numeric" value="${h(s.comment_exp)}"></label>
     <label>Số bình luận/ngày được cộng EXP<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
     <label>Số truyện được đánh giá mỗi ngày (mỗi lượt +1 EXP)<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
   </div>
+  <h3>Thưởng Linh Thạch mỗi lần lên cấp</h3>
+  <p class="muted">Mỗi dòng: lên tới cấp nào thì mỗi lần lên cấp được thưởng bao nhiêu. Vd. "đến cấp 5: 200" nghĩa là lên cấp 2, 3, 4, 5 mỗi lần +200.</p>
+  ${(tiers => [...tiers, {}, {}].slice(0, Math.max(5, tiers.length + 1)).map((t, i) => `<div class="grid2">
+    <label>${i ? `Từ cấp ${(tiers[i - 1] || {}).lvl ? tiers[i - 1].lvl + 1 : '…'} đến cấp` : 'Từ cấp 2 đến cấp'}<input name="lu_lvl" inputmode="numeric" value="${t.lvl || ''}" placeholder="vd. 70"></label>
+    <label>Linh Thạch mỗi lần lên cấp<input name="lu_stones" inputmode="numeric" value="${t.lvl ? t.stones : ''}"></label>
+  </div>`).join(''))(parseLevelTiers(s.levelup_tiers))}
 
   <h2>Rút Linh Thạch</h2>
   <label class="check"><input type="checkbox" name="withdraw_enabled" value="1"${s.withdraw_enabled !== '0' ? ' checked' : ''}> Cho phép rút Linh Thạch</label>

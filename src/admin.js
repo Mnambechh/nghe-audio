@@ -6,7 +6,7 @@ import {
 } from './util.js';
 import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
-import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS } from './game.js';
+import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS, parseLevelTiers } from './game.js';
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
 import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
@@ -286,6 +286,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      const luL = f.getAll('lu_lvl'), luS = f.getAll('lu_stones');
+      data.levelup_tiers = parseLevelTiers(luL.map((l, i) => `${l}:${luS[i] || 0}`).join('\n')).map(t => `${t.lvl}:${t.stones}`).join('\n') || '70:0';
       data.comment_words = parseWords(f.get('comment_words')).join('\n').slice(0, 20000);
       for (const k of [...Object.keys(GAME_DEFAULTS), ...Object.keys(WITHDRAW_DEFAULTS).filter(k => k !== 'withdraw_enabled')]) {
         const v = parseFloat(str(f, k).replace(',', '.'));

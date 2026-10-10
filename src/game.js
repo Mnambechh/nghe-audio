@@ -9,10 +9,28 @@ export const GAME_DEFAULTS = {
   checkin_wait: '180',      // giây online trong ngày trước khi điểm danh được
   comment_exp: '2',         // EXP khi bình luận được duyệt
   comment_exp_daily: '10',  // số bình luận mỗi ngày được cộng EXP
-  levelup_stones: '20',     // Linh Thạch thưởng mỗi lần lên cấp
   rate_daily: '15',         // số truyện được đánh giá mỗi ngày
   level_base_exp: '100',    // cấp N cần N × số này EXP để lên cấp (tính lại từ 0 mỗi cấp)
 };
+// Thưởng Linh Thạch mỗi lần lên cấp theo khoảng cấp: "đến cấp:Linh Thạch" mỗi dòng.
+// Mặc định: lên cấp 2–5 +200, cấp 6–20 +500, cấp 21–50 +1000, cấp 51–70 +1500.
+export const LEVELUP_TIERS_DEFAULT = '5:200\n20:500\n50:1000\n70:1500';
+
+export function parseLevelTiers(text) {
+  const seen = new Set();
+  return String(text || '').split(/[\n;,]+/).map(l => l.split(':').map(x => Math.max(0, Math.round(parseFloat(x) || 0))))
+    .filter(([lvl]) => lvl > 1 && !seen.has(lvl) && seen.add(lvl))
+    .map(([lvl, stones = 0]) => ({ lvl: Math.min(70, lvl), stones }))
+    .sort((a, b) => a.lvl - b.lvl);
+}
+
+// Linh Thạch thưởng khi đạt cấp `lvl`.
+export function levelupStones(s, lvl) {
+  const tiers = parseLevelTiers(s.levelup_tiers ?? LEVELUP_TIERS_DEFAULT);
+  const t = tiers.find(t => lvl <= t.lvl) || tiers[tiers.length - 1];
+  return t ? t.stones : 0;
+}
+
 const num = (s, k) => Math.max(0, parseFloat(s[k] ?? GAME_DEFAULTS[k]) || 0);
 
 // ---------- Thông báo ----------
@@ -51,7 +69,8 @@ export async function awardExp(db, s, userId, amount, note = '') {
   const before = levelInfo(row.exp - amount).lvl;
   const after = levelInfo(row.exp);
   if (after.lvl > before) {
-    const bonus = (after.lvl - before) * num(s, 'levelup_stones');
+    let bonus = 0;
+    for (let l = before + 1; l <= after.lvl; l++) bonus += levelupStones(s, l);
     if (bonus) {
       await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
       await walletLog(db, userId, 'stones', bonus, `Thưởng đột phá ${after.realm} (Cấp ${after.lvl})`);
@@ -101,7 +120,7 @@ export async function gameStats(db, s, me) {
     cmtToday: me.cexp_day === today ? me.cexp_n : 0,
     cmtMax: num(s, 'comment_exp_daily'),
     cmtExp: num(s, 'comment_exp'),
-    levelStones: num(s, 'levelup_stones'),
+    levelStones: levelupStones(s, levelInfo(me.exp).lvl + 1),
     unread,
   };
 }
