@@ -1091,3 +1091,4 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
 .lb-tabs a { flex: none; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; color: var(--brand); background: var(--surface); border: 2px solid var(--dh-pink-line, #F6BCC6); }
 .lb-tabs a.on { color: #fff; background: var(--brand); border-color: var(--brand); }
 .lb-val { flex: none; margin-left: auto; padding-left: 8px; font-size: 14px; color: var(--brand); white-space: nowrap; }
+.desc-label { color: var(--brand); font-weight: 800; letter-spacing: .3px; margin-right: 4px; }

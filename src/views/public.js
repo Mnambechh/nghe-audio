@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '56';
+export const ASSET_V = '57';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -374,7 +374,7 @@ export function trackPage(ctx, t, related) {
       <p class="resume" hidden></p>
     </div>
   </article>
-  ${plainDesc ? `<div class="desc">${h(t.description).replace(/\n/g, '<br>')}</div>` : ''}
+  ${plainDesc ? `<div class="desc"><b class="desc-label">VĂN ÁN:</b> ${h(t.description).replace(/\n/g, '<br>')}</div>` : ''}
   ${parts.length > 1 ? `<section><h2 class="h2">Danh sách phần (${parts.length})</h2><div class="parts">${parts.map((p, i) => `
     <button class="part" type="button" data-act="play-track" data-part="${i}">
       <span class="part-no">${i + 1}</span>
