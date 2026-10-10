@@ -124,10 +124,10 @@ export function trackForm({ track, parts, err, editor = null }) {
 </div>
 ${err ? `<div class="flash err">${h(err)}</div>` : ''}
 <form method="post" class="form card" id="trackForm">
-  <label>Tên truyện / audio *<input name="title" required value="${h(track.title)}" placeholder="Ví dụ: Yêu Đời Audio Số 306"></label>
+  <label>Tên truyện / audio *<input name="title" required value="${h(track.title)}" placeholder="Ví dụ: Truyện Gì Audio Số 306"></label>
   <div class="grid2">
     <label>Nhãn<input name="tag" value="${h(track.tag)}" placeholder="Audio Full"></label>
-    <label>Đường dẫn (để trống sẽ tự tạo)<input name="slug" value="${h(track.slug)}" placeholder="yeu-doi-audio-so-306"></label>
+    <label>Đường dẫn (để trống sẽ tự tạo)<input name="slug" value="${h(track.slug)}" placeholder="truyen-gi-audio-so-306"></label>
   </div>
   <label>Mô tả (hiện trên trang nghe)<textarea name="description" rows="3">${h(track.description)}</textarea></label>
 
@@ -150,7 +150,7 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
       <textarea name="seo_desc" rows="3" maxlength="320" placeholder="1–2 câu tóm tắt hấp dẫn, có tên truyện và từ khóa chính, 120–160 ký tự.">${h(track.seo_desc || '')}</textarea></label>
     <label>Từ khóa (cách nhau bằng dấu phẩy)<input name="seo_keywords" value="${h(track.seo_keywords || '')}" placeholder="tên truyện, truyện audio, nghe truyện ..."></label>
     <div class="serp" aria-label="Xem trước trên Google">
-      <small class="serp-url">${h('truyengi.info › track › ' + (track.slug || 'ten-truyen'))}</small>
+      <small class="serp-url">${h('truyengi.info › track › ' + (track.slug || 'truyen-gi-audio-so-306'))}</small>
       <b class="serp-title"></b>
       <span class="serp-desc"></span>
     </div>
