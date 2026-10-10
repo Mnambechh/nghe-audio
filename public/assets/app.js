@@ -957,21 +957,22 @@
     $('.rw-x', el).addEventListener('click', close);
     setTimeout(close, ms);
   }
-  function showRewards(list, prefix) {
-    let d = 0;
-    if ((list || []).some(r => r.type === 'levelup')) lastLevelToast = Date.now();
-    if (prefix) { rewardToast(prefix, '✔'); d = 250; }
-    (list || []).forEach(r => {
-      setTimeout(() => {
-        if (r.type === 'exp') rewardToast(`Bạn đã được <b>+${nf(r.n)}</b> kinh nghiệm.`, '★');
-        else if (r.type === 'stones') rewardToast(`Bạn đã nhận <b>+${nf(r.n)}</b> Linh Thạch.`, '💎');
-        else if (r.type === 'levelup') {
-          lastLevelToast = Date.now();
-          rewardToast(`Đột phá thành công! ${realmTag(r)} <b>Cấp ${r.lvl}</b>`, '⚡', 7000);
-        }
-      }, d);
-      d += 250;
-    });
+  // Gộp hành động + mọi phần thưởng (EXP, Linh Thạch, đột phá) vào MỘT ô thông báo.
+  function showRewards(list, title, icon = '🎉') {
+    list = list || [];
+    const sum = t => list.filter(r => r.type === t).reduce((n, r) => n + (r.n || 0), 0);
+    const exp = sum('exp'), stones = sum('stones');
+    const gains = [exp && `<b>+${nf(exp)}</b> kinh nghiệm`, stones && `<b>+${nf(stones)}</b> Linh Thạch`].filter(Boolean);
+    const up = list.filter(r => r.type === 'levelup').pop();
+    if (!title && !gains.length && !up) return;
+    let html = title ? `Chúc mừng! ${title}` : 'Chúc mừng!';
+    if (gains.length) html += ` và nhận ${gains.join(', ')}`;
+    html += '!';
+    if (up) {
+      lastLevelToast = Date.now();
+      html += `<br>⚡ Đột phá thành công: ${realmTag(up)} <b>Cấp ${up.lvl}</b>`;
+    }
+    rewardToast(html, up ? '⚡' : icon, up ? 7000 : 5000);
   }
 
   // Thông báo mới (được trả lời, thả tim, duyệt, lên cấp) cũng hiện ở góc, mỗi thông báo một lần.
@@ -980,14 +981,19 @@
     fetch(`${APP.base}/api/notifications`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
       if (!r || !r.ok) return;
       notifs = r.items;
-      const fresh = r.items.filter(n => !n.is_read && !shownNotifs.has(n.id)).slice(0, 3).reverse();
-      fresh.forEach((n, i) => {
+      const fresh = r.items.filter(n => !n.is_read && !shownNotifs.has(n.id)).slice(0, 4).reverse();
+      const ICON = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎', withdraw: '💸' };
+      const lines = [];
+      let icon = '🔔';
+      fresh.forEach(n => {
         shownNotifs.add(n.id);
         if (n.type === 'levelup' && Date.now() - lastLevelToast < 300000) return;
-        const icon = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎', withdraw: '💸' }[n.type] || '🔔';
         const withText = n.type === 'levelup' || n.type === 'admin' || n.type === 'withdraw';
-        setTimeout(() => rewardToast(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`, icon, 6000), i * 300);
+        icon = ICON[n.type] || '🔔';
+        lines.push(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`);
       });
+      // Nhiều thông báo cùng lúc vẫn gộp trong một ô.
+      if (lines.length) rewardToast(lines.length > 1 ? lines.map(l => '• ' + l).join('<br>') : lines[0], lines.length > 1 ? '🔔' : icon, 6000 + (lines.length - 1) * 1500);
       store.set('shown_notifs', [...shownNotifs].slice(-200));
     }).catch(() => {});
   }
@@ -995,7 +1001,7 @@
   function doCheckin() {
     api('/api/checkin', {}).then(r => {
       if (r && r.ok) {
-        showRewards(r.rewards, 'Điểm danh thành công!');
+        showRewards(r.rewards, 'Bạn đã điểm danh thành công', '📅');
         ckNotified = false;
         fetchMe();
       } else {
@@ -1161,10 +1167,7 @@
       $('.stars', box).style.setProperty('--pct', pct + '%');
       $('.rate-text', box).textContent = `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${r.count} đánh giá`;
       showMine(box, r.mine);
-      // Gộp thành một thông báo: đánh giá + EXP nhận được; lên cấp / Linh Thạch (nếu có) vẫn báo riêng.
-      const exp = (r.rewards || []).filter(x => x.type === 'exp').reduce((n, x) => n + x.n, 0);
-      rewardToast(`Chúc mừng bạn đã đánh giá <b>${r.mine}★</b>${exp ? ` và nhận <b>+${nf(exp)}</b> kinh nghiệm` : ''}!`, '🎉', 5000);
-      showRewards((r.rewards || []).filter(x => x.type !== 'exp'));
+      showRewards(r.rewards, `Bạn đã đánh giá <b>${r.mine}★</b>`, '⭐');
       fetchMe();
     });
   });
@@ -1492,8 +1495,8 @@
       cState.items.unshift(r.item);
       if (!r.item.pending) cState.total++;
       renderComments();
-      if (r.item.pending) toast('Đã gửi, bình luận sẽ hiện sau khi được duyệt');
-      else showRewards(r.rewards, 'Đã đăng bình luận');
+      if (r.item.pending) rewardToast('Đã gửi bình luận, bình luận sẽ hiện sau khi được duyệt.', '💬', 5000);
+      else showRewards(r.rewards, 'Bạn đã bình luận thành công', '💬');
     });
   });
 
