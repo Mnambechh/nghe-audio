@@ -653,6 +653,24 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       await clearCache(db);
       return go(back, ['ok', `${BULK[act][1]} ${ids.length} thành viên.`]);
     }
+    // Danh sách theo dõi: các nhóm tài khoản dùng chung IP (đăng ký hoặc đăng nhập gần nhất).
+    const SHARED = `SELECT ip, COUNT(DISTINCT id) n FROM (SELECT id, reg_ip ip FROM users WHERE reg_ip != '' UNION SELECT id, last_ip FROM users WHERE last_ip != '')
+      GROUP BY ip HAVING n > 1`;
+    const sharedCount = (await first(db, `SELECT COUNT(*) groups, COALESCE(SUM(n), 0) accounts FROM (${SHARED})`));
+    if (url.searchParams.get('f') === 'sameip') {
+      const groups = await all(db, `${SHARED} ORDER BY n DESC LIMIT 100`);
+      const ips = groups.map(g => g.ip);
+      const users = ips.length ? await all(db, `SELECT u.id, u.name, u.email, u.avatar, u.exp, u.stones, u.created_at, u.last_seen, u.last_login, u.reg_ip, u.last_ip,
+          u.device, u.banned, u.locked, (SELECT COALESCE(SUM(vnd), 0) FROM withdrawals w WHERE w.user_id = u.id AND w.status = 'paid') paid,
+          (SELECT COUNT(*) FROM withdrawals w WHERE w.user_id = u.id AND w.status = 'pending') wd_pending
+        FROM users u WHERE u.reg_ip IN (${ips.map(() => '?').join(',')}) OR u.last_ip IN (${ips.map(() => '?').join(',')})`, ...ips, ...ips) : [];
+      const checks = ips.length ? await all(db, `SELECT ip, proxy, type, provider FROM ip_checks WHERE ip IN (${ips.map(() => '?').join(',')})`, ...ips) : [];
+      const blocked = ips.length ? await all(db, `SELECT ip FROM blocked_ips WHERE ip IN (${ips.map(() => '?').join(',')}) AND (until = 0 OR until > ?)`, ...ips, now()) : [];
+      const chk = Object.fromEntries(checks.map(c => [c.ip, c])), blk = new Set(blocked.map(b => b.ip));
+      const list = groups.map(g => ({ ...g, check: chk[g.ip], blocked: blk.has(g.ip),
+        users: users.filter(u => u.reg_ip === g.ip || u.last_ip === g.ip).sort((a, b) => a.created_at - b.created_at) }));
+      return view(V.sharedIpView({ groups: list, sharedCount, myIp: info.ip }));
+    }
     const q = (url.searchParams.get('q') || '').trim();
     const sort = ['new', 'exp', 'stones', 'login', 'seen'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
     const filter = ['all', 'banned', 'locked', 'online', 'today'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
@@ -682,7 +700,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         SUM(CASE WHEN last_login > ? OR last_seen > ? THEN 1 ELSE 0 END) active, COALESCE(SUM(stones), 0) stones, SUM(locked) locked FROM users`,
         Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000), now() - 600, now() - 7 * 86400, now() - 7 * 86400),
     ]);
-    return view(V.membersView({ rows, total: total.c, stats, q, sort, filter, page, per }));
+    return view(V.membersView({ rows, total: total.c, stats, q, sort, filter, page, per, sharedCount }));
   }
 
   // Thành viên: chi tiết + thao tác
@@ -825,6 +843,17 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         await db.prepare('DELETE FROM security_log').run();
         return go(ADMIN + '/security', ['ok', 'Đã xóa nhật ký.']);
       }
+      if (act === 'antifake') {
+        const data = { reg_per_ip: String(Math.max(0, Math.min(100, parseInt(str(f, 'reg_per_ip'), 10) || 0))), reg_block_proxy: f.get('reg_block_proxy') ? '1' : '0' };
+        const key = str(f, 'proxycheck_key');
+        if (f.get('proxycheck_clear')) data.proxycheck_key = '';
+        else if (key) {
+          if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return go(ADMIN + '/security', ['err', 'Khóa API không hợp lệ.']);
+          data.proxycheck_key = key;
+        }
+        await saveSettings(db, data);
+        return go(ADMIN + '/security', ['ok', 'Đã lưu cài đặt chống tài khoản ảo.']);
+      }
       if (act === 'access') {
         const list = str(f, 'admin_ip_allow').split(/[\s,]+/).filter(x => /^[0-9a-fA-F:.]{2,45}$/.test(x)).join('\n');
         if (list && !ipAllowed(list, info.ip)) return go(ADMIN + '/security', ['err', `IP hiện tại của bạn (${info.ip}) không nằm trong danh sách — thêm nó vào để tránh tự khóa mình.`]);
@@ -844,7 +873,9 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       all(db, 'SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300'),
     ]);
     const logins = await all(db, "SELECT at, ip, country, ua, detail FROM security_log WHERE event = 'login_ok' ORDER BY at DESC LIMIT 10");
-    return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip, s, logins }));
+    const myCheck = await first(db, 'SELECT proxy, type, provider FROM ip_checks WHERE ip = ?', info.ip);
+    return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip, s, logins,
+      proxy: { hasKey: !!(info.proxyKey || s.proxycheck_key), fromEnv: !!info.proxyKey, myCheck } }));
   }
 
   return new Response('Không tìm thấy', { status: 404 });

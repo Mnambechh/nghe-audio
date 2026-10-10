@@ -3,6 +3,7 @@ import { all, first, loadSettings, saveSettings } from './db.js';
 import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
 import { deviceOf, logEvent } from './security.js';
+import { checkIp } from './proxycheck.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
 import { badge } from './levels.js';
@@ -166,6 +167,25 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       return json({ ok: false, error: 'Đăng nhập Google không thành công, vui lòng thử lại.' }, 401);
     }
     const t = now();
+    // Tài khoản MỚI: giới hạn số tài khoản mỗi IP và chặn đăng ký qua proxy / VPN (chống clone, tài khoản ảo).
+    if (!(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub))) {
+      const limit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
+      if (limit) {
+        const n = (await first(db, 'SELECT COUNT(*) c FROM users WHERE reg_ip = ?', info.ip)).c;
+        if (n >= limit) {
+          await logEvent(db, info, 'reg_limit', `${g.email} · IP đã có ${n} tài khoản`);
+          return json({ ok: false, error: `Mỗi mạng (IP) chỉ được tạo tối đa ${limit} tài khoản. Nếu đã có tài khoản, hãy đăng nhập bằng Gmail cũ.` }, 403);
+        }
+      }
+      const key = info.proxyKey || s.proxycheck_key;
+      if (s.reg_block_proxy !== '0' && key) {
+        const r = await checkIp(db, key, info.ip);
+        if (r && r.proxy) {
+          await logEvent(db, info, 'reg_proxy', `${g.email} · ${r.type || 'Proxy'}${r.provider ? ' · ' + r.provider : ''}`);
+          return json({ ok: false, error: 'Không thể tạo tài khoản khi đang dùng VPN / Proxy. Vui lòng tắt VPN rồi thử lại.' }, 403);
+        }
+      }
+    }
     await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login, last_ip = excluded.last_ip, country = excluded.country,
         device = excluded.device, last_seen = excluded.last_seen,

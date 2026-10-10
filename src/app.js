@@ -20,6 +20,7 @@ export async function handle(request, env, ctx) {
   await migrate(db);
 
   const info = clientInfo(request);
+  info.proxyKey = env.PROXYCHECK_KEY || ''; // khóa API bí mật (biến môi trường Cloudflare), chỉ dùng phía máy chủ
   if (await isBlocked(db, info.ip)) {
     return new Response('Truy cập bị từ chối.', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }

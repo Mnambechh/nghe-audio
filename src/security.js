@@ -97,6 +97,8 @@ export const EVENT_LABELS = {
   login_fail: 'Đăng nhập sai',
   login_ok: 'Đăng nhập thành công',
   admin_ip_deny: 'IP lạ vào trang quản trị',
+  reg_limit: 'Đăng ký vượt giới hạn IP',
+  reg_proxy: 'Đăng ký bằng VPN / Proxy',
   session_stolen: 'Phiên admin dùng trên thiết bị khác',
   admin_2fa: 'Thay đổi xác thực 2 bước',
   login_lock: 'Khóa đăng nhập tạm thời',

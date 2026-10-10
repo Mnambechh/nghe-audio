@@ -160,6 +160,11 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 15: lưu đệm kết quả kiểm tra proxy / VPN.
+  if (await missing(db, 'ip_checks')) {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS ip_checks (ip TEXT PRIMARY KEY, proxy INTEGER NOT NULL DEFAULT 0, type TEXT NOT NULL DEFAULT '',
+      risk INTEGER NOT NULL DEFAULT 0, provider TEXT NOT NULL DEFAULT '', checked_at INTEGER NOT NULL)`).run();
+  }
   // Bản 14: thời gian online thật (chỉ tính khi đang mở tab web) cho điểm danh.
   try {
     await db.prepare('SELECT online_sec FROM users LIMIT 1').first();
@@ -239,6 +244,8 @@ export const DEFAULT_SETTINGS = {
   comments_enabled: '1',
   avatar_max_mb: '5',
   levelup_tiers: '5:200\n20:500\n50:1000\n70:1500', // thưởng Linh Thạch lên cấp theo khoảng cấp (xem game.js)
+  reg_per_ip: '2',          // số tài khoản tối đa được đăng ký từ một IP (0 = không giới hạn)
+  reg_block_proxy: '1',     // chặn đăng ký khi dùng proxy / VPN (cần khóa proxycheck.io)
   comment_moderation: '0',   // 1 = duyệt mọi bình luận; 0 = chỉ duyệt bình luận có link hoặc chứa từ trong bộ lọc
   comment_words: DEFAULT_WORDS,
   google_client_id: '',

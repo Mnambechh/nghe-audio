@@ -371,7 +371,7 @@ export function recoveryView(codes) {
 
 // ---------- Bảo mật ----------
 
-export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [] }) {
+export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], proxy = {} }) {
   const by = Object.fromEntries(stats.map(r => [r.event, r]));
   const stat = (k, label) => `<div><b>${fmtInt(by[k]?.n || 0)}</b><span>${label} (${by[k]?.ips || 0} IP)</span></div>`;
   const label = e => EVENT_LABELS[e] || e;
@@ -401,6 +401,20 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [] }
     <div class="row-actions"><button class="btn">Lưu</button></div>
   </form>
 </div>
+<form method="post" class="form card"><input type="hidden" name="action" value="antifake">
+  <h2>🧬 Chống tài khoản ảo / clone</h2>
+  <div class="grid2">
+    <label>Số tài khoản tối đa được tạo từ một IP (0 = không giới hạn)<input name="reg_per_ip" inputmode="numeric" value="${h(s.reg_per_ip ?? '2')}"></label>
+    <label>Khóa API proxycheck.io ${proxy.hasKey ? `<em class="pill ok">Đã cài${proxy.fromEnv ? ' (biến môi trường)' : ''}</em>` : '<em class="pill">Chưa có</em>'}
+      <input name="proxycheck_key" type="password" autocomplete="off" placeholder="${proxy.hasKey ? 'Đã lưu — để trống nếu không đổi' : 'Dán khóa API vào đây'}"></label>
+  </div>
+  <label class="check"><input type="checkbox" name="reg_block_proxy" value="1"${s.reg_block_proxy !== '0' ? ' checked' : ''}> Chặn tạo tài khoản mới khi dùng VPN / Proxy / máy chủ ảo</label>
+  ${proxy.hasKey && !proxy.fromEnv ? '<label class="check"><input type="checkbox" name="proxycheck_clear" value="1"> Xóa khóa API đã lưu</label>' : ''}
+  <small class="muted">Khóa API được lưu ẩn phía máy chủ, không bao giờ hiện lại trên trang hay gửi xuống trình duyệt. Chỉ kiểm tra khi <b>tạo tài khoản mới</b> (người cũ đăng nhập không bị ảnh hưởng); kết quả mỗi IP lưu 7 ngày để tiết kiệm lượt gọi; nếu proxycheck.io lỗi/hết lượt thì cho đăng ký bình thường.
+  Lưu ý: nhà mạng 4G có thể cho nhiều người dùng chung 1 IP — nếu thấy người dùng thật bị chặn, tăng giới hạn lên 3–5.</small>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>
+
 <h2>Đăng nhập admin gần đây</h2>
 <div class="table">${logins.map(l => `<div class="trow"><span class="tmain"><b>${vnDate(l.at, true)} · ${h(l.ip)}${l.country ? ' (' + h(l.country) + ')' : ''}${l.ip === myIp ? ' <em class="pill ok">bạn</em>' : ''}</b><small>${h(deviceOf(l.ua))} · ${h(l.detail || '')}</small></span></div>`).join('') || '<p class="muted pad">Chưa có.</p>'}</div>
 <p class="muted">Thấy lần đăng nhập lạ? Bấm <b>Đăng xuất mọi thiết bị</b> bên dưới rồi đổi mật khẩu ngay.</p>
@@ -513,7 +527,7 @@ const ago = t => {
   return vnDate(t);
 };
 
-export function membersView({ rows, total, stats, q, sort, filter, page, per }) {
+export function membersView({ rows, total, stats, q, sort, filter, page, per, sharedCount = {} }) {
   const pages = Math.max(1, Math.ceil(total / per));
   const params = { q, sort, f: filter, page };
   const qs = (o = {}) => '?' + new URLSearchParams({ ...params, ...o }).toString();
@@ -530,6 +544,10 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
   <div><b>${fmtInt(stats.active || 0)}</b><span>hoạt động 7 ngày</span></div>
   <div><b>${fmtInt(stats.stones)}</b><span>tổng Linh Thạch · ${fmtInt(stats.locked || 0)} bị khóa</span></div>
 </div>
+<nav class="tabs-admin">
+  <a href="${ADMIN}/members" class="on">Tất cả thành viên</a>
+  <a href="${ADMIN}/members?f=sameip">⚠️ Theo dõi cùng IP <b>${fmtInt(sharedCount.groups || 0)}</b> nhóm · ${fmtInt(sharedCount.accounts || 0)} tài khoản</a>
+</nav>
 <form method="get" class="bar">
   <input class="search" type="search" name="q" value="${h(q)}" placeholder="Tìm tên, email, ID hoặc IP...">
   <select name="sort" class="sel">${[['new', 'Mới đăng ký'], ['seen', 'Hoạt động gần đây'], ['exp', 'EXP cao nhất'], ['stones', 'Nhiều Linh Thạch'], ['login', 'Đăng nhập gần đây']].map(([k, l]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${l}</option>`).join('')}</select>
@@ -572,6 +590,45 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
   </div>
 </div>
 ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="${qs({ page: i })}">${i}</a>`).join('')}</nav>` : ''}`;
+}
+
+// Danh sách theo dõi: nhóm tài khoản dùng chung IP.
+export function sharedIpView({ groups, sharedCount, myIp }) {
+  const status = u => u.locked ? '<span class="st st-bad">Khóa TK</span>' : u.banned ? '<span class="st st-warn">Khóa BL</span>' : '<span class="st st-ok">Hoạt động</span>';
+  return `
+<h1>Thành viên</h1>
+<nav class="tabs-admin">
+  <a href="${ADMIN}/members">Tất cả thành viên</a>
+  <a href="${ADMIN}/members?f=sameip" class="on">⚠️ Theo dõi cùng IP <b>${fmtInt(sharedCount.groups || 0)}</b> nhóm · ${fmtInt(sharedCount.accounts || 0)} tài khoản</a>
+</nav>
+<p class="muted">Các tài khoản <b>đăng ký hoặc đăng nhập gần nhất từ cùng một IP</b> được tự động đưa vào đây. Có thể là một người tạo nhiều tài khoản (clone) để cày Linh Thạch — hoặc chỉ là người nhà / dùng chung wifi, mạng 4G. Hãy xem kỹ trước khi duyệt rút tiền.</p>
+${groups.map(g => {
+    const total = g.users.reduce((a, u) => a + (u.stones || 0), 0), paid = g.users.reduce((a, u) => a + (u.paid || 0), 0);
+    const pending = g.users.some(u => u.wd_pending);
+    const lockable = g.users.filter(u => u.id !== 1 && !u.locked);
+    return `<div class="card ipg${pending ? ' ipg-hot' : ''}">
+  <div class="ipg-head">
+    <span><code>${h(g.ip)}</code> <b>${g.n} tài khoản</b>
+      ${g.check ? (g.check.proxy ? `<em class="st st-bad">${h(g.check.type || 'Proxy')}</em>` : '<em class="st st-ok">IP thường</em>') : ''}
+      ${g.check && g.check.provider ? `<small class="muted">${h(g.check.provider)}</small>` : ''}
+      ${g.blocked ? '<em class="st st-bad">Đã chặn IP</em>' : ''}
+      ${pending ? '<em class="st st-warn">Có yêu cầu rút đang chờ</em>' : ''}</span>
+    <span class="ipg-sum">💎 ${fmtInt(total)} · đã rút ${fmtInt(paid)}đ</span>
+  </div>
+  <div class="ipg-users">${g.users.map(u => `<a class="ipg-u" href="${ADMIN}/members/${u.id}">${memberAv(u, 30)}
+    <span><b>${h(u.name)} <small>#${u.id}</small></b><small>${h(u.email)} · ${h(u.device || '')}</small>
+    <small>ĐK ${vnDate(u.created_at)} ${u.reg_ip === g.ip ? '(từ IP này)' : ''} · 💎 ${fmtInt(u.stones)} · rút ${fmtInt(u.paid)}đ${u.wd_pending ? ' · <b class="st-warn-t">đang chờ rút</b>' : ''}</small></span>
+    ${status(u)}</a>`).join('')}</div>
+  <div class="row-actions">
+    ${lockable.length ? `<form method="post" action="${ADMIN}/members" data-confirm="Khóa ${lockable.length} tài khoản dùng IP ${h(g.ip)}?">
+      <input type="hidden" name="action" value="lock"><input type="hidden" name="qs" value="f=sameip">
+      ${lockable.map(u => `<input type="hidden" name="ids" value="${u.id}">`).join('')}<button class="btn ghost danger-txt">Khóa cả nhóm (${lockable.length})</button></form>` : ''}
+    ${!g.blocked && g.ip !== myIp ? `<form method="post" action="${ADMIN}/security" data-confirm="Chặn IP ${h(g.ip)}? Mọi người dùng IP này sẽ không vào được web.">
+      <input type="hidden" name="action" value="block"><input type="hidden" name="ip" value="${h(g.ip)}"><input type="hidden" name="reason" value="Nhiều tài khoản cùng IP"><input type="hidden" name="hours" value="0">
+      <button class="btn ghost danger-txt">Chặn IP</button></form>` : ''}
+  </div>
+</div>`;
+  }).join('') || '<p class="muted pad">Chưa có tài khoản nào dùng chung IP. 👍</p>'}`;
 }
 
 // Lịch sử EXP / Linh Thạch của thành viên (mọi nguồn: điểm danh, bình luận, đánh giá, lên cấp, rút, admin).
