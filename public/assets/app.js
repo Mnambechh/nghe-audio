@@ -1378,6 +1378,7 @@
     });
   }
 
+  let rateWarnAt = 0;
   // ---------- Bắn tim truyện (mỗi tài khoản 1 lần / truyện, không bỏ được) ----------
   function initHeart() {
     const box = $('.heart-box');
@@ -1462,9 +1463,18 @@
     if (!b) return;
     const box = b.closest('.rating');
     if (!me) { openLogin(); return; }
-    if (box.classList.contains('rated')) { toast('Bạn đã đánh giá truyện này rồi'); return; }
+    // Đã đánh giá: báo 1 lần, bấm tiếp trong 10 giây thì im lặng và không gửi máy chủ (chống spam).
+    if (box.classList.contains('rated')) {
+      const t = Date.now();
+      if (t - rateWarnAt > 10000) { rateWarnAt = t; toast('Bạn đã đánh giá truyện này rồi'); }
+      return;
+    }
     once('rate', () => api('/api/rate', { track_id: +box.dataset.track, stars: +b.dataset.star }).then(r => {
-      if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được đánh giá'); return; }
+      if (!r || !r.ok) {
+        if (r && /đã đánh giá/.test(r.error || '')) { box.classList.add('rated'); rateWarnAt = Date.now(); }
+        if (!(r && r.silent)) toast((r && r.error) || 'Không gửi được đánh giá');
+        return;
+      }
       const avg = r.sum / r.count, pct = Math.round(avg * 10);
       $('.stars', box).style.setProperty('--pct', pct + '%');
       $('.rate-text', box).textContent = `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${r.count} đánh giá`;

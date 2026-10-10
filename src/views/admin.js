@@ -295,7 +295,9 @@ export function settingsView(s, origin) {
     <label>Phải online bao lâu mới điểm danh được (giây)<input name="checkin_wait" inputmode="numeric" value="${h(s.checkin_wait)}"></label>
     <label>EXP mỗi bình luận được duyệt<input name="comment_exp" inputmode="numeric" value="${h(s.comment_exp)}"></label>
     <label>Số bình luận/ngày được cộng EXP<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
-    <label>Số truyện được đánh giá mỗi ngày (mỗi lượt +1 EXP)<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
+    <label>Số truyện được đánh giá mỗi ngày<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
+    <label>Đánh giá: Linh Thạch mỗi truyện<input name="rate_stones" inputmode="numeric" value="${h(s.rate_stones)}"></label>
+    <label>Đánh giá: EXP mỗi truyện<input name="rate_exp" inputmode="numeric" value="${h(s.rate_exp)}"></label>
     <label>Thả tim: Linh Thạch mỗi truyện<input name="heart_stones" inputmode="numeric" value="${h(s.heart_stones)}"></label>
     <label>Thả tim: EXP mỗi truyện<input name="heart_exp" inputmode="numeric" value="${h(s.heart_exp)}"></label>
     <label>Số truyện được thả tim mỗi ngày<input name="heart_daily" inputmode="numeric" value="${h(s.heart_daily)}"></label>

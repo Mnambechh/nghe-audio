@@ -10,6 +10,8 @@ export const GAME_DEFAULTS = {
   comment_exp: '2',         // EXP khi bình luận được duyệt
   comment_exp_daily: '10',  // số bình luận mỗi ngày được cộng EXP
   rate_daily: '15',         // số truyện được đánh giá mỗi ngày
+  rate_stones: '10',        // Linh Thạch mỗi lần đánh giá truyện
+  rate_exp: '5',            // EXP mỗi lần đánh giá truyện
   heart_stones: '1',        // Linh Thạch mỗi lần thả tim truyện
   heart_exp: '1',           // EXP mỗi lần thả tim truyện
   heart_daily: '50',        // số truyện được thả tim mỗi ngày
@@ -36,6 +38,14 @@ export function levelupStones(s, lvl) {
 }
 
 const heartHits = new Map(); // userId → các lần bấm tim gần đây (bộ nhớ tạm của máy chủ)
+// Chống spam chung: quá `max` lần trong `ms` mili giây với cùng một khóa thì trả true (không đụng cơ sở dữ liệu).
+const spamHits = new Map();
+function tooFast(key, max, ms) {
+  const t = Date.now(), list = (spamHits.get(key) || []).filter(x => t - x < ms);
+  list.push(t); spamHits.set(key, list);
+  if (spamHits.size > 10000) spamHits.clear();
+  return list.length > max;
+}
 const num = (s, k) => Math.max(0, parseFloat(s[k] ?? GAME_DEFAULTS[k]) || 0);
 
 // ---------- Thông báo ----------
@@ -231,6 +241,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
       const r = await first(db, 'SELECT stars FROM ratings WHERE user_id = ? AND track_id = ?', me.id, trackId);
       return json({ ok: true, mine: r ? r.stars : 0 });
     }
+    if (tooFast('rate' + me.id, 5, 10000)) return json({ ok: false, silent: true, error: 'Thao tác quá nhanh.' }, 429);
     const stars = parseInt(input.stars, 10);
     if (!(stars >= 1 && stars <= 10)) return json({ ok: false, error: 'Số sao không hợp lệ.' }, 400);
     const track = await first(db, 'SELECT title FROM tracks WHERE id = ? AND published = 1', trackId);
@@ -249,7 +260,15 @@ export async function handleGameApi(request, db, s, path, me, input) {
       return json({ ok: false, error: 'Bạn đã đánh giá truyện này rồi.' }, 400);
     }
     await db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId).run();
-    const rewards = await awardExp(db, s, me.id, 1, `Đánh giá ${stars} sao: ${track.title}`);
+    // Thưởng mỗi lần đánh giá (mỗi truyện chỉ 1 lần nhờ khóa chính user/track).
+    const rewards = [];
+    const st = num(s, 'rate_stones'), ex = num(s, 'rate_exp');
+    if (st) {
+      await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(st, me.id).run();
+      await walletLog(db, me.id, 'stones', st, `Đánh giá ${stars} sao: ${track.title}`);
+      rewards.push({ type: 'stones', n: st });
+    }
+    if (ex) rewards.push(...await awardExp(db, s, me.id, ex, `Đánh giá ${stars} sao: ${track.title}`));
     const tr = await first(db, 'SELECT rating_sum, rating_count FROM tracks WHERE id = ?', trackId);
     return json({ ok: true, mine: stars, sum: tr.rating_sum, count: tr.rating_count, rewards });
   }
