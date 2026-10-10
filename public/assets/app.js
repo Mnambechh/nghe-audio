@@ -155,6 +155,7 @@
       setSource(part().url);
     }
     if (adHold > Date.now()) { primeAudio(); return; } // đang trong 3 giây chờ sau khi bấm quảng cáo
+    audio.muted = false;
     body.classList.add('is-loading');
     watchStall();
     let pr;
@@ -214,15 +215,18 @@
 
   const AD_WAIT = 3000;
   let adHold = 0;
-  // iOS / Android chỉ cho phát khi có thao tác bấm: phát tắt tiếng rồi dừng ngay trong lúc bấm để "mở khóa" thẻ audio
-  // và bắt trình duyệt tải trước dữ liệu; 3 giây sau gọi phát thật (không còn bị chặn tự phát).
+  // iOS / Android chỉ cho phát khi có thao tác bấm. Trong lúc bấm quảng cáo: gọi play() rồi pause() NGAY LẬP TỨC
+  // (cùng một nhịp, chưa kịp phát ra tiếng) để "mở khóa" thẻ audio; preload=auto để trình duyệt tải trước dữ liệu.
+  // Không chờ play() xong mới dừng: trên máy thật như vậy sẽ lọt tiếng trước khi hết 3 giây.
   function primeAudio() {
     audio.preload = 'auto';
-    audio.muted = true;
-    let pr = null;
-    try { pr = audio.play(); } catch (e) { /* bỏ qua */ }
-    const done = () => { if (adHold) audio.pause(); audio.muted = false; };
-    if (pr && pr.then) pr.then(done, () => { audio.muted = false; }); else done();
+    audio.muted = true; // thêm một lớp an toàn; start() sẽ bật tiếng lại khi phát thật
+    try {
+      const pr = audio.play();
+      if (pr && pr.catch) pr.catch(() => { /* AbortError do pause() ngay sau: bình thường */ });
+    } catch (e) { /* bỏ qua */ }
+    audio.pause();
+    body.classList.remove('is-playing', 'is-loading');
   }
   function carrotLoader(ms, done) {
     const old = $('#carrotLoad');
