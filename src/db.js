@@ -158,6 +158,15 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 9: lịch sử EXP / Linh Thạch của từng thành viên.
+  if (await missing(db, 'wallet_log')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS wallet_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL,
+        balance INTEGER NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_log(user_id, kind, id DESC)`,
+    ].map(q => db.prepare(q)));
+  }
   migrated = true;
 }
 

@@ -148,3 +148,11 @@ a.trow:hover { background: #f7faf8; }
 .wact form { display: flex; gap: 6px; margin: 0; }
 .wact input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 14px; }
 .wact .btn { height: 38px; padding: 0 12px; white-space: nowrap; }
+
+/* Lịch sử EXP / Linh Thạch */
+.wl-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wl-tabs .pill { font-size: 13px; padding: 4px 12px; text-decoration: none; }
+.wl-tabs .pill.on { background: var(--brand); color: #fff; }
+.wl-amt.pos { color: #0d6b43; }
+.wl-amt.neg { color: #c0392b; }
+.pager span { padding: 6px 4px; }

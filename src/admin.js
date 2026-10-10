@@ -6,7 +6,7 @@ import {
 } from './util.js';
 import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
-import { onCommentApproved, notify, awardExp, GAME_DEFAULTS } from './game.js';
+import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 
 const SESSION_COOKIE = 'aw_admin';
@@ -440,6 +440,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
             db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(w.amount, w.user_id),
             db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
               .bind(w.user_id, 'withdraw_refund', w.amount, note || 'Từ chối yêu cầu rút', now()),
+            walletStmt(db, w.user_id, 'stones', w.amount, 'Hoàn lại do yêu cầu rút bị từ chối'),
           ]);
           await notify(db, w.user_id, 'withdraw', { text: `Yêu cầu rút ${w.amount.toLocaleString('vi-VN')} Linh Thạch bị từ chối, đã hoàn lại${note ? ' · Lý do: ' + note : ''}` });
         }
@@ -509,9 +510,16 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         const amt = Math.trunc(parseFloat(str(f, 'amount').replace(/[.,\s]/g, '')) || 0);
         if (!amt) return go(back, ['err', 'Nhập số cần cộng (số dương) hoặc trừ (số âm).']);
         const label = act === 'stones' ? 'Linh Thạch' : 'EXP';
-        if (act === 'stones') await db.prepare('UPDATE users SET stones = MAX(0, stones + ?) WHERE id = ?').bind(amt, uid).run();
-        else if (amt > 0) await awardExp(db, s, uid, amt);
-        else await db.prepare('UPDATE users SET exp = MAX(0, exp + ?) WHERE id = ?').bind(amt, uid).run();
+        const why = `Admin ${amt > 0 ? 'cộng' : 'trừ'}${reason ? ': ' + reason : ''}`;
+        if (act === 'exp' && amt > 0) await awardExp(db, s, uid, amt, why);
+        else {
+          // Trừ không xuống dưới 0: ghi đúng số thực sự bị trừ.
+          const col = act === 'stones' ? 'stones' : 'exp';
+          const before = u[col] || 0;
+          const after = Math.max(0, before + amt);
+          await db.prepare(`UPDATE users SET ${col} = MAX(0, ${col} + ?) WHERE id = ?`).bind(amt, uid).run();
+          await walletLog(db, uid, col, after - before, why);
+        }
         await log(act, amt, reason);
         await notify(db, uid, 'admin', { text: `${amt > 0 ? 'Cộng' : 'Trừ'} ${Math.abs(amt).toLocaleString('vi-VN')} ${label}${reason ? ' · ' + reason : ''}` });
         await clearCache(db);
@@ -552,6 +560,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
           db.prepare('DELETE FROM history WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(uid, uid),
           db.prepare('DELETE FROM member_log WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM wallet_log WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM users WHERE id = ?').bind(uid),
         ]);
         await clearCache(db);
@@ -559,6 +568,20 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       }
       return go(back);
     }
+    // Lịch sử EXP / Linh Thạch: lọc theo loại, 50 dòng mỗi trang.
+    const wk = ['exp', 'stones'].includes(url.searchParams.get('wk')) ? url.searchParams.get('wk') : '';
+    const wp = Math.max(1, parseInt(url.searchParams.get('wp'), 10) || 1);
+    const WPER = 50;
+    const wWhere = 'user_id = ?' + (wk ? ' AND kind = ?' : '');
+    const wArgs = wk ? [uid, wk] : [uid];
+    const [wallet, wTotal, wSum] = await Promise.all([
+      all(db, `SELECT * FROM wallet_log WHERE ${wWhere} ORDER BY id DESC LIMIT ? OFFSET ?`, ...wArgs, WPER, (wp - 1) * WPER),
+      first(db, `SELECT COUNT(*) c FROM wallet_log WHERE ${wWhere}`, ...wArgs),
+      first(db, `SELECT SUM(CASE WHEN kind = 'exp' AND amount > 0 THEN amount END) exp_in, SUM(CASE WHEN kind = 'exp' AND amount < 0 THEN amount END) exp_out,
+        SUM(CASE WHEN kind = 'stones' AND amount > 0 THEN amount END) st_in, SUM(CASE WHEN kind = 'stones' AND amount < 0 THEN amount END) st_out
+        FROM wallet_log WHERE user_id = ?`, uid),
+    ]);
+    const walletData = { rows: wallet, total: wTotal.c, sum: wSum || {}, kind: wk, page: wp, per: WPER };
     const [comments, logs, counts] = await Promise.all([
       all(db, `SELECT c.id, c.body, c.status, c.likes, c.created_at, t.title, t.slug FROM comments c LEFT JOIN tracks t ON t.id = c.track_id
         WHERE c.user_id = ? ORDER BY c.created_at DESC LIMIT 20`, uid),
@@ -567,7 +590,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         (SELECT COUNT(*) FROM comments WHERE user_id = ?) comments_all, (SELECT COUNT(*) FROM users WHERE id != ? AND (reg_ip = ? OR last_ip = ?) AND ? != '') same_ip`,
         uid, uid, uid, uid, u.reg_ip || '-', u.last_ip || '-', u.reg_ip || u.last_ip || ''),
     ]);
-    return view(V.memberView({ u, comments, logs, counts, myIp: info.ip }));
+    return view(V.memberView({ u, comments, logs, counts, myIp: info.ip, wallet: walletData }));
   }
 
   // Bảo mật: nhật ký tấn công, chặn IP, đăng xuất mọi thiết bị

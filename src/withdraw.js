@@ -1,6 +1,7 @@
 // Rút Linh Thạch: tài khoản nhận tiền (ngân hàng, MoMo, ViettelPay, ZaloPay) và yêu cầu rút (admin duyệt tay).
 import { all, first } from './db.js';
 import { json, now, vnDay, vnPlain } from './util.js';
+import { walletStmt } from './game.js';
 
 export const WITHDRAW_DEFAULTS = {
   withdraw_enabled: '1',
@@ -99,6 +100,7 @@ export async function handleWithdrawApi(request, db, s, path, me, input, info) {
         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`).bind(me.id, amount, vnd, acc.method, acc.bank, acc.number, acc.holder, vnDay(), info.ip, now()),
       db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
         .bind(me.id, 'withdraw', -amount, `Yêu cầu rút về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''} ${acc.number}`, now()),
+      walletStmt(db, me.id, 'stones', -amount, `Rút Linh Thạch về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''}`),
     ]);
     return json({ ok: true, amount, vnd });
   }

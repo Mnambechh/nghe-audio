@@ -442,7 +442,28 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
 ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="${qs({ page: i })}">${i}</a>`).join('')}</nav>` : ''}`;
 }
 
-export function memberView({ u, comments, logs, counts, myIp }) {
+// Lịch sử EXP / Linh Thạch của thành viên (mọi nguồn: điểm danh, bình luận, đánh giá, lên cấp, rút, admin).
+function walletSection(u, w) {
+  const pages = Math.max(1, Math.ceil(w.total / w.per));
+  const link = (o = {}) => `${ADMIN}/members/${u.id}?` + new URLSearchParams({ wk: w.kind, wp: 1, ...o }).toString() + '#wallet';
+  const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtInt(Math.abs(n));
+  const tab = (k, label) => `<a class="pill${w.kind === k ? ' on' : ''}" href="${link({ wk: k })}">${label}</a>`;
+  const s = w.sum;
+  return `
+<h2 id="wallet">Lịch sử Kinh nghiệm & Linh Thạch</h2>
+<div class="stats">
+  <div><b>+${fmtInt(s.exp_in || 0)}</b><span>EXP đã nhận${s.exp_out ? ` · ${signed(s.exp_out)} bị trừ` : ''}</span></div>
+  <div><b>+${fmtInt(s.st_in || 0)}</b><span>Linh Thạch đã nhận</span></div>
+  <div><b>${signed(s.st_out || 0)}</b><span>Linh Thạch đã dùng / rút / bị trừ</span></div>
+</div>
+<p class="wl-tabs">${tab('', 'Tất cả')} ${tab('exp', 'Kinh nghiệm')} ${tab('stones', 'Linh Thạch')} <small class="muted">${fmtInt(w.total)} dòng</small></p>
+<div class="table wl">${w.rows.map(r => `<div class="trow"><span class="tmain">
+  <b><span class="wl-amt ${r.amount < 0 ? 'neg' : 'pos'}">${signed(r.amount)} ${r.kind === 'exp' ? 'EXP' : 'Linh Thạch'}</span> <small class="muted">→ còn ${fmtInt(r.balance)}</small></b>
+  <small>${vnDate(r.created_at, true)}${r.note ? ' · ' + h(r.note) : ''}</small></span></div>`).join('') || '<p class="muted pad">Chưa có lịch sử.</p>'}</div>
+${pages > 1 ? `<nav class="pager">${w.page > 1 ? `<a href="${link({ wp: w.page - 1 })}">‹ Mới hơn</a>` : ''}<span class="muted">Trang ${w.page}/${pages}</span>${w.page < pages ? `<a href="${link({ wp: w.page + 1 })}">Cũ hơn ›</a>` : ''}</nav>` : ''}`;
+}
+
+export function memberView({ u, comments, logs, counts, myIp, wallet }) {
   const L = levelInfo(u.exp);
   const act = (a, label, cls = 'btn ghost', confirm = '') => `<form method="post"${confirm ? ` data-confirm="${h(confirm)}"` : ''}><input type="hidden" name="action" value="${a}"><button class="${cls}">${label}</button></form>`;
   const ipRow = (label, ip) => `<dt>${label}</dt><dd>${ip ? `${h(ip)}${ip !== myIp ? ` <form method="post" class="inline-form" data-confirm="Chặn IP ${h(ip)}?"><input type="hidden" name="action" value="block_ip"><input type="hidden" name="ip" value="${h(ip)}"><button class="link-danger">Chặn IP</button></form>` : ' <small class="muted">(IP của bạn)</small>'}` : '—'}</dd>`;
@@ -501,6 +522,8 @@ export function memberView({ u, comments, logs, counts, myIp }) {
     ${u.avatar ? act('avatar_reset', 'Bỏ ảnh đại diện', 'btn ghost', 'Bỏ ảnh đại diện của thành viên này?') : ''}
   </div>
 </div>
+
+${walletSection(u, wallet)}
 
 <h2>Nhật ký thay đổi</h2>
 <div class="table">${logs.map(l => `<div class="trow"><span class="tmain"><b>${h(ACTION_LABELS[l.action] || l.action)}${l.amount ? ` ${l.amount > 0 ? '+' : ''}${fmtInt(l.amount)}`.replace('+-', '-') : ''}</b>

@@ -24,19 +24,38 @@ export async function notify(db, userId, type, { actor = 0, track = 0, comment =
   if (Math.random() < 0.02) await db.prepare('DELETE FROM notifications WHERE created_at < ?').bind(now() - 60 * 86400).run();
 }
 
+// ---------- Lịch sử EXP / Linh Thạch ----------
+
+// Câu lệnh ghi một dòng lịch sử; số dư lấy sau khi đã cập nhật (gọi sau UPDATE, hoặc đặt sau nó trong batch).
+export function walletStmt(db, userId, kind, amount, note) {
+  const col = kind === 'exp' ? 'exp' : 'stones';
+  return db.prepare(`INSERT INTO wallet_log (user_id, kind, amount, balance, note, created_at)
+    SELECT id, ?, ?, ${col}, ?, ? FROM users WHERE id = ?`).bind(kind, amount, String(note || '').slice(0, 200), now(), userId);
+}
+
+export async function walletLog(db, userId, kind, amount, note) {
+  if (!userId || !amount) return;
+  await walletStmt(db, userId, kind, amount, note).run();
+  if (Math.random() < 0.01) await db.prepare('DELETE FROM wallet_log WHERE created_at < ?').bind(now() - 365 * 86400).run();
+}
+
 // ---------- EXP & lên cấp ----------
 
 // Cộng EXP, tự xử lý lên cấp. Trả về danh sách phần thưởng để hiện thông báo góc màn hình.
-export async function awardExp(db, s, userId, amount) {
+export async function awardExp(db, s, userId, amount, note = '') {
   if (!userId || !amount) return [];
   const row = await first(db, 'UPDATE users SET exp = exp + ? WHERE id = ? RETURNING exp', amount, userId);
   if (!row) return [];
+  await walletLog(db, userId, 'exp', amount, note);
   const rewards = [{ type: 'exp', n: amount }];
   const before = levelInfo(row.exp - amount).lvl;
   const after = levelInfo(row.exp);
   if (after.lvl > before) {
     const bonus = (after.lvl - before) * num(s, 'levelup_stones');
-    if (bonus) await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
+    if (bonus) {
+      await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
+      await walletLog(db, userId, 'stones', bonus, `Thưởng đột phá ${after.realm} (Cấp ${after.lvl})`);
+    }
     await notify(db, userId, 'levelup', { text: `Chúc mừng đột phá ${after.realm} (Cấp ${after.lvl})${bonus ? ` · +${bonus} Linh Thạch` : ''}` });
     rewards.push({ type: 'levelup', lvl: after.lvl, realm: after.realm, tier: after.tier });
     if (bonus) rewards.push({ type: 'stones', n: bonus });
@@ -50,7 +69,7 @@ export async function onCommentApproved(db, s, c) {
   const u = await first(db, 'SELECT cexp_day, cexp_n FROM users WHERE id = ?', c.user_id);
   const n = u && u.cexp_day === today ? u.cexp_n : 0;
   await db.prepare('UPDATE users SET comments_n = comments_n + 1, cexp_day = ?, cexp_n = ? WHERE id = ?').bind(today, n + 1, c.user_id).run();
-  const rewards = n < num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp')) : [];
+  const rewards = n < num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp'), `Bình luận được duyệt #${c.id}`) : [];
   if (c.parent_id) {
     const p = await first(db, 'SELECT user_id FROM comments WHERE id = ?', c.parent_id);
     if (p) await notify(db, p.user_id, 'reply', { actor: c.user_id, track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });
@@ -116,7 +135,8 @@ export async function handleGameApi(request, db, s, path, me, input) {
     const r = await db.prepare("UPDATE users SET checkin_day = ?, stones = stones + ? WHERE id = ? AND checkin_day != ?")
       .bind(today, num(s, 'checkin_stones'), me.id, today).run();
     if (!r.meta.changes) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
-    const rewards = [{ type: 'stones', n: num(s, 'checkin_stones') }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'))];
+    await walletLog(db, me.id, 'stones', num(s, 'checkin_stones'), 'Điểm danh hằng ngày');
+    const rewards = [{ type: 'stones', n: num(s, 'checkin_stones') }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'), 'Điểm danh hằng ngày')];
     return json({ ok: true, stones: num(s, 'checkin_stones'), exp: num(s, 'checkin_exp'), rewards });
   }
 
@@ -129,7 +149,8 @@ export async function handleGameApi(request, db, s, path, me, input) {
     }
     const stars = parseInt(input.stars, 10);
     if (!(stars >= 1 && stars <= 10)) return json({ ok: false, error: 'Số sao không hợp lệ.' }, 400);
-    if (!(await first(db, 'SELECT 1 x FROM tracks WHERE id = ? AND published = 1', trackId))) return json({ ok: false }, 404);
+    const track = await first(db, 'SELECT title FROM tracks WHERE id = ? AND published = 1', trackId);
+    if (!track) return json({ ok: false }, 404);
     if (await first(db, 'SELECT 1 x FROM ratings WHERE user_id = ? AND track_id = ?', me.id, trackId)) {
       return json({ ok: false, error: 'Bạn đã đánh giá truyện này rồi.' }, 400);
     }
@@ -141,7 +162,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
       db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId),
       db.prepare('UPDATE users SET rate_day = ?, rate_n = ? WHERE id = ?').bind(today, used + 1, me.id),
     ]);
-    const rewards = await awardExp(db, s, me.id, 1);
+    const rewards = await awardExp(db, s, me.id, 1, `Đánh giá ${stars} sao: ${track.title}`);
     const tr = await first(db, 'SELECT rating_sum, rating_count FROM tracks WHERE id = ?', trackId);
     return json({ ok: true, mine: stars, sum: tr.rating_sum, count: tr.rating_count, rewards });
   }
