@@ -166,6 +166,7 @@ export async function migrate(db) {
 export const DEFAULT_SETTINGS = {
   site_name: 'Audio Truyện',
   site_tagline: 'Nghe audio miễn phí, không cần tài khoản',
+  header_show_name: '0',
   seo_title: 'Audio Truyện - Nghe audio truyện miễn phí',
   seo_description: 'Nghe audio truyện full miễn phí, không cần tài khoản.',
   seo_keywords: 'audio truyện, truyện audio, nghe truyện',

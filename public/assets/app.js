@@ -222,7 +222,7 @@
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: cur.title,
-        artist: cur.parts.length > 1 ? `Phần ${idx + 1}/${cur.parts.length}` : document.querySelector('.brand span:last-child').textContent,
+        artist: cur.parts.length > 1 ? `Phần ${idx + 1}/${cur.parts.length}` : (document.querySelector('.brand') || {}).title || '',
         album: p.title,
       });
     } catch (e) {}

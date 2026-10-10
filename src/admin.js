@@ -280,6 +280,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const f = await request.formData();
       const data = {};
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
+      data.header_show_name = f.get('header_show_name') ? '1' : '0';
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';

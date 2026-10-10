@@ -236,6 +236,7 @@ export function settingsView(s, origin) {
     ${img('logo', 'Logo (PNG/JPG/WebP, tối đa 1MB)')}
     ${img('favicon', 'Favicon (để trống sẽ dùng logo)')}
   </div>
+  <label class="check"><input type="checkbox" name="header_show_name" value="1"${s.header_show_name === '1' ? ' checked' : ''}> Hiện chữ tên website cạnh logo trên thanh đầu trang</label>
   <div class="grid2">
     <label>Màu chủ đạo<input name="theme_color" type="color" value="${h(s.theme_color)}"></label>
     <label>Số audio mỗi trang<input name="per_page" type="number" min="5" max="100" value="${h(s.per_page)}"></label>

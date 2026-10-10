@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '17';
+export const ASSET_V = '18';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -67,9 +67,9 @@ ${safeHeadCode(s.head_code)}
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/">
-    ${s.logo ? `<img src="${h(s.logo)}" alt="${h(s.site_name)}" height="28">` : '<span class="brand-dot"></span>'}
-    <span>${h(s.site_name)}</span>
+  <a class="brand" href="/" aria-label="${h(s.site_name)}" title="${h(s.site_name)}">
+    ${s.logo ? `<img src="${h(s.logo)}" alt="" height="34">` : '<span class="brand-dot"></span>'}
+    ${s.header_show_name === '1' ? `<span>${h(s.site_name)}</span>` : ''}
   </a>
   <nav class="top-nav">
   <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
