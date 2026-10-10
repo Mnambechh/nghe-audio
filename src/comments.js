@@ -2,7 +2,7 @@
 import { all, first, loadSettings, saveSettings } from './db.js';
 import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
-import { deviceOf, logEvent, ADMIN } from './security.js';
+import { deviceOf, logEvent } from './security.js';
 import { checkIp } from './proxycheck.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
@@ -103,7 +103,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
     }
     // Đường dẫn trang quản trị chỉ gửi cho biên tập viên (người thường không biết link admin).
-    return json({ ok: true, editorUrl: me && me.role === 'editor' && !me.demo ? ADMIN : '', me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
+    return json({ ok: true, editorUrl: me && me.role === 'editor' && !me.demo ? '/bien-tap' : '', me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
   if (request.method === 'GET' && path === '/api/withdraw') {

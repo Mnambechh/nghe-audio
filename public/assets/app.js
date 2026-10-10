@@ -1001,7 +1001,7 @@
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" data-nopjax target="_blank">✏️ Đăng truyện (Biên tập viên)</a>` : ''}<a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">✏️ Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av');
     updateBell();
@@ -1240,6 +1240,17 @@
     histCache = null;
     if (changed) renderAcct(); else renderGame();
     renderDemoBar();
+    renderEditorNav();
+  }
+
+  // Biên tập viên: thêm "Đăng truyện" vào menu (đường dẫn /bien-tap, máy chủ chỉ mở cho đúng người có quyền).
+  function renderEditorNav() {
+    $$('.editor-link').forEach(a => a.remove());
+    if (!editorUrl || !me) return;
+    const html = `<a class="editor-link" href="${esc(editorUrl)}" target="_self">✏️ Đăng truyện</a>`;
+    const mm = $('#mainmenu'), tn = $('.top-nav');
+    if (mm) mm.insertAdjacentHTML('beforeend', html);
+    if (tn) tn.insertAdjacentHTML('beforeend', html);
   }
 
   // Admin đang xem thử tài khoản thành viên: hiện thanh cảnh báo + nút thoát.
@@ -1279,7 +1290,7 @@
       if (!r || !r.ok) return;
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
-      editorUrl = r.editorUrl || '';
+      editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
     }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); });
   }

@@ -50,7 +50,6 @@ export function loginPage(s, err) {
   return shell('Đăng nhập quản trị', `<body class="auth">
 <form class="auth-box form" method="post">
   <h1>${h(s.site_name)}</h1>
-  <p class="muted"><small>Biên tập viên: đăng nhập Google trên web rồi mở lại đường dẫn này (không cần mật khẩu).</small></p>
   ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   <label>Tên đăng nhập<input name="user" required autocomplete="username" autofocus></label>
   <label>Mật khẩu<input name="pass" type="password" required autocomplete="current-password"></label>

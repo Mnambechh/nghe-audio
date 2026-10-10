@@ -8,7 +8,7 @@ import { withdrawConfig, METHODS } from './withdraw.js';
 import { MAX_LEVEL, realmOf, expToNext } from './levels.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
-import { handleAdmin, handleInstall } from './admin.js';
+import { handleAdmin, handleInstall, handleEditor, EDITOR_PATH } from './admin.js';
 import { searchTracks } from './search.js';
 import { ADMIN, clientInfo, isBlocked, isProbe, logEvent, withSecurityHeaders } from './security.js';
 
@@ -37,6 +37,12 @@ export async function handle(request, env, ctx) {
   // Trang quản trị nằm ở đường dẫn riêng; bên trong vẫn xử lý như /admin/...
   if (path === ADMIN || path.startsWith(ADMIN + '/')) {
     const res = await handleAdmin(request, env, db, s, '/admin' + path.slice(ADMIN.length), url, info);
+    return withSecurityHeaders(res, true);
+  }
+
+  // Khu biên tập viên: người không có quyền thấy trang 404 bình thường.
+  if (path === EDITOR_PATH || path.startsWith(EDITOR_PATH + '/')) {
+    const res = await handleEditor(request, env, db, s, path, url, info, async () => html(notFoundPage(await publicContext(db, s, url)), 404));
     return withSecurityHeaders(res, true);
   }
 

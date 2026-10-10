@@ -133,10 +133,28 @@ export async function handleInstall(request, db) {
 
 // ---------- Trang quản trị ----------
 
-export async function handleAdmin(request, env, db, s, path, url, info) {
+// Khu biên tập viên (/bien-tap): chỉ người có vai trò biên tập viên mới vào được, người khác thấy 404.
+// Dùng lại trang Audio của admin nhưng đổi mọi đường dẫn /quanly-… thành /bien-tap để không lộ link quản trị.
+export const EDITOR_PATH = '/bien-tap';
+export async function handleEditor(request, env, db, s, path, url, info, notFound) {
+  const u = await currentUser(request, db);
+  if (!u || u.demo || u.role !== 'editor' || u.banned) return notFound();
+  const res = await handleAdmin(request, env, db, s, '/admin' + path.slice(EDITOR_PATH.length), url, info, u);
+  const out = new Response(res.body, res);
+  const swap = v => v.split(ADMIN).join(EDITOR_PATH);
+  for (const k of ['Location']) if (out.headers.get(k)) out.headers.set(k, swap(out.headers.get(k)));
+  const cookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  if (cookies.length) { out.headers.delete('Set-Cookie'); cookies.forEach(c => out.headers.append('Set-Cookie', swap(c))); }
+  if ((out.headers.get('Content-Type') || '').includes('text/html')) {
+    return new Response(swap(await out.text()), { status: out.status, headers: out.headers });
+  }
+  return out;
+}
+
+export async function handleAdmin(request, env, db, s, path, url, info, editorUser = null) {
   const isPost = request.method === 'POST';
-  // Giới hạn IP (nếu admin bật): IP lạ nhận 404 như thể trang không tồn tại.
-  if (!ipAllowed(s.admin_ip_allow, info.ip)) {
+  // Giới hạn IP (nếu admin bật): IP lạ nhận 404 như thể trang không tồn tại. (Không áp dụng cho khu biên tập viên.)
+  if (!editorUser && !ipAllowed(s.admin_ip_allow, info.ip)) {
     await logEvent(db, info, 'admin_ip_deny', ADMIN + path.slice('/admin'.length), { hits: 20, hours: 24 });
     return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
@@ -145,7 +163,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     return new Response('Yêu cầu không hợp lệ, vui lòng tải lại trang.', { status: 400 });
   }
 
-  // Đăng nhập
+  // Đăng nhập (chỉ admin; khu biên tập viên không có trang đăng nhập riêng)
+  if (path === '/admin/login' && editorUser) return go(ADMIN);
   if (path === '/admin/login') {
     let err = '';
     if (isPost) {
@@ -189,17 +208,17 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
 
   const session = await readToken(s.secret, getCookie(request, SESSION_COOKIE));
   // Biên tập viên: đăng nhập bằng tài khoản thành viên (Google) có vai trò "editor", chỉ được đăng / sửa audio.
+  // Biên tập viên chỉ vào qua /bien-tap (handleEditor); đường quản trị thật chỉ dành cho admin.
   let editor = null;
-  if (!session || session.u !== s.admin_user) {
-    const u = await currentUser(request, db);
-    if (!u || u.demo || u.role !== 'editor' || u.banned) return redirect(ADMIN + '/login');
+  if (editorUser) {
+    const u = editorUser;
     editor = u;
     const allowed = path === '/admin' || path === '/admin/track/new' || /^\/admin\/track\/\d+$/.test(path);
     if (!allowed) {
       await logEvent(db, info, 'editor_deny', `#${u.id} ${u.name}: ${ADMIN + path.slice('/admin'.length)}`);
       return go(ADMIN, ['err', 'Biên tập viên chỉ có quyền đăng và sửa audio.']);
     }
-  }
+  } else if (!session || session.u !== s.admin_user) return redirect(ADMIN + '/login');
   // Phiên gắn với thiết bị đã đăng nhập: cookie dùng trên thiết bị khác → bắt đăng nhập lại và ghi nhật ký.
   if (!editor && s.admin_bind_device !== '0' && session.d && session.d !== await uaHash(request)) {
     await logEvent(db, info, 'session_stolen', ADMIN + path.slice('/admin'.length));
