@@ -363,7 +363,7 @@ export function trackPage(ctx, t, related) {
     <div class="c-compose"></div>
     <div class="c-list"><p class="c-note">Đang tải bình luận…</p></div>
   </section>` : ''}
-  ${related.length ? shelf('Có thể bạn sẽ thích', rail(related)) : ''}
+  ${related.length ? shelf('Có lẽ bạn sẽ thích', rail(related)) : ''}
 </div>
 <script type="application/json" id="track-data">${jsonScript(data)}</script>
 <script type="application/ld+json">${jsonScript(ld)}</script>`;

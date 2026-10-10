@@ -71,11 +71,7 @@ export async function handle(request, env, ctx) {
     t.parts = await all(db, 'SELECT title, url, duration FROM parts WHERE track_id = ? ORDER BY pos, id', t.id);
     const live = await liveCounts(db);
     t.live = live[t.id] || 0;
-    const [before, after] = await Promise.all([
-      all(db, 'SELECT * FROM tracks WHERE published = 1 AND id < ? ORDER BY id DESC LIMIT 5', t.id),
-      all(db, 'SELECT * FROM tracks WHERE published = 1 AND id > ? ORDER BY id LIMIT 5', t.id),
-    ]);
-    const related = await withLive(db, [...after.reverse(), ...before], live);
+    const related = await withLive(db, await suggestFor(db, t.id), live);
     return html(trackPage(pageCtx, t, related), 200, { 'Cache-Control': 'no-cache' });
   }
 
@@ -86,6 +82,31 @@ export async function handle(request, env, ctx) {
   }
 
   return html(notFoundPage(pageCtx), 404);
+}
+
+// Gợi ý "Có lẽ bạn sẽ thích": chọn ngẫu nhiên từ nhóm nghe nhiều hôm nay + nhiều lượt nghe nhất.
+// Nhóm ứng viên lưu đệm 10 phút; mỗi lần mở trang xáo lại nên gợi ý luôn thay đổi.
+async function suggestFor(db, currentId, n = 10) {
+  const pool = await cached(db, 'suggest_pool', 600, async () => {
+    const [today, top] = await Promise.all([
+      all(db, `SELECT t.* FROM views_daily v JOIN tracks t ON t.id = v.track_id
+        WHERE v.day = ? AND t.published = 1 ORDER BY v.n DESC LIMIT 30`, vnDay()),
+      all(db, 'SELECT * FROM tracks WHERE published = 1 ORDER BY views DESC LIMIT 30'),
+    ]);
+    const seen = new Set();
+    return [...today, ...top].filter(x => !seen.has(x.id) && seen.add(x.id));
+  });
+  let list = pool.filter(x => x.id !== currentId);
+  if (list.length < n) {
+    const more = await all(db, 'SELECT * FROM tracks WHERE published = 1 AND id != ? ORDER BY created_at DESC LIMIT 20', currentId);
+    const ids = new Set(list.map(x => x.id));
+    list = list.concat(more.filter(x => !ids.has(x.id)));
+  }
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list.slice(0, n);
 }
 
 async function publicContext(db, s, url) {
