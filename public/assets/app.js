@@ -1934,6 +1934,23 @@
       e.target.closest('.c-form').requestSubmit();
     }
   });
+  // Chống spam bình luận: mỗi bình luận cách nhau tối thiểu 10 giây (máy chủ cũng kiểm tra).
+  // Trong lúc chờ, nút gửi hiện đếm ngược; bấm gửi chỉ báo 1 lần, không gửi lên máy chủ.
+  const C_GAP = 10;
+  let cNextAt = +(store.get('c_next_at', 0) || 0), cWarnAt = 0, cTimer = 0;
+  function cCooldown(sec) {
+    cNextAt = Date.now() + sec * 1000;
+    store.set('c_next_at', cNextAt);
+    clearInterval(cTimer);
+    const tick = () => {
+      const left = Math.ceil((cNextAt - Date.now()) / 1000);
+      $$('#comments .c-send').forEach(b => { b.classList.toggle('wait', left > 0); b.dataset.left = left > 0 ? left : ''; });
+      if (left <= 0) clearInterval(cTimer);
+    };
+    tick();
+    cTimer = setInterval(tick, 500);
+  }
+  if (cNextAt > Date.now()) cCooldown((cNextAt - Date.now()) / 1000); // còn thời gian chờ từ trang trước
   document.addEventListener('submit', e => {
     const f = e.target;
     if (!f.classList.contains('c-form')) return;
@@ -1941,10 +1958,16 @@
     const ta = $('textarea', f), btn = $('.c-send', f);
     const body = ta.value.trim();
     if (!body || btn.disabled) return;
+    const left = Math.ceil((cNextAt - Date.now()) / 1000);
+    if (left > 0) {
+      if (Date.now() - cWarnAt > 3000) { cWarnAt = Date.now(); toast(`Đợi ${left} giây nữa để bình luận tiếp nhé`); }
+      return;
+    }
     btn.disabled = true;
     api('/api/comments', { track_id: +$('#comments').dataset.track, parent_id: +f.dataset.parent, body }).then(r => {
       btn.disabled = false;
-      if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được, thử lại sau'); return; }
+      if (!r || !r.ok) { if (r && r.wait) cCooldown(r.wait); toast((r && r.error) || 'Không gửi được, thử lại sau'); return; }
+      cCooldown(C_GAP);
       ta.value = ''; ta.style.height = '';
       cState.items.unshift(r.item);
       if (!r.item.pending) cState.total++;

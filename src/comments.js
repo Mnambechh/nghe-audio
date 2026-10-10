@@ -15,7 +15,7 @@ import { handleWithdrawApi } from './withdraw.js';
 const USER_COOKIE = 'aw_user';
 const USER_DAYS = 60;
 const MAX_LEN = 1000;
-const MIN_GAP = 15;        // giây giữa hai bình luận của cùng một người
+const MIN_GAP = 10;        // giây giữa hai bình luận của cùng một người (chống spam)
 const MAX_PER_DAY = 50;    // bình luận / người / ngày
 
 function sameOrigin(request) {
@@ -410,7 +410,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     }
     const t = now();
     const recent = await first(db, 'SELECT COUNT(*) c, MAX(created_at) last FROM comments WHERE user_id = ? AND created_at > ?', me.id, t - 86400);
-    if (recent.last && t - recent.last < MIN_GAP) return json({ ok: false, error: 'Bạn bình luận nhanh quá, đợi vài giây nhé.' }, 429);
+    if (recent.last && t - recent.last < MIN_GAP) return json({ ok: false, wait: MIN_GAP - (t - recent.last), error: `Bạn bình luận nhanh quá, đợi ${MIN_GAP - (t - recent.last)} giây nữa nhé.` }, 429);
     if (recent.c >= MAX_PER_DAY) {
       await logEvent(db, info, 'comment_spam', `user ${me.id}: ${recent.c} bình luận/ngày`);
       return json({ ok: false, error: 'Bạn đã bình luận quá nhiều hôm nay.' }, 429);
@@ -424,7 +424,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const r = await db.prepare(`INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip)
       SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM comments WHERE user_id = ? AND created_at > ?)`)
       .bind(trackId, me.id, parent, body, status, t, info.ip, me.id, t - MIN_GAP).run();
-    if (!r.meta.changes) return json({ ok: false, error: 'Bạn bình luận nhanh quá, đợi vài giây nhé.' }, 429);
+    if (!r.meta.changes) return json({ ok: false, wait: MIN_GAP, error: `Bạn bình luận nhanh quá, đợi ${MIN_GAP} giây nhé.` }, 429);
     const rewards = status === 'approved'
       ? [...await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body }), ...await onCommentQuest(db, s, me.id)]
       : [];

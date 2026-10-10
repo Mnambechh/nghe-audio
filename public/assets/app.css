@@ -1183,3 +1183,7 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .acct { gap: 28px; }
 .bell-n { right: -6px; }
 @media (max-width: 380px) { .acct { gap: 24px; } }
+/* Nút gửi bình luận đang chờ (chống spam): hiện số giây còn lại */
+.c-send.wait { position: relative; opacity: .55; }
+.c-send.wait::after { content: attr(data-left); position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  font: 800 11px/18px system-ui, sans-serif; color: #fff; background: var(--text, #4A2C2A); }
