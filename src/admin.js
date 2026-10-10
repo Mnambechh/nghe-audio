@@ -230,7 +230,8 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
   if (editorUser) {
     const u = editorUser;
     editor = u;
-    const allowed = path === '/admin' || path === '/admin/track/new' || /^\/admin\/track\/\d+$/.test(path);
+    // Trang Quảng cáo: biên tập viên chỉ được XEM lượt hiện / lượt bấm (không gửi form sửa / xóa).
+    const allowed = path === '/admin' || path === '/admin/track/new' || /^\/admin\/track\/\d+$/.test(path) || (path === '/admin/qc' && !isPost);
     if (!allowed) {
       await logEvent(db, info, 'editor_deny', `#${u.id} ${u.name}: ${ADMIN + path.slice('/admin'.length)}`);
       return go(ADMIN, ['err', 'Biên tập viên chỉ có quyền đăng và sửa audio.']);
@@ -417,7 +418,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
     }
     const ads = await all(db, 'SELECT * FROM ads ORDER BY id DESC');
     const editId = parseInt(url.searchParams.get('edit'), 10) || 0;
-    return view(V.adsView(s, ads, ads.find(a => a.id === editId)));
+    return view(V.adsView(s, ads, editor ? null : ads.find(a => a.id === editId), editor));
   }
 
   // Cài đặt chung & SEO

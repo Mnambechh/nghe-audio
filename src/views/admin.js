@@ -32,7 +32,7 @@ export function adminLayout(s, path, flash, content, editor = null) {
   return shell(`Quản trị - ${s.site_name}`, `<body>
 <header class="qt-top">
   <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>${editor ? 'biên tập' : 'admin'}</small></a>
-  <nav class="qt-nav">${(editor ? NAV.filter(([p]) => p === '/admin') : NAV).map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
+  <nav class="qt-nav">${(editor ? NAV.filter(([p]) => p === '/admin' || p === '/admin/qc') : NAV).map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
   <div class="qt-right">
     ${editor ? `<span class="muted">✏️ ${h(editor.name)}</span>` : ''}
     <a href="/" target="_blank">Xem web ↗</a>
@@ -197,8 +197,28 @@ ${track.id && !editor ? `<form method="post" action="${ADMIN}/track/${track.id}/
 
 // ---------- Quảng cáo ----------
 
-export function adsView(s, ads, edit) {
+export function adsView(s, ads, edit, editor = null) {
   const e = edit || { id: 0, title: '', image: '', price: '', old_price: '', url: '', active: 1 };
+  const ctr = a => a.shows ? (a.clicks / a.shows * 100).toFixed(1).replace('.', ',') + '%' : '–';
+  // Biên tập viên: chỉ xem thống kê, không có form sửa / xóa (máy chủ cũng chặn mọi thao tác gửi lên).
+  if (editor) {
+    const tot = ads.reduce((t, a) => ({ shows: t.shows + (a.shows || 0), clicks: t.clicks + (a.clicks || 0) }), { shows: 0, clicks: 0 });
+    return `
+<h1>Quảng cáo Shopee</h1>
+<p class="muted">Bạn đang xem ở chế độ <b>Biên tập viên</b>: chỉ xem lượt hiển thị và lượt bấm, không chỉnh sửa được quảng cáo.</p>
+<div class="card"><p>Trạng thái: ${s.ad_enabled === '1' ? '<em class="pill ok">Đang bật</em>' : '<em class="pill">Đang tắt</em>'} · hiện lại sau mỗi <b>${h(s.ad_interval_hours)}</b> giờ</p>
+  <p>Tổng: <b>${fmtInt(tot.shows)}</b> lượt hiện · <b>${fmtInt(tot.clicks)}</b> lượt bấm · tỉ lệ bấm <b>${ctr(tot)}</b></p></div>
+<div class="table">
+  ${ads.map(a => `<div class="trow">
+    ${a.image ? `<img class="thumb sm" src="${h(a.image)}" alt="">` : ''}
+    <span class="tmain"><b>${h(a.title || 'Sản phẩm #' + a.id)}</b>
+      <small>${a.active ? '<em class="pill ok">Đang chạy</em>' : '<em class="pill">Tắt</em>'}${a.price ? ' ' + h(a.price) : ''}</small></span>
+    <span class="tnum">${fmtInt(a.shows)}<small>lượt hiện</small></span>
+    <span class="tnum">${fmtInt(a.clicks)}<small>lượt bấm</small></span>
+    <span class="tnum">${ctr(a)}<small>tỉ lệ bấm</small></span>
+  </div>`).join('') || '<p class="muted pad">Chưa có sản phẩm quảng cáo.</p>'}
+</div>`;
+  }
   return `
 <h1>Quảng cáo Shopee</h1>
 <form method="post" class="form card">
@@ -232,7 +252,7 @@ export function adsView(s, ads, edit) {
   <label class="check"><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}> Đang chạy</label>
   <div class="row-actions">
     <button class="btn" type="submit">Lưu sản phẩm</button>
-    ${e.id ? '<a class="btn ghost" href="${ADMIN}/qc">Hủy</a>' : ''}
+    ${e.id ? `<a class="btn ghost" href="${ADMIN}/qc">Hủy</a>` : ''}
   </div>
 </form>
 
