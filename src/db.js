@@ -160,6 +160,13 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 16: bắn tim cho truyện (mỗi tài khoản 1 lần / truyện, không bỏ được).
+  if (await missing(db, 'track_hearts')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS track_hearts (user_id INTEGER NOT NULL, track_id INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, track_id))`,
+      `ALTER TABLE tracks ADD COLUMN hearts INTEGER NOT NULL DEFAULT 0`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 15: lưu đệm kết quả kiểm tra proxy / VPN.
   if (await missing(db, 'ip_checks')) {
     await db.prepare(`CREATE TABLE IF NOT EXISTS ip_checks (ip TEXT PRIMARY KEY, proxy INTEGER NOT NULL DEFAULT 0, type TEXT NOT NULL DEFAULT '',

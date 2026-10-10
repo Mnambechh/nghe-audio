@@ -146,6 +146,16 @@ export async function handleGameApi(request, db, s, path, me, input) {
     return json({ ok: true, more: items.length === limit, items: items.map(n => ({ ...n, actor_badge: n.actor ? badge(n.actor_exp) : null })) });
   }
 
+  // Bắn tim truyện: mỗi tài khoản 1 lần / truyện, không thể bỏ (chèn có điều kiện nên bấm dồn cũng chỉ tính 1).
+  if (path === '/api/heart') {
+    const trackId = parseInt(input.track_id, 10) || 0;
+    if (!(await first(db, 'SELECT 1 x FROM tracks WHERE id = ? AND published = 1', trackId))) return json({ ok: false }, 404);
+    const r = await db.prepare('INSERT OR IGNORE INTO track_hearts (user_id, track_id, created_at) VALUES (?, ?, ?)').bind(me.id, trackId, now()).run();
+    if (r.meta.changes) await db.prepare('UPDATE tracks SET hearts = hearts + 1 WHERE id = ?').bind(trackId).run();
+    const tr = await first(db, 'SELECT hearts FROM tracks WHERE id = ?', trackId);
+    return json({ ok: true, added: !!r.meta.changes, count: tr.hearts, mine: true });
+  }
+
   // Cộng thời gian đang mở tab web. Mỗi lần tối đa 20 giây và không quá thời gian thật trôi qua kể từ lần báo trước.
   if (path === '/api/online') {
     const t = now(), today = vnDay();

@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '44';
+export const ASSET_V = '45';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -377,6 +377,13 @@ export function trackPage(ctx, t, related) {
       <span class="part-body"><b>${h(p.title)}</b>${p.duration ? `<small>${fmtTime(p.duration)}</small>` : ''}</span>
       <span class="part-prog"><span></span></span>
     </button>`).join('')}</div></section>` : ''}
+  <section class="heart-box" data-track="${t.id}">
+    <p class="heart-title">Bắn tim nào!</p>
+    <div class="heart-row">
+      <button class="heart-btn" type="button" data-act="heart" aria-label="Bắn tim cho truyện"><svg viewBox="0 0 24 24"><path d="M12 21.4 10.6 20C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.5z"/></svg></button>
+      <span class="heart-n">${fmtNum(t.hearts || 0)}</span>
+    </div>
+  </section>
   ${ctx.s.comments_enabled === '1' ? `<section class="comments" id="comments" data-track="${t.id}">
     <h2 class="h2">Bình luận <span class="c-count"></span></h2>
     <div class="c-compose"></div>

@@ -11,7 +11,7 @@ const MAX_PLAYS_PER_IP_DAY = 300;
 
 export async function handleApi(request, db, path, ctx, info) {
   if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path.startsWith('/api/profile') || path === '/api/me'
-    || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/')) return handleCommentsApi(request, db, path, info, ctx);
+    || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/heart' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/')) return handleCommentsApi(request, db, path, info, ctx);
 
   // Cập nhật số đang nghe cho các thẻ trên trang.
   if (path === '/api/live') return json({ ok: true, live: await liveCounts(db) });

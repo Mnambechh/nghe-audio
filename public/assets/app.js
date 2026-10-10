@@ -431,6 +431,7 @@
     loadWithdraw();
     markMenu();
     initRating();
+    initHeart();
     refreshLive();
   }
 
@@ -500,6 +501,7 @@
       case 'login-close': $('#loginbox').hidden = true; return;
       case 'logout': doLogout(); return;
       case 'acct-menu': { const mm = $('.acct-card'); mm.hidden = !mm.hidden; $('.notif-panel').hidden = true; return; }
+      case 'heart': doHeart(t); return;
       case 'bell': openNotifs(); return;
       case 'nf-more': moreNotifs(); return;
       case 'menu': { const mm = $('#mainmenu'); mm.hidden = !mm.hidden; markMenu(); return; }
@@ -1277,7 +1279,7 @@
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1362,6 +1364,51 @@
       }).join('') : '<p class="c-note">Bạn chưa nghe audio nào. Nghe xong sẽ hiện ở đây.</p>';
     });
   }
+
+  // ---------- Bắn tim truyện (mỗi tài khoản 1 lần / truyện, không bỏ được) ----------
+  function initHeart() {
+    const box = $('.heart-box');
+    if (!box || box.dataset.loaded || !meLoaded) return;
+    box.dataset.loaded = '1';
+    fetch(`${APP.base}/api/heart?track=${box.dataset.track}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('.heart-box') !== box) return;
+      $('.heart-n', box).textContent = nf(r.count);
+      box.classList.toggle('on', !!r.mine);
+    }).catch(() => {});
+  }
+  // Hiệu ứng: tim nhỏ bắn tung ra từ trái tim lớn.
+  function heartBurst(btn) {
+    const host = btn;
+    const colors = ['#F2557A', '#FF7A9A', '#FFB3C4', '#E8738B', '#FFD1DC'];
+    for (let i = 0; i < 14; i++) {
+      const p = document.createElement('i');
+      p.className = 'heart-p';
+      const ang = (-90 + (Math.random() * 150 - 75)) * Math.PI / 180, dist = 50 + Math.random() * 70;
+      p.style.setProperty('--x', Math.cos(ang) * dist + 'px');
+      p.style.setProperty('--y', Math.sin(ang) * dist + 'px');
+      p.style.setProperty('--r', (Math.random() * 60 - 30) + 'deg');
+      p.style.setProperty('--s', (0.5 + Math.random() * 0.7).toFixed(2));
+      p.style.color = colors[i % colors.length];
+      p.style.animationDelay = (Math.random() * 120) + 'ms';
+      host.appendChild(p);
+      setTimeout(() => p.remove(), 1300);
+    }
+    btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+  }
+  function doHeart(btn) {
+    const box = btn.closest('.heart-box');
+    if (!me) { openLogin(); return; }
+    if (box.classList.contains('on')) { heartBurst(btn); toast('Bạn đã bắn tim truyện này rồi ❤️'); return; }
+    box.classList.add('on');
+    heartBurst(btn);
+    const n = $('.heart-n', box);
+    n.textContent = nf((parseInt(n.textContent.replace(/\D/g, ''), 10) || 0) + 1);
+    once('heart', () => api('/api/heart', { track_id: +box.dataset.track }).then(r => {
+      if (!r || !r.ok) { box.classList.remove('on'); toast((r && r.error) || 'Chưa bắn tim được, thử lại sau'); initHeartReset(box); return; }
+      n.textContent = nf(r.count);
+    }));
+  }
+  function initHeartReset(box) { delete box.dataset.loaded; initHeart(); }
 
   // ---------- Đánh giá truyện ----------
   function initRating() {

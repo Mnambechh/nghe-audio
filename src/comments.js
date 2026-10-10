@@ -110,6 +110,16 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
     return handleWithdrawApi(request, db, s, path, me, {}, info);
   }
+  // Bắn tim: số tim của truyện + mình đã bắn chưa (khách cũng xem được số tim).
+  if (request.method === 'GET' && path === '/api/heart') {
+    const trackId = parseInt(url.searchParams.get('track'), 10) || 0;
+    const me = await currentUser(request, db);
+    const [tr, mine] = await Promise.all([
+      first(db, 'SELECT hearts FROM tracks WHERE id = ?', trackId),
+      me ? first(db, 'SELECT 1 x FROM track_hearts WHERE user_id = ? AND track_id = ?', me.id, trackId) : null,
+    ]);
+    return json({ ok: true, count: tr ? tr.hearts : 0, mine: !!mine });
+  }
   if (request.method === 'GET' && (path === '/api/notifications' || path === '/api/rate')) {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
@@ -208,7 +218,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
   if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
   if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
-  if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate' || path === '/api/online') {
+  if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate' || path === '/api/online' || path === '/api/heart') {
     return handleGameApi(request, db, s, path, me, input);
   }
   if (me.banned && path.startsWith('/api/comments')) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);
