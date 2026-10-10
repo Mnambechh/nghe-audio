@@ -1,0 +1,136 @@
+// Cơ sở dữ liệu D1: tạo bảng, cài đặt, bộ nhớ đệm, truy vấn dùng chung.
+import { now, LIVE_WINDOW } from './util.js';
+
+const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`,
+  `CREATE TABLE IF NOT EXISTS tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, search TEXT NOT NULL DEFAULT '',
+    tag TEXT NOT NULL DEFAULT 'Audio Full', description TEXT NOT NULL DEFAULT '',
+    duration INTEGER NOT NULL DEFAULT 0, views INTEGER NOT NULL DEFAULT 0,
+    published INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_tracks_created ON tracks(published, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_tracks_views ON tracks(published, views DESC)`,
+  `CREATE TABLE IF NOT EXISTS parts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL DEFAULT '', url TEXT NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE INDEX IF NOT EXISTS idx_parts_track ON parts(track_id, pos)`,
+  `CREATE TABLE IF NOT EXISTS views_daily (
+    track_id INTEGER NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (track_id, day))`,
+  `CREATE INDEX IF NOT EXISTS idx_views_day ON views_daily(day)`,
+  `CREATE TABLE IF NOT EXISTS plays (sid TEXT NOT NULL, track_id INTEGER NOT NULL, day TEXT NOT NULL, PRIMARY KEY (sid, track_id, day))`,
+  `CREATE TABLE IF NOT EXISTS listeners (sid TEXT PRIMARY KEY, track_id INTEGER NOT NULL, last_seen INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS ads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '',
+    price TEXT NOT NULL DEFAULT '', old_price TEXT NOT NULL DEFAULT '', url TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1, shows INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+    content TEXT NOT NULL DEFAULT '', pos INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS cache (k TEXT PRIMARY KEY, v TEXT NOT NULL, exp INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS login_fails (ip TEXT NOT NULL, at INTEGER NOT NULL)`,
+];
+
+let migrated = false;
+
+export async function migrate(db) {
+  if (migrated) return;
+  try {
+    await db.prepare('SELECT 1 FROM cache LIMIT 1').first();
+  } catch (e) {
+    await db.batch(SCHEMA.map(s => db.prepare(s)));
+  }
+  migrated = true;
+}
+
+// ---------- Cài đặt ----------
+
+export const DEFAULT_SETTINGS = {
+  site_name: 'Audio Truyện',
+  site_tagline: 'Nghe audio miễn phí, không cần tài khoản',
+  seo_title: 'Audio Truyện - Nghe audio truyện miễn phí',
+  seo_description: 'Nghe audio truyện full miễn phí, không cần tài khoản.',
+  seo_keywords: 'audio truyện, truyện audio, nghe truyện',
+  logo: '',
+  favicon: '',
+  theme_color: '#16a36a',
+  footer_text: 'Nghe audio trực tuyến miễn phí.',
+  head_code: '',
+  per_page: '15',
+  ad_enabled: '1',
+  ad_interval_hours: '6',
+  ad_message: 'Bạn xác nhận bấm "Đồng ý mở Shopee và tham khảo sản phẩm" là hoàn toàn tự nguyện. Bạn cũng có thể bấm X ở góc để đóng.',
+  ad_button: 'Mở Shopee & nghe tiếp',
+  ad_note: 'Lưu ý: Quảng cáo chỉ xuất hiện 1 lần mỗi {hours} giờ, mong quý thính giả ủng hộ.',
+};
+
+export async function loadSettings(db) {
+  const s = { ...DEFAULT_SETTINGS };
+  const { results } = await db.prepare('SELECT k, v FROM settings').all();
+  for (const r of results) s[r.k] = r.v;
+  return s;
+}
+
+export async function saveSettings(db, data) {
+  const st = db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v');
+  await db.batch(Object.entries(data).map(([k, v]) => st.bind(k, String(v ?? ''))));
+}
+
+// ---------- Bộ nhớ đệm (giảm số dòng đọc của D1) ----------
+
+const mem = new Map();
+
+export async function cached(db, key, ttl, fn) {
+  const t = now();
+  const m = mem.get(key);
+  if (m && m.exp > t) return m.v;
+  const row = await db.prepare('SELECT v, exp FROM cache WHERE k = ?').bind(key).first();
+  if (row && row.exp > t) {
+    const v = JSON.parse(row.v);
+    mem.set(key, { v, exp: Math.min(row.exp, t + 30) });
+    return v;
+  }
+  const v = await fn();
+  mem.set(key, { v, exp: t + ttl });
+  await db.prepare('INSERT INTO cache (k, v, exp) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, exp = excluded.exp')
+    .bind(key, JSON.stringify(v), t + ttl).run();
+  return v;
+}
+
+export async function clearCache(db) {
+  mem.clear();
+  await db.prepare('DELETE FROM cache').run();
+}
+
+// ---------- Truy vấn dùng chung ----------
+
+export async function all(db, sql, ...args) {
+  return (await db.prepare(sql).bind(...args).all()).results;
+}
+
+export async function first(db, sql, ...args) {
+  return db.prepare(sql).bind(...args).first();
+}
+
+// Số người đang nghe theo từng track (tính cả khách).
+export async function liveCounts(db) {
+  const rows = await all(db, 'SELECT track_id, COUNT(*) c FROM listeners WHERE last_seen > ? GROUP BY track_id', now() - LIVE_WINDOW);
+  const out = {};
+  for (const r of rows) out[r.track_id] = r.c;
+  return out;
+}
+
+export async function withLive(db, tracks, live) {
+  live = live || await liveCounts(db);
+  return tracks.map(t => ({ ...t, live: live[t.id] || 0 }));
+}
+
+export async function uniqueSlug(db, table, slug, exceptId = 0) {
+  let s = slug, i = 2;
+  while (await first(db, `SELECT 1 x FROM ${table} WHERE slug = ? AND id != ?`, s, exceptId)) s = `${slug}-${i++}`;
+  return s;
+}
