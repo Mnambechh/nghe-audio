@@ -16,9 +16,11 @@ export function refCookieFor(request, url) {
 }
 
 // Gắn người mời cho tài khoản MỚI vừa tạo. Trả về cookie xóa aw_ref (luôn xóa sau khi đăng ký).
-export async function attachReferrer(db, s, request, newUserId, ip) {
-  const code = getCookie(request, REF_COOKIE);
-  if (!code || !REF_RE.test(code) || s.ref_enabled === '0') return code ? setCookie(REF_COOKIE, '', { maxAge: 0 }) : '';
+export async function attachReferrer(db, s, request, newUserId, ip, typedCode = '') {
+  // Mã người dùng tự nhập lúc đăng ký được ưu tiên hơn cookie từ link.
+  const cookieCode = getCookie(request, REF_COOKIE);
+  const code = REF_RE.test(typedCode || '') ? typedCode : cookieCode;
+  if (!code || !REF_RE.test(code) || s.ref_enabled === '0') return cookieCode ? setCookie(REF_COOKIE, '', { maxAge: 0 }) : '';
   const r = await first(db, 'SELECT id, reg_ip, last_ip, locked, banned FROM users WHERE ref_code = ?', code);
   // Không giới hạn số người mời / ngày: đã chống clone bằng giới hạn IP, chặn VPN/Proxy và chặn cùng IP với người mời.
   const ok = r && r.id !== newUserId && !r.locked && !r.banned

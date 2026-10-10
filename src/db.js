@@ -160,6 +160,15 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 23: đăng ký / đăng nhập bằng email + mật khẩu.
+  try {
+    await db.prepare('SELECT pass_hash FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN pass_hash TEXT NOT NULL DEFAULT ''`,
+      `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 22: lịch sử hoa hồng giới thiệu.
   if (await missing(db, 'ref_log')) {
     await db.batch([

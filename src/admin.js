@@ -776,6 +776,14 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       // Bấm từ danh sách: quay lại danh sách (giữ bộ lọc).
       if (f.get('from') === 'list') back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
       if (uid === OWNER_ID && OWNER_BLOCKED.includes(act)) return go(back, ['err', 'Tài khoản quản trị (#1) được bảo vệ: không thể xóa, khóa hay đăng xuất từ đây.']);
+      if (act === 'set_pass') {
+        const np = String(f.get('new_pass') || '');
+        if (np.length < 8 || !/[a-zA-Z]/.test(np) || !/\d/.test(np)) return go(back, ['err', 'Mật khẩu mới cần ít nhất 8 ký tự, gồm cả chữ và số.']);
+        if (!u.email) return go(back, ['err', 'Tài khoản chưa có email.']);
+        await db.prepare('UPDATE users SET pass_hash = ?, session_ver = session_ver + 1 WHERE id = ?').bind(await hashPassword(np), uid).run();
+        await log('set_pass', 0, 'Admin đặt lại mật khẩu');
+        return go(back, ['ok', `Đã đặt mật khẩu mới cho ${u.name}. Thành viên đăng nhập bằng email ${u.email} và mật khẩu mới.`]);
+      }
       if (act === 'role') {
         const role = f.get('role') === 'editor' ? 'editor' : '';
         await db.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, uid).run();

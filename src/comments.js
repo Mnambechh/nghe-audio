@@ -1,8 +1,8 @@
 // Bình luận + đăng nhập Google cho người nghe.
 import { all, first, loadSettings, saveSettings } from './db.js';
-import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
+import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64, hashPassword, verifyPassword } from './util.js';
 import { verifyGoogleToken } from './google.js';
-import { deviceOf, logEvent } from './security.js';
+import { deviceOf, logEvent, recentHits } from './security.js';
 import { checkIp } from './proxycheck.js';
 import { attachReferrer, handleReferralApi } from './referral.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
@@ -53,6 +53,34 @@ export async function demoLoginCookie(db, u) {
 const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
 // Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
 const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked, demo: !!u.demo, editor: u.role === 'editor' && !u.demo };
+
+// Kiểm tra trước khi tạo tài khoản mới (Google hoặc email): giới hạn số tài khoản / IP, chặn VPN / Proxy.
+async function newAccountGuard(db, s, info, email) {
+  const limit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
+  if (limit) {
+    const n = (await first(db, 'SELECT COUNT(*) c FROM users WHERE reg_ip = ?', info.ip)).c;
+    if (n >= limit) {
+      await logEvent(db, info, 'reg_limit', `${email} · IP đã có ${n} tài khoản`);
+      return json({ ok: false, error: `Mỗi mạng (IP) chỉ được tạo tối đa ${limit} tài khoản. Nếu đã có tài khoản, hãy đăng nhập.` }, 403);
+    }
+  }
+  const key = info.proxyKey || s.proxycheck_key;
+  if (s.reg_block_proxy !== '0' && key) {
+    const r = await checkIp(db, key, info.ip);
+    if (r && r.proxy) {
+      await logEvent(db, info, 'reg_proxy', `${email} · ${r.type || 'Proxy'}${r.provider ? ' · ' + r.provider : ''}`);
+      return json({ ok: false, error: 'Không thể tạo tài khoản khi đang dùng VPN / Proxy. Vui lòng tắt VPN rồi thử lại.' }, 403);
+    }
+  }
+  return null;
+}
+
+// Tạo phiên đăng nhập (cookie) cho người dùng.
+async function loginResponse(db, u, extraCookie) {
+  const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: now() + USER_DAYS * 86400 });
+  const res = withCookie(json({ ok: true, me: publicUser(u) }), setCookie(USER_COOKIE, token, { maxAge: USER_DAYS * 86400 }));
+  return extraCookie ? withCookie(res, extraCookie) : res;
+}
 
 const NAME_GAP = 60; // giây giữa hai lần đổi tên
 
@@ -184,24 +212,15 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       return json({ ok: false, error: 'Đăng nhập Google không thành công, vui lòng thử lại.' }, 401);
     }
     const t = now();
-    const isNew = !(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub));
+    let isNew = !(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub));
     // Tài khoản MỚI: giới hạn số tài khoản mỗi IP và chặn đăng ký qua proxy / VPN (chống clone, tài khoản ảo).
-    if (!(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub))) {
-      const limit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
-      if (limit) {
-        const n = (await first(db, 'SELECT COUNT(*) c FROM users WHERE reg_ip = ?', info.ip)).c;
-        if (n >= limit) {
-          await logEvent(db, info, 'reg_limit', `${g.email} · IP đã có ${n} tài khoản`);
-          return json({ ok: false, error: `Mỗi mạng (IP) chỉ được tạo tối đa ${limit} tài khoản. Nếu đã có tài khoản, hãy đăng nhập bằng Gmail cũ.` }, 403);
-        }
-      }
-      const key = info.proxyKey || s.proxycheck_key;
-      if (s.reg_block_proxy !== '0' && key) {
-        const r = await checkIp(db, key, info.ip);
-        if (r && r.proxy) {
-          await logEvent(db, info, 'reg_proxy', `${g.email} · ${r.type || 'Proxy'}${r.provider ? ' · ' + r.provider : ''}`);
-          return json({ ok: false, error: 'Không thể tạo tài khoản khi đang dùng VPN / Proxy. Vui lòng tắt VPN rồi thử lại.' }, 403);
-        }
+    if (isNew) {
+      // Đã đăng ký bằng email trước đó (cùng địa chỉ Gmail): gộp vào tài khoản cũ thay vì tạo tài khoản mới.
+      const old = g.email ? await first(db, "SELECT id FROM users WHERE email = ? AND sub LIKE 'email:%'", String(g.email).toLowerCase()) : null;
+      if (old) { await db.prepare('UPDATE users SET sub = ? WHERE id = ?').bind(g.sub, old.id).run(); isNew = false; }
+      else {
+        const block = await newAccountGuard(db, s, info, g.email);
+        if (block) return block;
       }
     }
     await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -214,9 +233,54 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
     // Tài khoản mới đến từ link giới thiệu: ghi nhận người mời (đã kiểm tra chống tự mời / cùng IP).
     const refCookie = isNew ? await attachReferrer(db, s, request, u.id, info.ip) : '';
-    const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: t + USER_DAYS * 86400 });
-    const res = withCookie(json({ ok: true, me: publicUser(u) }), setCookie(USER_COOKIE, token, { maxAge: USER_DAYS * 86400 }));
-    return refCookie ? withCookie(res, refCookie) : res;
+    return loginResponse(db, u, refCookie);
+  }
+
+  // ---------- Đăng ký / đăng nhập bằng email ----------
+  if (path === '/api/auth/register') {
+    if (s.email_auth === '0') return json({ ok: false, error: 'Đăng ký bằng email đang tạm đóng.' }, 403);
+    const email = String(input.email || '').trim().toLowerCase();
+    const pass = String(input.password || ''), pass2 = String(input.password2 || '');
+    const refCode = String(input.ref || '').trim();
+    if (!/^[^\s@]{1,64}@[^\s@]+\.[a-z]{2,}$/i.test(email) || email.length > 120) return json({ ok: false, error: 'Email không hợp lệ.' }, 400);
+    if (pass.length < 8 || !/[a-zA-Z]/.test(pass) || !/\d/.test(pass)) return json({ ok: false, error: 'Mật khẩu cần ít nhất 8 ký tự, gồm cả chữ và số.' }, 400);
+    if (pass.length > 100) return json({ ok: false, error: 'Mật khẩu quá dài.' }, 400);
+    if (pass !== pass2) return json({ ok: false, error: 'Hai mật khẩu không khớp.' }, 400);
+    if (refCode && !/^[A-Za-z0-9]{8}$/.test(refCode)) return json({ ok: false, error: 'Mã giới thiệu không hợp lệ (8 ký tự chữ và số).' }, 400);
+    // Chống spam đăng ký: mỗi IP tối đa 5 lần thử / giờ.
+    if (await recentHits(db, 'reg_try', 3600, info.ip) >= 5) return json({ ok: false, error: 'Bạn thử đăng ký quá nhiều lần, vui lòng thử lại sau.' }, 429);
+    await logEvent(db, info, 'reg_try', email);
+    if (await first(db, 'SELECT 1 x FROM users WHERE email = ? COLLATE NOCASE', email)) {
+      return json({ ok: false, error: 'Email này đã có tài khoản. Hãy đăng nhập (nếu là Gmail đã dùng nút Google, hãy đăng nhập bằng Google).' }, 409);
+    }
+    if (refCode && !(await first(db, 'SELECT 1 x FROM users WHERE ref_code = ?', refCode))) return json({ ok: false, error: 'Mã giới thiệu không tồn tại.' }, 400);
+    const block = await newAccountGuard(db, s, info, email);
+    if (block) return block;
+    const t = now();
+    const name = (email.split('@')[0].replace(/[^\p{L}\p{N}._-]/gu, '').slice(0, 30)) || 'Đạo hữu';
+    const ins = await db.prepare(`INSERT OR IGNORE INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen, pass_hash)
+      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?)`).bind('email:' + email, name, email, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t, await hashPassword(pass)).run();
+    if (!ins.meta.changes) return json({ ok: false, error: 'Email này đã có tài khoản.' }, 409);
+    const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE id = ?', ins.meta.last_row_id);
+    const refCookie = await attachReferrer(db, s, request, u.id, info.ip, refCode);
+    return loginResponse(db, u, refCookie);
+  }
+
+  if (path === '/api/auth/login') {
+    const email = String(input.email || '').trim().toLowerCase();
+    const pass = String(input.password || '');
+    // Khóa đăng nhập: sai 8 lần / 15 phút mỗi IP thì tạm khóa; sai 20 lần / 10 phút thì chặn IP 24 giờ.
+    if (await recentHits(db, 'user_login_fail', 900, info.ip) >= 8) return json({ ok: false, error: 'Sai quá nhiều lần, vui lòng thử lại sau 15 phút.' }, 429);
+    const u = email ? await first(db, "SELECT id, name, avatar, banned, exp, locked, session_ver, pass_hash FROM users WHERE email = ? COLLATE NOCASE AND pass_hash != ''", email) : null;
+    if (!u || !(await verifyPassword(pass, u.pass_hash))) {
+      await logEvent(db, info, 'user_login_fail', email.slice(0, 120), { hits: 20, hours: 24 });
+      await new Promise(r => setTimeout(r, 500));
+      return json({ ok: false, error: 'Sai email hoặc mật khẩu.' }, 401);
+    }
+    if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
+    await db.prepare('UPDATE users SET last_login = ?, last_ip = ?, country = ?, device = ?, last_seen = ? WHERE id = ?')
+      .bind(now(), info.ip, info.country, deviceOf(info.ua), now(), u.id).run();
+    return loginResponse(db, u, '');
   }
 
   if (path === '/api/auth/logout') {

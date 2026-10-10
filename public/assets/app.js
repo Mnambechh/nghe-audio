@@ -1801,20 +1801,53 @@
     }
   }
 
+  function afterLogin(r) {
+    toast('Xin chào ' + r.me.name + '!');
+    $('#loginbox').hidden = true;
+    setMe(r.me);
+    fetchMe();
+    loadComments();
+    applyServerResume();
+  }
   function onGoogleCredential(resp) {
     api('/api/auth/google', { credential: resp.credential }).then(r => {
-      if (r && r.ok) {
-        toast('Xin chào ' + r.me.name + '!');
-        $('#loginbox').hidden = true;
-        setMe(r.me);
-        loadComments();
-        loadHistory();
-        loadProfile();
-        applyServerResume();
-      }
+      if (r && r.ok) afterLogin(r);
       else toast((r && r.error) || 'Đăng nhập không thành công');
     });
   }
+
+  // Hộp đăng nhập: chuyển tab Google / Email / Đăng ký.
+  function showLoginTab(name) {
+    const box = $('#loginbox');
+    $$('.lg-tabs [data-lg]', box).forEach(b => b.classList.toggle('on', b.dataset.lg === name));
+    $$('.lg-pane', box).forEach(p => { p.hidden = p.dataset.pane !== name; });
+    const title = $('#login-title'); if (title) title.textContent = name === 'register' ? 'Đăng ký' : 'Đăng nhập';
+    if (name === 'register') {
+      const ref = $('#emailRegister [name=ref]');
+      if (ref && !ref.value) ref.value = store.get('ref_code', '') || '';
+    }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('#loginbox [data-lg]');
+    if (b) showLoginTab(b.dataset.lg);
+  });
+  // Đến từ link giới thiệu: nhớ mã để điền sẵn vào ô "Mã giới thiệu" khi đăng ký bằng email.
+  try { const rc = new URLSearchParams(location.search).get('ref'); if (rc && /^[A-Za-z0-9]{8}$/.test(rc)) store.set('ref_code', rc); } catch (e) { /* bỏ qua */ }
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (f.id !== 'emailLogin' && f.id !== 'emailRegister') return;
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f));
+    if (f.id === 'emailRegister') {
+      if (d.password !== d.password2) { toast('Hai mật khẩu không khớp'); return; }
+      if (d.password.length < 8 || !/[a-zA-Z]/.test(d.password) || !/\d/.test(d.password)) { toast('Mật khẩu cần ít nhất 8 ký tự, gồm cả chữ và số'); return; }
+    }
+    const btn = $('button[type=submit]', f);
+    once('auth', () => { btn.disabled = true; return api(f.id === 'emailLogin' ? '/api/auth/login' : '/api/auth/register', d).then(r => {
+      if (r && r.ok) { f.reset(); afterLogin(r); if (f.id === 'emailRegister') store.set('ref_code', ''); }
+      else toast((r && r.error) || 'Không thành công, thử lại sau');
+    }).finally(() => { btn.disabled = false; }); });
+  });
 
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-c], [data-emoji]');

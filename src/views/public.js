@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '64';
+export const ASSET_V = '65';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -197,9 +197,30 @@ ${body}
   <div class="modal-box login-box" role="dialog" aria-modal="true" aria-labelledby="login-title">
     <button class="modal-x" type="button" data-act="login-close" aria-label="Đóng">${ICON_X}</button>
     <h2 id="login-title">Đăng nhập</h2>
-    <p>Đăng nhập để bình luận, thả tim và lưu <b>lịch sử nghe</b> trên mọi thiết bị.</p>
-    <div class="g-btn login-g"></div>
-    <p class="login-note">Chúng tôi chỉ dùng tên và ảnh đại diện Google của bạn.</p>
+    <p>Đăng nhập để bình luận, thả tim, nhận Linh Thạch và lưu <b>lịch sử nghe</b> trên mọi thiết bị.</p>
+    <div class="lg-tabs" role="tablist">
+      <button type="button" class="on" data-lg="google" role="tab">Google</button>
+      <button type="button" data-lg="login" role="tab">Email</button>
+      <button type="button" data-lg="register" role="tab">Đăng ký</button>
+    </div>
+    <div class="lg-pane" data-pane="google">
+      <div class="g-btn login-g"></div>
+      <p class="login-note">Chúng tôi chỉ dùng tên và ảnh đại diện Google của bạn.</p>
+    </div>
+    <form class="lg-pane lg-form" data-pane="login" id="emailLogin" hidden>
+      <label>Email<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="ban@gmail.com"></label>
+      <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required maxlength="100"></label>
+      <button class="btn-play" type="submit">Đăng nhập</button>
+      <p class="login-note">Chưa có tài khoản? <button type="button" class="link-btn" data-lg="register">Đăng ký ngay</button></p>
+    </form>
+    <form class="lg-pane lg-form" data-pane="register" id="emailRegister" hidden>
+      <label>Email<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="ban@gmail.com"></label>
+      <label>Mật khẩu (ít nhất 8 ký tự, có chữ và số)<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></label>
+      <label>Nhập lại mật khẩu<input name="password2" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></label>
+      <label>Mã giới thiệu <small>(không bắt buộc)</small><input name="ref" autocomplete="off" maxlength="8" placeholder="Ví dụ: WzjWr2k6"></label>
+      <button class="btn-play" type="submit">Tạo tài khoản</button>
+      <p class="login-note">Đã có tài khoản? <button type="button" class="link-btn" data-lg="login">Đăng nhập</button></p>
+    </form>
   </div>
 </div>
 

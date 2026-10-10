@@ -1163,3 +1163,17 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 
 /* Máy tính: thanh menu trên đầu đã có Bảng xếp hạng → ẩn trong thẻ tài khoản cho đỡ trùng */
 @media (min-width: 1024px) { .ac-links .ac-lb { display: none; } }
+
+/* Hộp đăng nhập: tab Google / Email / Đăng ký */
+.lg-tabs { display: flex; gap: 6px; margin: 4px 0 14px; padding: 4px; border-radius: 999px; background: var(--dh-pink, #FFE3E6); }
+.lg-tabs button { flex: 1; height: 36px; border: 0; border-radius: 999px; background: none; font: inherit; font-weight: 700; font-size: 14px; color: var(--brand); cursor: pointer; }
+.lg-tabs button.on { background: #fff; box-shadow: 0 2px 6px rgba(168, 52, 79, .15); }
+.lg-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.lg-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; font-weight: 700; color: var(--text); }
+.lg-form label small { font-weight: 500; color: var(--muted); }
+.lg-form input { height: 44px; padding: 0 14px; border-radius: 14px; border: 2px solid var(--dh-pink-line, #F6BCC6); background: #fff; font: inherit; font-size: 16px; color: var(--text); }
+.lg-form input:focus { outline: none; border-color: var(--brand); }
+.lg-form .btn-play { margin-top: 4px; justify-content: center; }
+.lg-form .btn-play:disabled { opacity: .6; }
+.link-btn { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand); cursor: pointer; text-decoration: underline; }
+.login-box { max-height: 92vh; overflow-y: auto; }

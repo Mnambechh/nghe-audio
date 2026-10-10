@@ -528,7 +528,7 @@ const memberAv = (u, size = 40) => u.avatar
 const realmTag = exp => { const L = levelInfo(exp); return `<span class="m-realm t${L.tier}">Cấp ${L.lvl} · ${h(L.realm)}</span>`; };
 const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP', ban: 'Khóa bình luận', unban: 'Mở khóa bình luận', lock: 'Khóa tài khoản',
   unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP',
-  withdraw: 'Yêu cầu rút Linh Thạch', role: 'Đổi vai trò', impersonate: 'Admin xem thử tài khoản', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
+  withdraw: 'Yêu cầu rút Linh Thạch', role: 'Đổi vai trò', set_pass: 'Đặt lại mật khẩu', impersonate: 'Admin xem thử tài khoản', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
 
 const MI = {
   view: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -734,7 +734,10 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
 
 <div class="card">
   <h2>Mật khẩu & đăng nhập</h2>
-  <p class="muted">Thành viên đăng nhập bằng Google nên web không lưu mật khẩu; mật khẩu do Google quản lý. Bạn có thể buộc đăng xuất hoặc khóa tài khoản:</p>
+  <p class="muted">${String(u.sub || '').startsWith('email:') ? 'Thành viên đăng ký bằng <b>email + mật khẩu</b>.' : 'Thành viên đăng nhập bằng <b>Google</b>' + (u.pass_hash ? ' (có thêm mật khẩu email).' : '.')} Mật khẩu được mã hóa, không ai xem được. Khi thành viên quên mật khẩu, bạn đặt mật khẩu mới rồi báo cho họ:</p>
+  <form method="post" class="inline-form pass-form"><input type="hidden" name="action" value="set_pass">
+    <input name="new_pass" type="text" autocomplete="off" minlength="8" placeholder="Mật khẩu mới (≥ 8 ký tự, có chữ và số)" required>
+    <button class="btn ghost">Đặt mật khẩu mới</button></form>
   <div class="row-actions">
     <form method="post" class="inline-form"><input type="hidden" name="action" value="role">
       <select name="role" class="sel"><option value="">Vai trò: Thành viên</option><option value="editor"${u.role === 'editor' ? ' selected' : ''}>Vai trò: Biên tập viên (đăng audio)</option></select>
