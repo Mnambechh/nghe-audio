@@ -885,3 +885,11 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
 
 .c-login { overflow: hidden; }
 .c-login .g-btn { max-width: 100%; }
+
+/* Nhiệm vụ Promax */
+.quest.promax { align-items: flex-start; background: linear-gradient(135deg, #FFF0C7, #FFE3E6); box-shadow: 0 2px 0 var(--dh-pink-line); }
+.quest.promax .q-ico { background: #fff; }
+.quest.promax .q-body small { color: var(--text); line-height: 1.5; }
+.quest.promax .q-side { align-self: center; }
+.pm-tag { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-style: normal; font-weight: 800; letter-spacing: .5px; color: #fff; background: linear-gradient(90deg, #E8738B, #A8344F); vertical-align: 2px; }
+@media (max-width: 480px) { .quest.promax { flex-wrap: wrap; } .quest.promax .q-side { width: 100%; align-items: stretch; } .quest.promax .q-btn { text-align: center; } }

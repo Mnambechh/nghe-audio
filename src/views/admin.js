@@ -590,7 +590,7 @@ export function withdrawalsView({ rows, counts, status }) {
 
 // ---------- Nhiệm vụ ----------
 
-export function questsView({ quests, counts, listen, comment }) {
+export function questsView({ quests, counts, listen, comment, s }) {
   const fields = (q = {}) => `
     <label>Tên nhiệm vụ<input name="title" value="${h(q.title || '')}" maxlength="80" placeholder="Mở quảng cáo TikTok" required></label>
     <label>Link mở khi bấm<input name="url" value="${h(q.url || '')}" placeholder="https://vt.tiktok.com/..." inputmode="url"></label>
@@ -638,5 +638,18 @@ ${quests.map(q => `<form method="post" class="form card">
   <h2>➕ Thêm nhiệm vụ mở link</h2>
   ${fields()}
   <div class="row-actions"><button class="btn">Thêm</button></div>
+</form>
+
+<form method="post" class="form card"><input type="hidden" name="action" value="promax">
+  <h2>🚀 Nhiệm vụ Promax</h2>
+  <p class="muted">Luôn nằm cuối trang Nhiệm vụ, hiện cả với khách chưa đăng nhập. Chỉ có nút mở link, <b>không cộng Linh Thạch</b>.</p>
+  <label class="check"><input type="checkbox" name="promax_enabled" value="1"${s.promax_enabled !== '0' ? ' checked' : ''}> Hiện nhiệm vụ Promax</label>
+  <label>Tiêu đề<input name="promax_title" value="${h(s.promax_title)}" maxlength="120"></label>
+  <label>Mô tả<textarea name="promax_desc" rows="3" maxlength="600">${h(s.promax_desc)}</textarea></label>
+  <div class="grid2">
+    <label>Link<input name="promax_url" value="${h(s.promax_url)}" inputmode="url"></label>
+    <label>Chữ trên nút<input name="promax_button" value="${h(s.promax_button)}" maxlength="40"></label>
+  </div>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>`;
 }

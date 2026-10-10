@@ -11,6 +11,12 @@ export const QUEST_DEFAULTS = {
   listen_quest_stones: '10',
   listen_quest_exp: '0',
   listen_quest_tiers: '',      // các mốc "phút:Linh Thạch:EXP", mỗi dòng một mốc; rỗng = mốc cũ + mốc 30 phút
+  // Nhiệm vụ Promax: giới thiệu web đối tác, chỉ có nút mở link, không cộng Linh Thạch.
+  promax_enabled: '1',
+  promax_title: 'Mời bạn sử dụng web hoàn tiền mua sắm tại ahoan.com',
+  promax_desc: 'Đăng ký tài khoản tại ahoan.com, mời bạn qua phần giới thiệu bạn bè. Mời bạn đầu và phát sinh đơn hàng nhận ngay 10.000đ, nhận tối đa 100.000đ.',
+  promax_url: 'https://ahoan.com',
+  promax_button: 'Mở ahoan.com',
   comment_quest_enabled: '1',
   comment_quest_stones: '5',
 };

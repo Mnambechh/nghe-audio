@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '30';
+export const ASSET_V = '31';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -416,11 +416,21 @@ export function leaderboardPage(ctx, rows) {
   return layout(ctx, { title: `Bảng xếp hạng - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' }, body);
 }
 
+// Nhiệm vụ Promax: luôn ở cuối trang, hiện cả khi chưa đăng nhập, chỉ mở link (không cộng Linh Thạch).
+function promaxQuest(s) {
+  if (s.promax_enabled === '0' || !/^https?:\/\//i.test(s.promax_url || '')) return '';
+  return `<h2 class="h2">Nhiệm vụ Promax</h2>
+    <div class="quest promax"><span class="q-ico">🚀</span>
+      <span class="q-body"><b>${h(s.promax_title)} <em class="pm-tag">PROMAX</em></b><small>${h(s.promax_desc)}</small></span>
+      <span class="q-side"><a class="q-btn" href="${h(s.promax_url)}" target="_blank" rel="noopener">${h(s.promax_button || 'Mở')}</a></span></div>`;
+}
+
 export function questsPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Nhiệm vụ kiếm Linh Thạch</h1>
     <p class="sub">Làm nhiệm vụ mỗi ngày để nhận Linh Thạch và EXP tu luyện</p>
-    <div id="quests"><p class="c-note">Đang tải…</p></div></div>`;
+    <div id="quests"><p class="c-note">Đang tải…</p></div>
+    ${promaxQuest(ctx.s)}</div>`;
   return layout(ctx, { title: `Nhiệm vụ - ${ctx.s.site_name}`, canonical: ctx.origin + '/nhiem-vu', noindex: true }, body);
 }
 

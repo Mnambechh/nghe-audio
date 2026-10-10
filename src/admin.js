@@ -438,6 +438,15 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         });
         return go(back, ['ok', 'Đã lưu nhiệm vụ nghe audio.']);
       }
+      if (act === 'promax') {
+        const link = str(f, 'promax_url');
+        if (link && !/^https?:\/\/\S+$/i.test(link)) return go(back, ['err', 'Link phải bắt đầu bằng http:// hoặc https://']);
+        await saveSettings(db, {
+          promax_enabled: f.get('promax_enabled') ? '1' : '0', promax_url: link.slice(0, 1000),
+          promax_title: str(f, 'promax_title').slice(0, 120), promax_desc: str(f, 'promax_desc').slice(0, 600), promax_button: str(f, 'promax_button').slice(0, 40),
+        });
+        return go(back, ['ok', 'Đã lưu nhiệm vụ Promax.']);
+      }
       if (act === 'comment') {
         await saveSettings(db, { comment_quest_enabled: f.get('comment_quest_enabled') ? '1' : '0', comment_quest_stones: String(int('comment_quest_stones')) });
         return go(back, ['ok', 'Đã lưu nhiệm vụ bình luận.']);
@@ -465,7 +474,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       all(db, 'SELECT quest_id, COUNT(*) n FROM quest_done WHERE day = ? GROUP BY quest_id', today),
     ]);
     const counts = Object.fromEntries(doneToday.map(r => [r.quest_id, r.n]));
-    return view(V.questsView({ quests, counts, listen: listenConfig(s), comment: commentConfig(s) }));
+    return view(V.questsView({ quests, counts, listen: listenConfig(s), comment: commentConfig(s), s }));
   }
 
   // Rút Linh Thạch: duyệt yêu cầu
