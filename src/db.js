@@ -160,6 +160,15 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 20: giới hạn lượt thả tim bình luận mỗi ngày.
+  try {
+    await db.prepare('SELECT like_n FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN like_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN like_n INTEGER NOT NULL DEFAULT 0`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 19: đếm lượt thả tim mỗi ngày (thưởng Linh Thạch + EXP, giới hạn / ngày).
   try {
     await db.prepare('SELECT heart_n FROM users LIMIT 1').first();

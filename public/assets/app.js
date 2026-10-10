@@ -1749,13 +1749,13 @@
         return;
       case 'like': {
         if (!cState.me) { toast('Đăng nhập để thích bình luận'); $('#comments').scrollIntoView({ behavior: 'smooth' }); return; }
-        api('/api/comments/like', { id }).then(r => {
-          if (!r || !r.ok) return;
+        once('like' + id, () => api('/api/comments/like', { id }).then(r => {
+          if (!r || !r.ok) { if (r && r.error) toast(r.error); return; }
           b.classList.toggle('on', r.liked);
           const hearts = $(':scope > .c-main > .c-bubble .c-hearts', item);
           hearts.hidden = !r.likes;
           $('b', hearts).textContent = r.likes;
-        });
+        }));
         return;
       }
       case 'reply': {

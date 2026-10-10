@@ -1,6 +1,6 @@
 // Bình luận + đăng nhập Google cho người nghe.
 import { all, first, loadSettings, saveSettings } from './db.js';
-import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
+import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
 import { deviceOf, logEvent } from './security.js';
 import { checkIp } from './proxycheck.js';
@@ -311,7 +311,13 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const del = await db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?').bind(id, me.id).run();
     const liked = del.meta.changes === 0;
     if (liked) {
-      await db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)').bind(id, me.id).run();
+      // Tối đa comment_like_daily lượt thả tim bình luận / ngày (giữ lượt nguyên tử; bỏ thích không hoàn lượt).
+      const today = vnDay(), max = Math.max(0, parseFloat(s.comment_like_daily) || 50);
+      const slot = await db.prepare(`UPDATE users SET like_n = CASE WHEN like_day = ? THEN like_n + 1 ELSE 1 END, like_day = ?
+        WHERE id = ? AND (like_day != ? OR like_n < ?)`).bind(today, today, me.id, today, max).run();
+      if (!slot.meta.changes) return json({ ok: false, error: `Mỗi ngày chỉ thả tim được ${max} bình luận.` }, 429);
+      const ins = await db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)').bind(id, me.id).run();
+      if (!ins.meta.changes) await db.prepare('UPDATE users SET like_n = MAX(0, like_n - 1) WHERE id = ? AND like_day = ?').bind(me.id, today).run();
       const seen = await first(db, "SELECT 1 x FROM notifications WHERE user_id = ? AND type = 'like' AND actor_id = ? AND comment_id = ?", c.user_id, me.id, id);
       if (!seen) await notify(db, c.user_id, 'like', { actor: me.id, track: c.track_id, comment: id, text: c.body.slice(0, 120) });
     }

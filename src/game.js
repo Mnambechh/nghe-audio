@@ -13,6 +13,7 @@ export const GAME_DEFAULTS = {
   heart_stones: '1',        // Linh Thạch mỗi lần thả tim truyện
   heart_exp: '1',           // EXP mỗi lần thả tim truyện
   heart_daily: '50',        // số truyện được thả tim mỗi ngày
+  comment_like_daily: '50', // số lượt thả tim bình luận mỗi ngày
   level_base_exp: '100',    // cấp N cần N × số này EXP để lên cấp (tính lại từ 0 mỗi cấp)
 };
 // Thưởng Linh Thạch mỗi lần lên cấp theo khoảng cấp: "đến cấp:Linh Thạch" mỗi dòng.
@@ -256,8 +257,19 @@ export async function handleGameApi(request, db, s, path, me, input) {
   return null;
 }
 
-// Bảng xếp hạng (lưu đệm phía gọi).
-export async function leaderboard(db, limit = 50) {
-  const rows = await all(db, 'SELECT id, name, avatar, exp, comments_n FROM users WHERE banned = 0 AND exp > 0 ORDER BY exp DESC, id LIMIT ?', limit);
+// Bảng xếp hạng (lưu đệm phía gọi): cấp độ, Linh Thạch, bình luận, tim nhận được trên bình luận.
+export const BOARDS = ['level', 'stones', 'comments', 'hearts'];
+export async function leaderboard(db, kind = 'level', limit = 50) {
+  const base = 'SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n FROM users u WHERE u.banned = 0 AND u.locked = 0';
+  let rows;
+  if (kind === 'stones') rows = await all(db, `${base} AND u.stones > 0 ORDER BY u.stones DESC, u.id LIMIT ?`, limit);
+  else if (kind === 'comments') rows = await all(db, `${base} AND u.comments_n > 0 ORDER BY u.comments_n DESC, u.exp DESC LIMIT ?`, limit);
+  else if (kind === 'hearts') {
+    // Tim người khác thả vào bình luận của mình (tự thả tim cho mình không tính).
+    rows = await all(db, `SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, h.n hearts FROM (
+        SELECT c.user_id uid, COUNT(*) n FROM comment_likes l JOIN comments c ON c.id = l.comment_id
+        WHERE c.status = 'approved' AND l.user_id != c.user_id GROUP BY c.user_id) h
+      JOIN users u ON u.id = h.uid WHERE u.banned = 0 AND u.locked = 0 ORDER BY h.n DESC, u.exp DESC LIMIT ?`, limit);
+  } else rows = await all(db, `${base} AND u.exp > 0 ORDER BY u.exp DESC, u.id LIMIT ?`, limit);
   return rows.map(r => ({ ...r, ...badge(r.exp) }));
 }

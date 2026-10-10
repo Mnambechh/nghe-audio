@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '53';
+export const ASSET_V = '54';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -523,17 +523,26 @@ export function profilePage(ctx) {
   return layout(ctx, { title: `Tài khoản - ${ctx.s.site_name}`, canonical: ctx.origin + '/tai-khoan', noindex: true }, body);
 }
 
-export function leaderboardPage(ctx, rows) {
+const BOARD_INFO = {
+  level: { tab: '⚡ Cấp độ', sub: 'nhiều EXP nhất', val: r => `${fmtInt(r.exp)} EXP` },
+  stones: { tab: '💎 Linh Thạch', sub: 'nhiều Linh Thạch nhất', val: r => `${fmtInt(r.stones)} 💎` },
+  comments: { tab: '💬 Bình luận', sub: 'bình luận nhiều nhất', val: r => `${fmtInt(r.comments_n)} bình luận` },
+  hearts: { tab: '❤️ Thả tim', sub: 'nhận nhiều tim nhất trên bình luận', val: r => `${fmtInt(r.hearts)} tim` },
+};
+export function leaderboardPage(ctx, rows, kind = 'level') {
+  const B = BOARD_INFO[kind] || BOARD_INFO.level;
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
-    <h1 class="h1">Bảng xếp hạng tu vi</h1>
-    <p class="sub">Top ${rows.length} đạo hữu nhiều EXP nhất · cập nhật mỗi 5 phút</p>
+    <h1 class="h1">Bảng xếp hạng</h1>
+    <nav class="lb-tabs">${Object.entries(BOARD_INFO).map(([k, v]) => `<a href="/bang-xep-hang${k === 'level' ? '' : '?top=' + k}" class="${k === kind ? 'on' : ''}">${v.tab}</a>`).join('')}</nav>
+    <p class="sub">Top ${rows.length} đạo hữu ${B.sub} · cập nhật mỗi 5 phút</p>
     <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
       <span class="lb-rank">${i + 1}</span>
       ${lvAvatar(r.name, r.avatar, r, 'lb-av')}
       <span class="lb-body"><span class="lb-name"><b>${h(r.name)}</b>${realmBadge(r)}</span>
-        <span class="meta">☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
-    </div>`).join('') || '<p class="c-note">Chưa có ai tu luyện. Đăng nhập, điểm danh và đánh giá truyện để lên bảng!</p>'}</div></div>`;
-  return layout(ctx, { title: `Bảng xếp hạng - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' }, body);
+        <span class="meta">Cấp ${r.lvl} · ☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
+      <b class="lb-val">${B.val(r)}</b>
+    </div>`).join('') || '<p class="c-note">Chưa có ai trên bảng này. Đăng nhập, điểm danh, bình luận và thả tim để lên bảng!</p>'}</div></div>`;
+  return layout(ctx, { title: `Bảng xếp hạng ${B.tab.replace(/^\S+\s/, '')} - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' + (kind === 'level' ? '' : '?top=' + kind) }, body);
 }
 
 // Nhiệm vụ Promax: luôn ở cuối trang, hiện cả khi chưa đăng nhập, chỉ mở link (không cộng Linh Thạch).

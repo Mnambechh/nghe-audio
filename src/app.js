@@ -2,7 +2,7 @@
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
 import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, comingSoonPage, withdrawPage } from './views/public.js';
-import { leaderboard, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
+import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
 import { withdrawConfig, METHODS } from './withdraw.js';
 import { MAX_LEVEL, realmOf, expToNext } from './levels.js';
@@ -65,8 +65,9 @@ export async function handle(request, env, ctx) {
   if (path === '/') return html(homePage(pageCtx, await homeData(db, s, url)), 200, { 'Cache-Control': 'no-cache' });
 
   if (path === '/bang-xep-hang') {
-    const rows = await cached(db, 'leaderboard', 300, () => leaderboard(db, 50));
-    return html(leaderboardPage(pageCtx, rows));
+    const kind = BOARDS.includes(url.searchParams.get('top')) ? url.searchParams.get('top') : 'level';
+    const rows = await cached(db, 'leaderboard_' + kind, 300, () => leaderboard(db, kind, 50));
+    return html(leaderboardPage(pageCtx, rows, kind));
   }
   if (path === '/huong-dan') return html(guidePage(pageCtx, await guideData(db, s)));
   if (path === '/thong-bao') return html(notificationsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
