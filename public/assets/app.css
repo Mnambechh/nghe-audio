@@ -1227,3 +1227,15 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .sh-chip b { font-size: 14px; }
 .sh-chip small { color: var(--muted); font-size: 11.5px; }
 .sh-chip.on { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 25%, transparent); }
+/* Khung avatar (Cửa hàng): ảnh trong suốt phủ quanh avatar, không chặn bấm, số cấp vẫn nằm trên cùng. */
+.av-wrap.has-frame { background: none; }
+.av-wrap .av-frame { position: absolute; left: 50%; top: 50%; width: var(--fs, 160%); height: var(--fs, 160%); max-width: none; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%);
+  object-fit: contain; pointer-events: none; z-index: 1; border: 0; border-radius: 0; box-shadow: none; background: none; }
+.av-wrap .lv { z-index: 2; }
+.sh-fav { display: inline-grid; place-items: center; padding: 14px; }
+.sh-fav .c-av { width: 54px; height: 54px; }
+.sh-prev .sh-fav { padding: 18px; }
+.sh-chip-fr { flex-direction: row; align-items: center; gap: 4px; }
+.sh-chip-fr > span:last-child { display: flex; flex-direction: column; gap: 1px; }
+.sh-chip-fr .sh-fav { padding: 8px; }
+.sh-chip-fr .sh-fav .c-av { width: 30px; height: 30px; }

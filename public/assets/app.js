@@ -974,25 +974,32 @@
     if (!box || !shop) return;
     const name = me ? me.name : 'Tên của bạn';
     const own = {};
-    shop.owned.forEach(o => { own[o.fx] = o; });
-    const mine = shop.owned.length ? `<h2 class="h2">Hiệu ứng của bạn</h2><div class="sh-own">
-      ${shop.owned.map(o => `<button type="button" class="sh-chip${shop.using === o.fx ? ' on' : ''}" data-fx-use="${esc(o.fx)}"><b${fxCls(o.fx)}>${esc(shop.names[o.fx] || o.fx)}</b><small>${shop.using === o.fx ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></button>`).join('')}
-      <button type="button" class="sh-chip${shop.using ? '' : ' on'}" data-fx-use=""><b>Tên thường</b><small>Không hiệu ứng</small></button></div>` : '';
+    shop.owned.forEach(o => { own[o.key] = o; });
+    const fxs = shop.owned.filter(o => o.kind === 'fx'), frs = shop.owned.filter(o => o.kind === 'frame');
+    const frPrev = (img, scale) => `<span class="sh-fav">${lvAv(name, me && me.avatar, null, 'c-av', { frame: img, fs: scale })}</span>`;
+    const mine = shop.owned.length ? `<h2 class="h2">Vật phẩm của bạn</h2>
+      ${fxs.length ? `<div class="sh-own">${fxs.map(o => `<button type="button" class="sh-chip${shop.using === o.fx ? ' on' : ''}" data-fx-use="${esc(o.fx)}"><b${fxCls(o.fx)}>${esc(o.name)}</b><small>${shop.using === o.fx ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></button>`).join('')}
+        <button type="button" class="sh-chip${shop.using ? '' : ' on'}" data-fx-use=""><b>Tên thường</b><small>Không hiệu ứng</small></button></div>` : ''}
+      ${frs.length ? `<div class="sh-own">${frs.map(o => `<button type="button" class="sh-chip sh-chip-fr${shop.frameUsing === o.id ? ' on' : ''}" data-frame-use="${o.id}">${frPrev(o.img, o.scale)}<span><b>${esc(o.name)}</b><small>${shop.frameUsing === o.id ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></span></button>`).join('')}
+        <button type="button" class="sh-chip${shop.frameUsing ? '' : ' on'}" data-frame-use="0"><b>Không khung</b><small>Avatar thường</small></button></div>` : ''}` : '';
+    const card = (i, prev) => {
+      const o = own[i.key], perm = !!o && !o.until;
+      return `<div class="sh-item"><div class="sh-prev">${prev}</div>
+        <b class="sh-name">${esc(i.name)}</b>
+        <small class="sh-dur">${i.days ? `${i.days} ngày` : 'Vĩnh viễn'}${o ? ` · bạn có: ${fxLeft(o.until)}` : ''}</small>
+        <button type="button" class="sh-buy" data-buy="${i.id}"${perm ? ' disabled' : ''}>${perm ? 'Đã sở hữu' : `${o ? 'Gia hạn' : 'Mua'} · ${nf(i.price)} 💎`}</button></div>`;
+    };
+    const fxItems = shop.items.filter(i => i.kind !== 'frame'), frItems = shop.items.filter(i => i.kind === 'frame');
     box.innerHTML = `${me ? `<div class="wd-balance"><span>Số dư</span><b>${nf(shop.stones)} 💎</b></div>`
-      : '<div class="c-login"><p>Đăng nhập để mua hiệu ứng tên.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>'}
+      : '<div class="c-login"><p>Đăng nhập để mua vật phẩm.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>'}
       ${mine}
+      ${frItems.length ? `<h2 class="h2">Khung avatar</h2><div class="sh-grid">${frItems.map(i => card(i, frPrev(i.img, i.scale))).join('')}</div>` : ''}
       <h2 class="h2">Hiệu ứng tên</h2>
-      <div class="sh-grid">${shop.items.map(i => {
-        const o = own[i.fx], perm = !!o && !o.until;
-        return `<div class="sh-item"><div class="sh-prev"><span class="nfx nfx-${esc(i.fx)}">${esc(name)}</span></div>
-          <b class="sh-name">${esc(i.name)}</b>
-          <small class="sh-dur">${i.days ? `${i.days} ngày` : 'Vĩnh viễn'}${o ? ` · bạn có: ${fxLeft(o.until)}` : ''}</small>
-          <button type="button" class="sh-buy" data-buy="${i.id}"${perm ? ' disabled' : ''}>${perm ? 'Đã sở hữu' : `${o ? 'Gia hạn' : 'Mua'} · ${nf(i.price)} 💎`}</button></div>`;
-      }).join('') || '<p class="c-note">Cửa hàng đang cập nhật gói mới.</p>'}</div>`;
+      <div class="sh-grid">${fxItems.map(i => card(i, `<span class="nfx nfx-${esc(i.fx)}">${esc(name)}</span>`)).join('') || '<p class="c-note">Cửa hàng đang cập nhật gói mới.</p>'}</div>`;
   }
   document.addEventListener('click', e => {
-    const b = e.target.closest('[data-buy]'), u = e.target.closest('[data-fx-use]');
-    if (!b && !u) return;
+    const b = e.target.closest('[data-buy]'), u = e.target.closest('[data-fx-use]'), fu = e.target.closest('[data-frame-use]');
+    if (!b && !u && !fu) return;
     if (!me) { openLogin(); return; }
     if (b) {
       const it = shop && shop.items.find(x => x.id === +b.dataset.buy);
@@ -1002,12 +1009,18 @@
       once('shop', () => api('/api/shop/buy', { id: it.id }).then(r => {
         if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa mua được'); return; }
         rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
-        me.fx = r.fx; loadShop(); fetchMe();
+        if (r.kind !== 'frame') me.fx = r.fx;
+        loadShop(); fetchMe();
       }));
-    } else {
+    } else if (u) {
       once('shop', () => api('/api/shop/use', { fx: u.dataset.fxUse }).then(r => {
         if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
         me.fx = r.fx; toast(r.fx ? 'Đã đổi hiệu ứng tên' : 'Đã tắt hiệu ứng tên'); loadShop(); renderGame();
+      }));
+    } else {
+      once('shop', () => api('/api/shop/use', { frame: +fu.dataset.frameUse }).then(r => {
+        if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
+        toast(r.frame ? 'Đã đổi khung avatar' : 'Đã bỏ khung avatar'); loadShop(); fetchMe();
       }));
     }
   });
@@ -1055,7 +1068,14 @@
   let editorUrl = '';
   let game = null, ckTimer = 0, ckLeftSec = 0, ckNotified = false, notifs = null;
 
-  const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>` : avatar(name, url, cls);
+  // Khung avatar mua ở Cửa hàng: ảnh trong suốt phủ quanh avatar (u.frame = /media/…, u.fs = cỡ khung %).
+  const frameImg = u => u && /^\/media\/[A-Za-z0-9]+\.(webp|png)$/.test(u.frame || '')
+    ? `<img class="av-frame" src="${u.frame}" alt="" loading="lazy" decoding="async" style="--fs:${Math.max(100, Math.min(300, +u.fs || 160))}%">` : '';
+  const lvAv = (name, url, b, cls, u = b) => {
+    const fr = frameImg(u);
+    if (b) return `<span class="av-wrap t${b.tier}${fr ? ' has-frame' : ''}">${avatar(name, url, cls)}${fr}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>`;
+    return fr ? `<span class="av-wrap has-frame">${avatar(name, url, cls)}${fr}</span>` : avatar(name, url, cls);
+  };
   const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
   const nf = n => String(Math.floor(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   // Hiệu ứng tên mua ở Cửa hàng (chữ đa sắc chạy từ phải qua trái).
@@ -1068,7 +1088,7 @@
     box.innerHTML = `<button class="bell" type="button" data-act="bell" aria-label="Thông báo">${ICON_BELL}<b class="bell-n" hidden></b></button>
       <div class="notif-panel" hidden><div class="np-head">Thông báo</div><div class="np-list"><p class="c-note">Đang tải…</p></div>
         <a class="np-all" href="${APP.base}/thong-bao">Xem tất cả thông báo</a></div>
-      <button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${lvAv(me.name, me.avatar, game && game.level, 'acct-av')}</button>
+      <button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${lvAv(me.name, me.avatar, game && game.level, 'acct-av', me)}</button>
       <div class="acct-card" hidden></div>`;
     renderGame();
   }
@@ -1086,7 +1106,7 @@
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
       <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">✏️ Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">🏆 Bảng xếp hạng</a></nav>`;
     const av = $('.acct-btn');
-    if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av');
+    if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av', me);
     updateBell();
     tickCk();
   }
@@ -1356,7 +1376,7 @@
   function syncMyLevel() {
     if (!me || !game || !cState) return;
     const L = game.level, b = { lvl: L.lvl, tier: L.tier, realm: L.realm };
-    cState.items.forEach(c => { if (c.mine) Object.assign(c, b, { fx: me.fx || '' }); });
+    cState.items.forEach(c => { if (c.mine) Object.assign(c, b, { fx: me.fx || '', frame: me.frame || '', fs: me.fs }); });
     if (cState.me) Object.assign(cState.me, b);
     $$('#comments .c-item').forEach(el => {
       const c = cState.items.find(x => String(x.id) === el.dataset.cid);
@@ -1365,7 +1385,7 @@
       const name = $(':scope > .c-main > .c-bubble .c-name', el);
       if (name) name.innerHTML = `<b${fxCls(c.fx)}>${esc(c.name)}</b>${realmTag(c)}`;
     });
-    $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av'); });
+    $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av', me); });
   }
 
   let meFetchedAt = 0;
@@ -1761,7 +1781,7 @@
 
   function cItem(c) {
     return `<div class="c-item${c.parent ? ' c-reply' : ''}" data-cid="${c.id}">
-      ${lvAv(c.name, c.avatar, c.lvl ? c : null, 'c-av')}
+      ${lvAv(c.name, c.avatar, c.lvl ? c : null, 'c-av', c)}
       <div class="c-main">
         <div class="c-bubble"><span class="c-name"><b${fxCls(c.fx)}>${esc(c.name)}</b>${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
           <span class="c-hearts"${c.likes ? '' : ' hidden'}>❤️ <b>${c.likes}</b></span></div>
@@ -1780,7 +1800,7 @@
     const me = cState.me;
     const ph = placeholder || ('Viết bình luận...' + (cState.config.moderation ? ' (sẽ hiện sau khi duyệt)' : ''));
     return `<form class="c-form" data-parent="${parent}">
-      ${lvAv(me.name, me.avatar, game ? game.level : null, 'c-av')}
+      ${lvAv(me.name, me.avatar, game ? game.level : null, 'c-av', me)}
       <div class="c-field">
         <textarea rows="1" maxlength="1000" placeholder="${esc(ph)}" aria-label="Nội dung bình luận"></textarea>
         <button type="button" class="c-ico" data-c="emoji" aria-label="Chèn emoji">😊</button>

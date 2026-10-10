@@ -196,3 +196,44 @@ document.addEventListener('change', e => {
     }
   });
 })();
+
+// Khung avatar (Cửa hàng): giữ nền trong suốt, thu nhỏ tối đa 512px, nén WebP (trình duyệt không tạo được WebP thì dùng PNG).
+(() => {
+  const loadImg = src => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; });
+  const readAs = (file, how) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = bad; r[how](file); });
+  const isPng = b => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  const isWebp = b => b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
+  const setScale = form => {
+    const inp = form.querySelector('.fr-scale'), prev = form.querySelector('.fr-prev');
+    if (inp && prev) prev.style.setProperty('--fs-n', Math.max(100, Math.min(300, +inp.value || 160)) / 100);
+  };
+  document.querySelectorAll('.fr-prev').forEach(p => setScale(p.closest('form')));
+  document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('fr-scale')) setScale(e.target.form); });
+  document.addEventListener('change', async e => {
+    const input = e.target;
+    if (!input.classList || !input.classList.contains('frame-file')) return;
+    const form = input.closest('form'), out = form.querySelector('[name=frame_data]'), info = form.querySelector('.fr-info'), prev = form.querySelector('.fr-prev');
+    const file = input.files && input.files[0];
+    out.value = '';
+    if (!file) return;
+    const fail = msg => { info.innerHTML = `<b style="color:#c0392b">${msg}</b>`; input.value = ''; };
+    try {
+      const head = new Uint8Array(await readAs(file.slice(0, 16), 'readAsArrayBuffer'));
+      if (!isPng(head) && !isWebp(head)) return fail('Chỉ nhận ảnh PNG hoặc WebP (nền trong suốt).');
+      const img = await loadImg(await readAs(file, 'readAsDataURL'));
+      const k = Math.min(1, 512 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let data = c.toDataURL('image/webp', 0.9);
+      if (!data.startsWith('data:image/webp')) data = c.toDataURL('image/png');
+      for (let q = 0.8; data.startsWith('data:image/webp') && data.length * 0.75 > 300 * 1024 && q >= 0.4; q -= 0.1) data = c.toDataURL('image/webp', q);
+      if (data.length * 0.75 > 600 * 1024) return fail('Ảnh quá nặng, hãy dùng ảnh nhỏ hơn.');
+      out.value = data;
+      let im = prev.querySelector('img');
+      if (!im) { im = document.createElement('img'); im.alt = ''; prev.appendChild(im); }
+      im.src = data;
+      info.textContent = `Đã chọn ảnh (${Math.round(data.length * 0.75 / 1024)}KB). Chỉnh "Cỡ khung" cho vừa rồi bấm Lưu.`;
+    } catch (err) { fail('Không đọc được ảnh này, hãy thử ảnh khác.'); }
+  });
+})();

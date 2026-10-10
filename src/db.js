@@ -180,6 +180,20 @@ export async function migrate(db) {
       'ALTER TABLE users ADD COLUMN name_fx_until INTEGER NOT NULL DEFAULT 0',
     ].map(q => db.prepare(q)));
   }
+  // Bản 28 (chạy sau Bản 27 vì cần bảng shop_items): khung avatar trong cửa hàng (admin tải ảnh khung lên), gói đã xóa vẫn giữ cho người đã mua.
+  try { await db.prepare('SELECT kind FROM shop_items LIMIT 1').first(); }
+  catch {
+    await db.batch([
+      "ALTER TABLE shop_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'fx'",
+      "ALTER TABLE shop_items ADD COLUMN img TEXT NOT NULL DEFAULT ''",
+      'ALTER TABLE shop_items ADD COLUMN scale INTEGER NOT NULL DEFAULT 160',
+      'ALTER TABLE shop_items ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN frame_id INTEGER NOT NULL DEFAULT 0',
+      "ALTER TABLE users ADD COLUMN frame_img TEXT NOT NULL DEFAULT ''",
+      'ALTER TABLE users ADD COLUMN frame_scale INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN frame_until INTEGER NOT NULL DEFAULT 0',
+    ].map(q => db.prepare(q)));
+  }
   // Bản 26: mốc giờ điểm danh — chống điểm danh 2 lần trong ngày khi đổi múi giờ.
   try { await db.prepare('SELECT checkin_at FROM users LIMIT 1').first(); }
   catch { await db.prepare('ALTER TABLE users ADD COLUMN checkin_at INTEGER DEFAULT 0').run(); }

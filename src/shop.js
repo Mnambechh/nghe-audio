@@ -22,20 +22,41 @@ export const NAME_FX = {
 
 // Hiệu ứng đang dùng của một thành viên (rỗng nếu chưa có hoặc đã hết hạn).
 export const fxOf = u => (u && u.name_fx && NAME_FX[u.name_fx] && (!u.name_fx_until || u.name_fx_until > now())) ? u.name_fx : '';
+// Khung avatar đang dùng: { frame: '/media/…', fs: cỡ % } hoặc rỗng nếu chưa có / hết hạn.
+const FRAME_RE = /^\/media\/[A-Za-z0-9]+\.(webp|png)$/;
+export const frameOf = u => (u && FRAME_RE.test(u.frame_img || '') && (!u.frame_until || u.frame_until > now()))
+  ? { frame: u.frame_img, fs: Math.max(100, Math.min(300, u.frame_scale || 160)) } : {};
 
-const until = r => r && (!r.until || r.until > now());
+// Mã sở hữu trong bảng user_fx: hiệu ứng tên = mã hiệu ứng, khung = "f" + mã gói.
+const keyOf = item => item.kind === 'frame' ? 'f' + item.id : item.fx;
+const valid = r => r && (!r.until || r.until > now());
 
 export async function shopData(db, me) {
-  const items = await all(db, 'SELECT id, name, fx, price, days FROM shop_items WHERE active = 1 ORDER BY pos, price, id');
-  const owned = me ? await all(db, 'SELECT fx, until FROM user_fx WHERE user_id = ?', me.id) : [];
+  const items = await all(db, "SELECT id, name, kind, fx, img, scale, price, days FROM shop_items WHERE active = 1 AND deleted = 0 ORDER BY kind = 'frame', pos, price, id");
+  const owned = me ? (await all(db, 'SELECT fx, until FROM user_fx WHERE user_id = ?', me.id)).filter(valid) : [];
+  // Khung đã mua vẫn dùng được kể cả khi admin ngừng bán gói.
+  const fids = owned.filter(o => /^f\d+$/.test(o.fx)).map(o => +o.fx.slice(1));
+  const frames = fids.length ? await all(db, `SELECT id, name, img, scale FROM shop_items WHERE kind = 'frame' AND id IN (${fids.map(() => '?').join(',')})`, ...fids) : [];
+  const fmap = Object.fromEntries(frames.map(f => [f.id, f]));
   return {
     ok: true,
-    items: items.filter(i => NAME_FX[i.fx]),
-    owned: owned.filter(o => NAME_FX[o.fx] && until(o)).map(o => ({ fx: o.fx, until: o.until })),
+    items: items.filter(i => i.kind === 'frame' ? FRAME_RE.test(i.img) : NAME_FX[i.fx]).map(i => ({ ...i, key: keyOf(i) })),
+    owned: owned.filter(o => NAME_FX[o.fx] || fmap[o.fx.slice(1)]).map(o => {
+      const f = NAME_FX[o.fx] ? null : fmap[o.fx.slice(1)];
+      return f ? { key: o.fx, kind: 'frame', id: f.id, name: f.name, img: f.img, scale: f.scale, until: o.until } : { key: o.fx, kind: 'fx', fx: o.fx, name: NAME_FX[o.fx][0], until: o.until };
+    }),
     using: me ? fxOf(me) : '',
+    frameUsing: me && frameOf(me).frame ? me.frame_id : 0,
     stones: me ? me.stones : 0,
-    names: Object.fromEntries(Object.entries(NAME_FX).map(([k, v]) => [k, v[0]])),
   };
+}
+
+async function equip(db, me, item, until) {
+  if (item.kind === 'frame') {
+    await db.prepare('UPDATE users SET frame_id = ?, frame_img = ?, frame_scale = ?, frame_until = ? WHERE id = ?').bind(item.id, item.img, item.scale || 160, until, me.id).run();
+  } else {
+    await db.prepare('UPDATE users SET name_fx = ?, name_fx_until = ? WHERE id = ?').bind(item.fx, until, me.id).run();
+  }
 }
 
 export async function handleShopApi(request, db, s, path, me, input) {
@@ -43,24 +64,25 @@ export async function handleShopApi(request, db, s, path, me, input) {
   if (tooFast(`shop${me.id}`, 6, 10000)) return json({ ok: false, silent: true }, 429);
 
   if (path === '/api/shop/buy') {
-    const item = await first(db, 'SELECT * FROM shop_items WHERE id = ? AND active = 1', parseInt(input.id, 10) || 0);
-    if (!item || !NAME_FX[item.fx]) return json({ ok: false, error: 'Gói này không còn bán.' }, 404);
+    const item = await first(db, 'SELECT * FROM shop_items WHERE id = ? AND active = 1 AND deleted = 0', parseInt(input.id, 10) || 0);
+    if (!item || (item.kind === 'frame' ? !FRAME_RE.test(item.img) : !NAME_FX[item.fx])) return json({ ok: false, error: 'Gói này không còn bán.' }, 404);
+    const key = keyOf(item);
     const price = Math.max(0, Math.floor(item.price)), days = Math.max(0, Math.floor(item.days));
     const t = now();
-    const prev = await first(db, 'SELECT until FROM user_fx WHERE user_id = ? AND fx = ?', me.id, item.fx);
-    if (prev && prev.until === 0) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn hiệu ứng này rồi.' }, 400);
+    const prev = await first(db, 'SELECT until FROM user_fx WHERE user_id = ? AND fx = ?', me.id, key);
+    if (prev && prev.until === 0) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn vật phẩm này rồi.' }, 400);
 
     let newUntil;
     if (!days) {
       // Gói vĩnh viễn: giữ chỗ trước (câu lệnh có điều kiện) → bấm mua song song chỉ 1 lần bị trừ tiền.
       const claim = await db.prepare(`INSERT INTO user_fx (user_id, fx, until, created_at) VALUES (?, ?, 0, ?)
-          ON CONFLICT(user_id, fx) DO UPDATE SET until = 0 WHERE user_fx.until != 0`).bind(me.id, item.fx, t).run();
-      if (!claim.meta.changes) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn hiệu ứng này rồi.' }, 400);
+          ON CONFLICT(user_id, fx) DO UPDATE SET until = 0 WHERE user_fx.until != 0`).bind(me.id, key, t).run();
+      if (!claim.meta.changes) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn vật phẩm này rồi.' }, 400);
       const paid = price ? await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(price, me.id, price).run() : { meta: { changes: 1 } };
       if (!paid.meta.changes) {
         // Không đủ Linh Thạch: trả lại trạng thái cũ.
-        if (prev) await db.prepare('UPDATE user_fx SET until = ? WHERE user_id = ? AND fx = ?').bind(prev.until, me.id, item.fx).run();
-        else await db.prepare('DELETE FROM user_fx WHERE user_id = ? AND fx = ?').bind(me.id, item.fx).run();
+        if (prev) await db.prepare('UPDATE user_fx SET until = ? WHERE user_id = ? AND fx = ?').bind(prev.until, me.id, key).run();
+        else await db.prepare('DELETE FROM user_fx WHERE user_id = ? AND fx = ?').bind(me.id, key).run();
         return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
       }
       newUntil = 0;
@@ -70,25 +92,39 @@ export async function handleShopApi(request, db, s, path, me, input) {
       if (!paid.meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
       const row = await first(db, `INSERT INTO user_fx (user_id, fx, until, created_at) VALUES (?, ?, ?, ?)
           ON CONFLICT(user_id, fx) DO UPDATE SET until = CASE WHEN user_fx.until = 0 THEN 0 ELSE MAX(user_fx.until, ?) + ? END
-          RETURNING until`, me.id, item.fx, t + days * 86400, t, t, days * 86400);
+          RETURNING until`, me.id, key, t + days * 86400, t, t, days * 86400);
       newUntil = row ? row.until : t + days * 86400;
     }
     if (price) await walletLog(db, me.id, 'stones', -price, `Cửa hàng: ${item.name}`);
-    // Mua xong tự dùng luôn hiệu ứng vừa mua.
-    await db.prepare('UPDATE users SET name_fx = ?, name_fx_until = ? WHERE id = ?').bind(item.fx, newUntil, me.id).run();
-    return json({ ok: true, fx: item.fx, until: newUntil, name: item.name, price });
+    // Mua xong tự dùng luôn vật phẩm vừa mua.
+    await equip(db, me, item, newUntil);
+    return json({ ok: true, kind: item.kind, fx: item.kind === 'frame' ? '' : item.fx, until: newUntil, name: item.name, price });
   }
 
-  // Đổi hiệu ứng đang dùng (chỉ chọn được hiệu ứng mình sở hữu và còn hạn), fx rỗng = tắt.
+  // Đổi hiệu ứng tên / khung đang dùng (chỉ chọn được thứ mình sở hữu và còn hạn). Rỗng / 0 = tắt.
   if (path === '/api/shop/use') {
+    if ('frame' in input) {
+      const id = parseInt(input.frame, 10) || 0;
+      if (!id) {
+        await db.prepare("UPDATE users SET frame_id = 0, frame_img = '', frame_until = 0 WHERE id = ?").bind(me.id).run();
+        return json({ ok: true, frame: 0 });
+      }
+      const [own, item] = await Promise.all([
+        first(db, 'SELECT until FROM user_fx WHERE user_id = ? AND fx = ?', me.id, 'f' + id),
+        first(db, "SELECT * FROM shop_items WHERE id = ? AND kind = 'frame'", id),
+      ]);
+      if (!item || !FRAME_RE.test(item.img) || !valid(own)) return json({ ok: false, error: 'Bạn chưa sở hữu khung này.' }, 400);
+      await equip(db, me, item, own.until);
+      return json({ ok: true, frame: id });
+    }
     const fx = String(input.fx || '');
     if (!fx) {
       await db.prepare("UPDATE users SET name_fx = '', name_fx_until = 0 WHERE id = ?").bind(me.id).run();
       return json({ ok: true, fx: '' });
     }
     const own = await first(db, 'SELECT until FROM user_fx WHERE user_id = ? AND fx = ?', me.id, fx);
-    if (!NAME_FX[fx] || !until(own)) return json({ ok: false, error: 'Bạn chưa sở hữu hiệu ứng này.' }, 400);
-    await db.prepare('UPDATE users SET name_fx = ?, name_fx_until = ? WHERE id = ?').bind(fx, own.until, me.id).run();
+    if (!NAME_FX[fx] || !valid(own)) return json({ ok: false, error: 'Bạn chưa sở hữu hiệu ứng này.' }, 400);
+    await equip(db, me, { kind: 'fx', fx }, own.until);
     return json({ ok: true, fx });
   }
 

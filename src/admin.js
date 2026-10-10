@@ -92,6 +92,20 @@ async function saveCoverData(db, dataUrl) {
   return `/media/${id}.webp`;
 }
 
+// Ảnh khung avatar: PNG hoặc WebP (giữ nền trong suốt), tối đa 600KB sau khi trình duyệt thu nhỏ.
+async function saveFrameData(db, dataUrl) {
+  const m = String(dataUrl || '').match(/^data:image\/(webp|png);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) throw new Error('Ảnh khung không hợp lệ.');
+  const bin = atob(m[2]);
+  if (bin.length > 600 * 1024) throw new Error('Ảnh khung sau khi nén vẫn quá lớn (tối đa 600KB).');
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const type = imageType(bytes);
+  if (type !== 'image/webp' && type !== 'image/png') throw new Error('Ảnh khung không hợp lệ.');
+  const id = randomId(20);
+  await db.prepare('INSERT INTO media (id, type, data, created_at) VALUES (?, ?, ?, ?)').bind(id, type, toBase64(bytes), now()).run();
+  return `/media/${id}.${type === 'image/png' ? 'png' : 'webp'}`;
+}
+
 async function deleteMedia(db, path) {
   const m = String(path || '').match(/^\/media\/([A-Za-z0-9]+)\./);
   if (m) await db.prepare('DELETE FROM media WHERE id = ?').bind(m[1]).run();
@@ -650,23 +664,47 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       const f = await request.formData();
       const act = f.getAll('action').pop();
       const int = k => Math.max(0, Math.min(100000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
+      if (act === 'frame_add' || act === 'frame_save') {
+        // Khung avatar: ảnh PNG/WebP trong suốt, trình duyệt admin đã thu nhỏ trước khi gửi.
+        const id = parseInt(f.get('id'), 10) || 0, name = str(f, 'name').slice(0, 60);
+        if (!name) return go(back, ['err', 'Nhập tên khung.']);
+        const old = id ? await first(db, "SELECT * FROM shop_items WHERE id = ? AND kind = 'frame'", id) : null;
+        if (act === 'frame_save' && !old) return go(back);
+        let img = old ? old.img : '';
+        if (str(f, 'frame_data')) {
+          try { img = await saveFrameData(db, str(f, 'frame_data')); } catch (e) { return go(back, ['err', e.message]); }
+        }
+        if (!img) return go(back, ['err', 'Chọn ảnh khung (PNG / WebP nền trong suốt).']);
+        const scale = Math.max(100, Math.min(300, int('scale') || 160));
+        const vals = [name, img, scale, int('price'), Math.min(3650, int('days')), f.get('active') ? 1 : 0, int('pos')];
+        if (!old) await db.prepare("INSERT INTO shop_items (name, kind, fx, img, scale, price, days, active, pos, created_at) VALUES (?, 'frame', '', ?, ?, ?, ?, ?, ?, ?)").bind(...vals, now()).run();
+        else {
+          await db.batch([
+            db.prepare('UPDATE shop_items SET name = ?, img = ?, scale = ?, price = ?, days = ?, active = ?, pos = ? WHERE id = ?').bind(...vals, id),
+            // Người đang đeo khung này thấy ngay ảnh / cỡ mới.
+            db.prepare('UPDATE users SET frame_img = ?, frame_scale = ? WHERE frame_id = ?').bind(img, scale, id),
+          ]);
+        }
+        return go(back, ['ok', old ? 'Đã lưu khung.' : 'Đã thêm khung.']);
+      }
       if (act === 'add' || act === 'save') {
         const name = str(f, 'name').slice(0, 60), fx = str(f, 'fx');
         if (!name) return go(back, ['err', 'Nhập tên gói.']);
         if (!NAME_FX[fx]) return go(back, ['err', 'Chọn hiệu ứng.']);
         const vals = [name, fx, int('price'), Math.min(3650, int('days')), f.get('active') ? 1 : 0, int('pos')];
         if (act === 'add') await db.prepare('INSERT INTO shop_items (name, fx, price, days, active, pos, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(...vals, now()).run();
-        else await db.prepare('UPDATE shop_items SET name = ?, fx = ?, price = ?, days = ?, active = ?, pos = ? WHERE id = ?').bind(...vals, parseInt(f.get('id'), 10) || 0).run();
+        else await db.prepare("UPDATE shop_items SET name = ?, fx = ?, price = ?, days = ?, active = ?, pos = ? WHERE id = ? AND kind = 'fx'").bind(...vals, parseInt(f.get('id'), 10) || 0).run();
         return go(back, ['ok', act === 'add' ? 'Đã thêm gói.' : 'Đã lưu gói.']);
       }
       if (act === 'delete') {
-        await db.prepare('DELETE FROM shop_items WHERE id = ?').bind(parseInt(f.get('id'), 10) || 0).run();
-        return go(back, ['ok', 'Đã xóa gói.']);
+        // Ẩn khỏi cửa hàng nhưng giữ dữ liệu: người đã mua vẫn dùng được đến hết hạn.
+        await db.prepare('UPDATE shop_items SET deleted = 1, active = 0 WHERE id = ?').bind(parseInt(f.get('id'), 10) || 0).run();
+        return go(back, ['ok', 'Đã xóa gói (người đã mua vẫn giữ đến hết hạn).']);
       }
       return go(back);
     }
     const [items, owned] = await Promise.all([
-      all(db, 'SELECT * FROM shop_items ORDER BY pos, price, id'),
+      all(db, 'SELECT * FROM shop_items WHERE deleted = 0 ORDER BY pos, price, id'),
       all(db, 'SELECT fx, COUNT(*) n FROM user_fx GROUP BY fx'),
     ]);
     return view(V.shopView({ items, sold: Object.fromEntries(owned.map(r => [r.fx, r.n])) }));

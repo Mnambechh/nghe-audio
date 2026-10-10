@@ -1,8 +1,8 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
-import { fxOf } from '../shop.js';
+import { fxOf, frameOf } from '../shop.js';
 
-export const ASSET_V = '75';
+export const ASSET_V = '76';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -296,7 +296,8 @@ export function lvAvatar(name, url, b, cls = 'c-av') {
   const img = url
     ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-n="${h(String(name || '?'))}">`
     : `<span class="${cls} av-letter">${h(Array.from(String(name || '?').trim())[0] || '?').toUpperCase()}</span>`;
-  return `<span class="av-wrap t${b.tier}">${img}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>`;
+  const f = frameOf(b);
+  return `<span class="av-wrap t${b.tier}${f.frame ? ' has-frame' : ''}">${img}${f.frame ? `<img class="av-frame" src="${h(f.frame)}" alt="" loading="lazy" decoding="async" style="--fs:${f.fs}%">` : ''}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>`;
 }
 export const realmBadge = b => `<span class="realm t${b.tier}">${h(b.realm)}</span>`;
 
@@ -617,7 +618,7 @@ export function questsPage(ctx) {
 export function shopPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Cửa hàng</h1>
-    <p class="sub">Đổi Linh Thạch lấy hiệu ứng tên đa sắc — tên bạn sẽ đổi màu lấp lánh ở bình luận và bảng xếp hạng</p>
+    <p class="sub">Đổi Linh Thạch lấy khung avatar và hiệu ứng tên đa sắc — hiện ở bình luận, bảng xếp hạng và thẻ tài khoản</p>
     <div id="shop"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Cửa hàng - ${ctx.s.site_name}`, canonical: ctx.origin + '/cua-hang', noindex: true }, body);
 }

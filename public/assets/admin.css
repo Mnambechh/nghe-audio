@@ -296,3 +296,8 @@ a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(
 @media (prefers-reduced-motion: reduce) { .nfx { -webkit-animation: none; animation: none; } }
 .fx-demo { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 20px; }
 .fx-big { font-size: 18px; margin: 0 6px; }
+.fr-box { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.fr-prev { position: relative; width: 150px; height: 150px; display: grid; place-items: center; border-radius: 12px; background: #2a2d33; overflow: hidden; flex: none; }
+.fr-av { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #f8a5c2, #7e57c2); }
+.fr-prev img { position: absolute; left: 50%; top: 50%; width: calc(64px * var(--fs-n, 1.6)); height: calc(64px * var(--fs-n, 1.6)); transform: translate(-50%, -50%); object-fit: contain; pointer-events: none; }
+.fr-ctl { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
