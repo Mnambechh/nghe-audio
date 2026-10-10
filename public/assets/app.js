@@ -103,6 +103,8 @@
 
   // ---------- Trạng thái trình phát ----------
   let cur = null;          // {id, slug, title, parts:[{title,url,duration}]}
+  const AD_WAIT = 3000;    // bấm quảng cáo xong chờ 3 giây mới phát
+  let adHold = 0;          // thời điểm hết 3 giây chờ (0 = không chờ)
   let idx = 0;
   let pendingSeek = 0;
   let lastSave = 0, lastPing = 0, lastPos = 0, lastMs = 0;
@@ -215,8 +217,6 @@
     carrotLoader(AD_WAIT, () => { adHold = 0; start(); });
   }
 
-  const AD_WAIT = 3000;
-  let adHold = 0;
   // iOS / Android chỉ cho phát khi có thao tác bấm. Trong lúc bấm quảng cáo: gọi play() rồi pause() NGAY LẬP TỨC
   // (cùng một nhịp, chưa kịp phát ra tiếng) để "mở khóa" thẻ audio; preload=auto để trình duyệt tải trước dữ liệu.
   // Không chờ play() xong mới dừng: trên máy thật như vậy sẽ lọt tiếng trước khi hết 3 giây.
@@ -230,26 +230,31 @@
     audio.pause();
     body.classList.remove('is-playing', 'is-loading');
   }
+  // Thanh chờ 3 giây nằm ngay trong thanh audio (thay chỗ thanh tua): thỏ chạy đến củ cà rốt.
   function carrotLoader(ms, done) {
-    const old = $('#carrotLoad');
+    const old = $('.pl-carrot', player);
     if (old) old.remove();
     const el = document.createElement('div');
-    el.id = 'carrotLoad'; el.className = 'carrot-load';
+    el.className = 'pl-carrot';
     el.setAttribute('role', 'status');
+    el.setAttribute('aria-label', 'Đang chuẩn bị audio');
     el.style.setProperty('--d', ms + 'ms');
-    el.innerHTML = `<div class="cl-box"><p>Đang chuẩn bị audio… <b class="cl-sec">${Math.ceil(ms / 1000)}</b>s</p>
-      <div class="cl-track"><span class="cl-fill"></span><span class="cl-bunny"><i>🐇</i></span><span class="cl-carrot">🥕</span></div>
-      <small>Cảm ơn bạn đã ủng hộ!</small></div>`;
-    document.body.appendChild(el);
-    const end = Date.now() + ms, sec = $('.cl-sec', el);
-    const tick = setInterval(() => { sec.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)); }, 250);
+    el.innerHTML = `<span class="pc-sec">${Math.ceil(ms / 1000)}s</span>
+      <span class="pc-track"><span class="pc-fill"></span><span class="pc-bunny"><i>🐇</i></span><span class="pc-carrot">🥕</span></span>
+      <span class="pc-end"></span>`;
+    $('.pl-seek', player).after(el);
+    player.classList.add('pl-waiting');
+    $('.pl-sub', player).textContent = statusText();
+    const end = Date.now() + ms, sec = $('.pc-sec', el);
+    const tick = setInterval(() => { sec.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)) + 's'; }, 250);
     setTimeout(() => {
       clearInterval(tick);
-      el.classList.add('cl-done');
-      setTimeout(() => el.remove(), 450);
+      el.classList.add('pc-done');
+      setTimeout(() => { el.remove(); player.classList.remove('pl-waiting'); }, 450);
       done();
     }, ms);
   }
+
 
   function toggle() {
     if (!cur) return;
@@ -301,7 +306,7 @@
 
   function statusText() {
     const multi = cur.parts.length > 1;
-    const st = body.classList.contains('is-loading') ? 'Đang tải…' : audio.paused ? 'Tạm dừng' : 'Đang phát';
+    const st = adHold > Date.now() ? 'Đang chuẩn bị audio…' : body.classList.contains('is-loading') ? 'Đang tải…' : audio.paused ? 'Tạm dừng' : 'Đang phát';
     let tm = '';
     if (timer) tm = ' • ' + (timer.part ? 'tắt hết tập' : 'tắt sau ' + fmt((timer.end - Date.now()) / 1000));
     return (multi ? `Tập ${idx + 1}/${cur.parts.length} • ` : '') + st + tm;
