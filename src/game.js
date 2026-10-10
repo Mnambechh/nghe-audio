@@ -136,10 +136,14 @@ export async function handleGameApi(request, db, s, path, me, input) {
       await db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').bind(me.id).run();
       return json({ ok: true });
     }
+    // Phân trang: ?before=<id> lấy các thông báo cũ hơn; ?id=<id> lấy đúng một thông báo (xem chi tiết).
+    const before = parseInt(url.searchParams.get('before'), 10) || 0;
+    const one = parseInt(url.searchParams.get('id'), 10) || 0;
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit'), 10) || 30));
     const items = await all(db, `SELECT n.id, n.type, n.text, n.is_read, n.created_at, n.comment_id, a.name actor, a.avatar actor_avatar, a.exp actor_exp, t.slug, t.title
       FROM notifications n LEFT JOIN users a ON a.id = n.actor_id LEFT JOIN tracks t ON t.id = n.track_id
-      WHERE n.user_id = ? ORDER BY n.created_at DESC LIMIT 30`, me.id);
-    return json({ ok: true, items: items.map(n => ({ ...n, actor_badge: n.actor ? badge(n.actor_exp) : null })) });
+      WHERE n.user_id = ?${one ? ' AND n.id = ?' : before ? ' AND n.id < ?' : ''} ORDER BY n.id DESC LIMIT ?`, me.id, ...(one ? [one] : before ? [before] : []), limit);
+    return json({ ok: true, more: items.length === limit, items: items.map(n => ({ ...n, actor_badge: n.actor ? badge(n.actor_exp) : null })) });
   }
 
   // Điểm danh hằng ngày: phải online đủ thời gian trong ngày.

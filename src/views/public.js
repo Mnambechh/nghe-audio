@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '37';
+export const ASSET_V = '38';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -387,6 +387,14 @@ export function notFoundPage(ctx) {
     <p class="sub">Audio này có thể đã bị gỡ hoặc đường dẫn không đúng.</p>
     <p><a class="btn-play inline" href="/">Về trang chủ</a></p></div>`;
   return layout(ctx, { title: `Không tìm thấy - ${ctx.s.site_name}` }, body);
+}
+
+export function notificationsPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Thông báo</h1>
+    <div id="notif-detail"></div>
+    <div id="notifs" class="nf-list"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Thông báo - ${ctx.s.site_name}`, canonical: ctx.origin + '/thong-bao', noindex: true }, body);
 }
 
 export function historyPage(ctx) {

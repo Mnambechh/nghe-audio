@@ -915,3 +915,18 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
 .g-real > div, .g-real iframe { margin: 0 auto !important; }
 .c-login { align-items: stretch; }
 .c-login .g-wrap { max-width: none; }
+
+/* Thông báo: nút xem tất cả + trang Thông báo */
+.np-all { display: block; padding: 11px 14px; text-align: center; font-weight: 700; font-size: 14px; color: var(--brand); border-top: 1px solid var(--line); background: var(--surface); border-radius: 0 0 20px 20px; }
+.np-all:hover { background: var(--dh-pink, #FFE3E6); }
+.nf-list { display: flex; flex-direction: column; overflow: hidden; border-radius: 22px; background: var(--surface); box-shadow: 0 2px 0 var(--line); }
+.nf-list .c-note, .nf-list .c-login { margin: 0; padding: 16px; }
+.nf-list .np-item { padding: 14px 16px; }
+.nf-more { display: block; width: 100%; padding: 13px; font-weight: 700; color: var(--brand); background: var(--surface); border: 0; border-top: 1px solid var(--line); cursor: pointer; }
+.nf-detail { display: flex; gap: 14px; align-items: flex-start; padding: 18px; margin-bottom: 16px; border-radius: 22px; background: linear-gradient(135deg, #FFF0C7, #FFE3E6); box-shadow: 0 2px 0 var(--dh-pink-line, #F6BCC6); }
+.nf-detail .np-ico, .nf-detail .av-wrap { flex: none; }
+.nf-detail .np-ico { width: 48px; height: 48px; font-size: 24px; background: #fff; }
+.nf-detail > div { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.nf-detail b { font-family: var(--dh-display, inherit); font-size: 17px; }
+.nf-detail p { margin: 0; font-size: 15px; line-height: 1.55; word-break: break-word; }
+.nf-detail small { color: var(--muted); }

@@ -426,6 +426,7 @@
     loadHistory();
     loadProfile();
     loadQuests();
+    loadNotifPage();
     if (me && ($('#quests') || $('#withdraw'))) fetchMe(); // lấy tiến độ / số dư mới nhất khi chuyển trang
     loadWithdraw();
     markMenu();
@@ -500,6 +501,7 @@
       case 'logout': doLogout(); return;
       case 'acct-menu': { const mm = $('.acct-card'); mm.hidden = !mm.hidden; $('.notif-panel').hidden = true; return; }
       case 'bell': openNotifs(); return;
+      case 'nf-more': moreNotifs(); return;
       case 'menu': { const mm = $('#mainmenu'); mm.hidden = !mm.hidden; markMenu(); return; }
       case 'checkin': doCheckin(); return;
       case 'hist-del': {
@@ -976,7 +978,8 @@
     if (!box) return;
     if (!me) { box.innerHTML = '<button class="btn-login" type="button" data-act="login">Đăng nhập</button>'; stopCk(); return; }
     box.innerHTML = `<button class="bell" type="button" data-act="bell" aria-label="Thông báo">${ICON_BELL}<b class="bell-n" hidden></b></button>
-      <div class="notif-panel" hidden><div class="np-head">Thông báo</div><div class="np-list"><p class="c-note">Đang tải…</p></div></div>
+      <div class="notif-panel" hidden><div class="np-head">Thông báo</div><div class="np-list"><p class="c-note">Đang tải…</p></div>
+        <a class="np-all" href="${APP.base}/thong-bao">Xem tất cả thông báo</a></div>
       <button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${lvAv(me.name, me.avatar, game && game.level, 'acct-av')}</button>
       <div class="acct-card" hidden></div>`;
     renderGame();
@@ -993,7 +996,7 @@
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a><a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av');
     updateBell();
@@ -1041,14 +1044,60 @@
     if (game && !game.checkedIn && ckNotified) {
       html += `<button type="button" class="np-item unread" data-act="checkin"><span class="np-ico">🎁</span><span class="np-body"><span>Đã đến giờ <b>điểm danh</b> hôm nay! Nhận ${nf(game.ckStones || 10)} Linh Thạch.</span></span></button>`;
     }
-    html += (notifs || []).map(n => {
-      const href = n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/tai-khoan`;
-      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎', withdraw: '💸' }[n.type] || '✅'}</span>`;
-      return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${href}">${ico}<span class="np-body">
-        <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
-        <small>${cDate(n.created_at)}${n.title ? ' · ' + esc(n.title) : ''}</small></span></a>`;
-    }).join('');
+    html += (notifs || []).map(notifItem).join('');
     list.innerHTML = html || '<p class="c-note">Chưa có thông báo nào.</p>';
+  }
+
+  // Bấm thông báo: bình luận → mở đúng truyện (khung bình luận); thông báo khác → trang Thông báo, xem chi tiết.
+  const notifHref = n => n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/thong-bao?id=${n.id}`;
+  const notifIco = n => n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎', withdraw: '💸', approved: '✅' }[n.type] || '🔔'}</span>`;
+  function notifItem(n) {
+    return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${notifHref(n)}">${notifIco(n)}<span class="np-body">
+      <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
+      <small>${cDate(n.created_at)}${n.title ? ' · ' + esc(n.title) : ''}</small></span></a>`;
+  }
+
+  // Trang Thông báo: toàn bộ thông báo (tải thêm khi kéo), xem chi tiết một thông báo qua ?id=.
+  let nfState = null;
+  function loadNotifPage() {
+    const box = $('#notifs');
+    if (!box || !meLoaded) return;
+    const detail = $('#notif-detail');
+    if (!me) {
+      detail.innerHTML = '';
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để xem thông báo.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    if (box.dataset.loaded) return;
+    box.dataset.loaded = '1';
+    nfState = { before: 0, more: true, busy: false };
+    box.innerHTML = '';
+    const id = +(new URLSearchParams(location.search).get('id') || 0);
+    if (id) {
+      fetch(`${APP.base}/api/notifications?id=${id}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+        const n = r && r.ok && r.items[0];
+        detail.innerHTML = n ? `<div class="nf-detail">${notifIco(n)}<div>
+          <b>${(NOTIF_TEXT[n.type] || (() => ''))(n)}</b>${n.text ? `<p>${esc(n.text)}</p>` : ''}
+          <small>${cDate(n.created_at)} · ${new Date(n.created_at * 1000).toLocaleString('vi-VN')}</small>
+          ${n.slug ? `<a class="q-btn" href="${notifHref(n)}">Mở truyện</a>` : ''}</div></div>` : '<p class="c-note">Không tìm thấy thông báo này.</p>';
+      }).catch(() => {});
+    } else detail.innerHTML = '';
+    moreNotifs();
+    if (game && game.unread) { api('/api/notifications', {}); game.unread = 0; updateBell(); }
+  }
+  function moreNotifs() {
+    const box = $('#notifs');
+    if (!box || !nfState || nfState.busy || !nfState.more) return;
+    nfState.busy = true;
+    const old = $('.nf-more', box); if (old) old.remove();
+    fetch(`${APP.base}/api/notifications?limit=30${nfState.before ? '&before=' + nfState.before : ''}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('#notifs') !== box) return;
+      nfState.more = r.more;
+      if (r.items.length) nfState.before = r.items[r.items.length - 1].id;
+      box.insertAdjacentHTML('beforeend', r.items.map(notifItem).join(''));
+      if (!box.querySelector('.np-item')) box.innerHTML = '<p class="c-note">Chưa có thông báo nào.</p>';
+      else if (r.more) box.insertAdjacentHTML('beforeend', '<button type="button" class="nf-more" data-act="nf-more">Xem thêm thông báo cũ</button>');
+    }).catch(() => {}).finally(() => { nfState.busy = false; });
   }
 
   function openNotifs() {
@@ -1176,7 +1225,7 @@
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); initRating(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
