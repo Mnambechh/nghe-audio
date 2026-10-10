@@ -735,8 +735,8 @@
         <span class="q-side"><span class="q-reward">${reward}</span>${fin ? '<span class="q-ok">✓ Xong</span>' : btn || ''}</span></div>`;
     };
     box.innerHTML = `<h2 class="h2">Hằng ngày</h2>
-      ${q('🎁', 'Điểm danh', ckLeft && !g.checkedIn ? `Online thêm ${fmt(ckLeft)} để điểm danh` : 'Điểm danh mỗi ngày', g.checkedIn ? 1 : 0, 1,
-        `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
+      ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left">${ckLeft ? `Online thêm <b>${fmt(ckLeft)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận'}</span>`, g.checkedIn ? 1 : 0, 1,
+        `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
       ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
         `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
@@ -754,7 +754,7 @@
   function listenQuest(q) {
     const L = game && game.quests && game.quests.listen;
     if (!L) return '';
-    const sec = Math.min(L.need, L.sec + lq.pending);
+    const sec = Math.floor(Math.min(L.need, L.sec + lq.pending + (lq.since ? Math.min(120, (Date.now() - lq.since) / 1000) : 0)));
     return L.tiers.map(t => {
       const need = t.min * 60, s2 = Math.min(sec, need);
       return q('🎧', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Đã nghe ${fmt(s2)} / ${t.min}:00 · tua không được tính`,
@@ -813,7 +813,9 @@
   audio.addEventListener('pause', () => lqFlush(true));
   audio.addEventListener('waiting', lqStop);
   audio.addEventListener('ended', () => lqFlush(true));
-  setInterval(() => { lqFlush(false); if ($('#quests') && lq.since) loadQuests(); }, 5000);
+  setInterval(() => lqFlush(false), 5000);
+  // Đang ở trang Nhiệm vụ và đang phát: cập nhật tiến độ nghe mỗi giây.
+  setInterval(() => { if (lq.since && $('#quests') && !document.hidden) loadQuests(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) lqFlush(true); });
 
   // ---------- Rút Linh Thạch ----------
@@ -1013,6 +1015,10 @@
       const t = $('.ck-time'), b = $('.ck-btn');
       if (t) t.textContent = left ? ' · ' + fmt(left) : ' · Sẵn sàng!';
       if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
+      // Trang Nhiệm vụ: đếm ngược chạy theo thời gian thực, không cần tải lại.
+      const ql = $('.q-ck-left'), qb = $('.q-ck-btn');
+      if (ql) ql.innerHTML = left ? `Online thêm <b>${fmt(left)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận';
+      if (qb) qb.disabled = left > 0;
       if (!left) {
         stopCk();
         if (!ckNotified) { ckNotified = true; updateBell(); }
