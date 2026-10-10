@@ -1,3 +1,27 @@
+// Bổ sung cho trình duyệt cũ (iOS 11–12, Android Chrome/WebView cũ) — chỉ chạy khi máy thiếu.
+(function () {
+  if (!Object.fromEntries) Object.fromEntries = function (it) { var o = {}; Array.from(it).forEach(function (p) { o[p[0]] = p[1]; }); return o; };
+  if (window.Promise && !Promise.prototype.finally) {
+    Promise.prototype.finally = function (f) {
+      var P = this.constructor || Promise;
+      return this.then(function (v) { return P.resolve(f()).then(function () { return v; }); },
+        function (e) { return P.resolve(f()).then(function () { throw e; }); });
+    };
+  }
+  var E = window.Element && Element.prototype;
+  if (E && !E.matches) E.matches = E.webkitMatchesSelector || E.msMatchesSelector;
+  if (E && !E.closest) E.closest = function (s) { var el = this; while (el && el.nodeType === 1) { if (el.matches(s)) return el; el = el.parentNode; } return null; };
+  if (E && !E.remove) E.remove = function () { if (this.parentNode) this.parentNode.removeChild(this); };
+  if (E && !E.append) E.append = function () { for (var i = 0; i < arguments.length; i++) { var n = arguments[i]; this.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); } };
+  if (!String.prototype.padStart) String.prototype.padStart = function (n, c) { var s = String(this); c = c == null ? ' ' : String(c); while (s.length < n) s = c + s; return s.slice(-Math.max(n, String(this).length)); };
+  var C = window.HTMLCanvasElement && HTMLCanvasElement.prototype;
+  if (C && !C.toBlob) C.toBlob = function (cb, type, q) {
+    var bin = atob(this.toDataURL(type, q).split(',')[1]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var self = this; setTimeout(function () { cb(new Blob([arr], { type: type || 'image/png' })); }, 0);
+  };
+})();
+
 (() => {
   'use strict';
   const APP = window.APP || { base: '', ad: null };
@@ -249,11 +273,21 @@
   }
 
   // ---------- Sự kiện audio ----------
+  // Máy cũ (iOS 11–13, Android cũ) đôi khi bỏ qua lệnh tua khi mới có metadata: thử lại khi đã sẵn sàng phát.
+  let seekRetry = 0;
   audio.addEventListener('loadedmetadata', () => {
     audio.defaultPlaybackRate = audio.playbackRate = speed;
-    if (pendingSeek > 0 && pendingSeek < audio.duration - 3) audio.currentTime = pendingSeek;
+    if (pendingSeek > 0 && pendingSeek < audio.duration - 3) {
+      seekRetry = pendingSeek;
+      try { audio.currentTime = pendingSeek; } catch (e) { /* tua lại ở canplay */ }
+    }
     pendingSeek = 0;
     renderTime();
+  });
+  audio.addEventListener('canplay', () => {
+    if (audio.playbackRate !== speed) audio.playbackRate = speed;
+    if (seekRetry && Math.abs(audio.currentTime - seekRetry) > 3) { try { audio.currentTime = seekRetry; } catch (e) { /* bỏ qua */ } }
+    seekRetry = 0;
   });
   audio.addEventListener('playing', () => {
     body.classList.add('is-playing');
@@ -288,8 +322,22 @@
     if (idx < cur.parts.length - 1) load(cur, idx + 1, { autoplay: true, at: 0 });
     else toast('Đã nghe hết ' + cur.title);
   });
+  // Mạng chập chờn / máy yếu: tự tải lại tối đa 2 lần, nghe tiếp đúng chỗ đang dừng.
+  let errRetry = 0, errAt = 0;
   audio.addEventListener('error', () => {
-    if (!audio.getAttribute('src')) return;
+    if (!audio.getAttribute('src') || !cur) return;
+    if (Date.now() - errAt > 60000) errRetry = 0;
+    if (errRetry < 2) {
+      errRetry++; errAt = Date.now();
+      const at = audio.currentTime || store.get(posKey(cur.id, idx), 0) || 0, wasPlaying = body.classList.contains('is-playing') || body.classList.contains('is-loading');
+      setTimeout(() => {
+        pendingSeek = at;
+        audio.src = part().url;
+        audio.load();
+        if (wasPlaying) start();
+      }, 1500 * errRetry);
+      return;
+    }
     body.classList.remove('is-loading', 'is-playing');
     toast('Không tải được audio, vui lòng thử lại sau');
   });
@@ -812,7 +860,7 @@
         <span class="meta">${esc(a.number)} · ${esc(a.holder)}</span></span>
         <button class="hist-del" type="button" data-act="wd-del" data-id="${a.id}" aria-label="Xóa">×</button></div>`).join('')}</div>
       ${wd.accounts.length < 3 ? `<form class="wd-add" id="wdAdd">
-        <div class="wd-methods">${Object.entries(wd.methods).map(([k, l], i) => `<label><input type="radio" name="method" value="${k}"${i === 0 ? ' checked' : ''}><span>${WD_ICON[k]} ${esc(l)}</span></label>`).join('')}</div>
+        <div class="wd-methods">${Object.keys(wd.methods).map((k, i) => `<label><input type="radio" name="method" value="${k}"${i === 0 ? ' checked' : ''}><span>${WD_ICON[k]} ${esc(wd.methods[k])}</span></label>`).join('')}</div>
         <label class="wd-bank">Ngân hàng<select name="bank"><option value="">— Chọn ngân hàng —</option>${wd.banks.map(b => `<option>${esc(b)}</option>`).join('')}</select></label>
         <label><span class="wd-num-label">Số tài khoản</span><input name="number" inputmode="numeric" autocomplete="off" placeholder="Số tài khoản"></label>
         <label>Tên chủ tài khoản (không dấu)<input name="holder" autocomplete="off" placeholder="NGUYEN VAN A" style="text-transform:uppercase"></label>
@@ -1404,14 +1452,14 @@
   function renderComments() {
     const sec = $('#comments');
     if (!sec || !cState) return;
-    const { me, config, items } = cState;
+    const cMe = cState.me, config = cState.config, items = cState.items;
     if (!config.enabled) { sec.hidden = true; return; }
     $('.c-count', sec).textContent = `(${cState.total})`;
     const compose = $('.c-compose', sec);
-    if (me && me.banned) compose.innerHTML = '<p class="c-note">Tài khoản của bạn đã bị khóa bình luận.</p>';
-    else if (me) compose.innerHTML = composeHtml() + `<p class="c-who">Đang bình luận với tên <b>${esc(me.name)}</b> · <button type="button" data-c="logout">Đăng xuất</button></p>`;
+    if (cMe && cMe.banned) compose.innerHTML = '<p class="c-note">Tài khoản của bạn đã bị khóa bình luận.</p>';
+    else if (cMe) compose.innerHTML = composeHtml() + `<p class="c-who">Đang bình luận với tên <b>${esc(cMe.name)}</b> · <button type="button" data-c="logout">Đăng xuất</button></p>`;
     else {
-      compose.innerHTML = `<div class="c-login"><p>Đăng nhập để bình luận</p><div class="g-btn"></div></div>`;
+      compose.innerHTML = `<div class="c-login"><p>Đăng nhập để bình luận, thả tim và nhận Linh Thạch</p><div class="g-btn" data-label="Đăng nhập Google để bình luận"></div></div>`;
       if (config.clientId) renderGoogleButton($('.g-btn', compose), config.clientId);
       else $('.g-btn', compose).innerHTML = '<span class="c-note">Đăng nhập Google chưa được bật.</span>';
     }
@@ -1458,21 +1506,30 @@
     return gsiPromise;
   }
 
-  async function renderGoogleButton(el, clientId) {
+  // Nút đăng nhập: nút đẹp theo giao diện web, nút thật của Google phủ trong suốt lên trên (bấm vẫn là nút Google).
+  const G_LOGO = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+  async function renderGoogleButton(el, clientId, label) {
+    const text = label || el.dataset.label || 'Đăng nhập bằng Google';
+    el.classList.add('g-wrap');
+    el.innerHTML = `<span class="g-fake">${G_LOGO}<span>${esc(text)}</span></span><span class="g-real"></span>`;
+    const real = $('.g-real', el);
+    const blocked = msg => {
+      real.remove();
+      el.onclick = () => toast(msg);
+    };
     try {
       await loadGsi();
       if (gsiClient !== clientId) {
         google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential, cancel_on_tap_outside: true, use_fedcm_for_prompt: true });
         gsiClient = clientId;
       }
-      google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', locale: 'vi', width: Math.min(320, el.clientWidth || 320) });
+      google.accounts.id.renderButton(real, { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', locale: 'vi',
+        width: Math.max(200, Math.min(400, el.clientWidth || 320)) });
       setTimeout(() => {
-        if (el.isConnected && !el.querySelector('iframe, div[role=button]')) {
-          el.innerHTML = '<span class="c-note">Không hiện được nút Google. Hãy tắt trình chặn quảng cáo cho trang này rồi tải lại.</span>';
-        }
+        if (el.isConnected && !real.querySelector('iframe, div[role=button]')) blocked('Không hiện được nút Google. Hãy tắt trình chặn quảng cáo cho trang này rồi tải lại.');
       }, 6000);
     } catch (e) {
-      el.innerHTML = '<span class="c-note">Không tải được nút đăng nhập Google. Hãy tắt trình chặn quảng cáo cho trang này rồi tải lại.</span>';
+      blocked('Không tải được đăng nhập Google. Hãy kiểm tra mạng hoặc tắt trình chặn quảng cáo rồi tải lại.');
     }
   }
 
@@ -1499,8 +1556,8 @@
     }
     if (b.dataset.emoji) {
       const ta = $('textarea', b.closest('.c-form'));
-      const st = ta.selectionStart ?? ta.value.length;
-      ta.value = ta.value.slice(0, st) + b.dataset.emoji + ta.value.slice(ta.selectionEnd ?? st);
+      const st = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+      ta.value = ta.value.slice(0, st) + b.dataset.emoji + ta.value.slice(ta.selectionEnd != null ? ta.selectionEnd : st);
       ta.focus();
       ta.selectionStart = ta.selectionEnd = st + b.dataset.emoji.length;
       return;
