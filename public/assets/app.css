@@ -341,6 +341,22 @@ svg { width: 1em; height: 1em; fill: currentColor; flex: none; }
 .lb-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lb-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
 
+/* ===== Thông báo nhận thưởng góc dưới trái ===== */
+.rewards { position: fixed; left: 14px; bottom: calc(16px + var(--safe-b)); z-index: 55; display: flex; flex-direction: column; gap: 10px;
+  width: min(320px, calc(100vw - 28px)); pointer-events: none; }
+body.has-player .rewards { bottom: calc(130px + var(--safe-b)); }
+.rw { pointer-events: auto; position: relative; display: flex; align-items: center; gap: 12px; padding: 14px 36px 14px 14px;
+  background: var(--surface); border-left: 4px solid #ec407a; border-radius: 10px; box-shadow: 0 10px 30px rgba(16, 24, 40, .18);
+  font-size: 14.5px; line-height: 1.4; animation: rwIn .45s cubic-bezier(.2, .9, .3, 1.15); }
+.rw.out { animation: rwOut .35s ease-in forwards; }
+@keyframes rwIn { from { transform: translateX(-120%); opacity: 0; } }
+@keyframes rwOut { to { transform: translateX(-120%); opacity: 0; } }
+.rw-ico { flex: none; width: 34px; height: 34px; display: grid; place-items: center; font-size: 22px; color: #ec407a; }
+.rw-text b { color: #d81b60; }
+.rw-text .realm { vertical-align: middle; }
+.rw-x { position: absolute; top: 6px; right: 8px; width: 24px; height: 24px; font-size: 18px; color: var(--muted); border-radius: 50%; }
+.rw-x:hover { background: var(--surface2); }
+
 /* ===== Thông tin tài khoản ===== */
 .prof-card { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px 18px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }

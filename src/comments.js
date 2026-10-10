@@ -228,11 +228,12 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const status = s.comment_moderation === '1' || hasLink ? 'pending' : 'approved';
     const r = await db.prepare('INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(trackId, me.id, parent, body, status, t, info.ip).run();
-    if (status === 'approved') {
-      await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body });
-    }
+    const rewards = status === 'approved'
+      ? await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body })
+      : [];
     return json({
       ok: true,
+      rewards,
       item: { id: r.meta.last_row_id, parent, body, pending: status === 'pending', likes: 0, at: t, name: me.name, avatar: me.avatar, mine: true, liked: false, ...badge(me.exp) },
     });
   }

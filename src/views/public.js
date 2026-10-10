@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '12';
+export const ASSET_V = '13';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -10,6 +10,13 @@ const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.
 const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 1 0 9.6 13A8 8 0 0 1 12.3 2z"/></svg>';
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+
+// Chỉ giữ các thẻ hợp lệ trong <head> (script, style, noscript, meta, link).
+// Chữ thường dán nhầm vào ô này sẽ bị bỏ, tránh hiện lên đầu trang.
+function safeHeadCode(code) {
+  const m = String(code || '').match(/<(script|style|noscript)\b[\s\S]*?<\/\1\s*>|<(meta|link|base)\b[^>]*>/gi);
+  return m ? m.join('\n') : '';
+}
 
 // ---------- Khung trang ----------
 
@@ -56,7 +63,7 @@ ${s.logo ? `<meta property="og:image" content="${h(abs(ctx.origin, s.logo))}">` 
 ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
 <link rel="stylesheet" href="${asset('app.css')}">
 <style>:root{--brand:${h(s.theme_color)}}</style>
-${s.head_code || ''}
+${safeHeadCode(s.head_code)}
 </head>
 <body>
 <header class="topbar">
@@ -169,6 +176,7 @@ ${body}
 </div>
 
 <div id="toast" class="toast" hidden></div>
+<div id="rewards" class="rewards" aria-live="polite"></div>
 <audio id="audio" preload="metadata"></audio>
 <script>window.APP = ${jsonScript({ base: '', ad: adConfig })};</script>
 <script src="${asset('app.js')}" defer></script>

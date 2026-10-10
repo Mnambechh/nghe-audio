@@ -26,18 +26,22 @@ export async function notify(db, userId, type, { actor = 0, track = 0, comment =
 
 // ---------- EXP & lên cấp ----------
 
+// Cộng EXP, tự xử lý lên cấp. Trả về danh sách phần thưởng để hiện thông báo góc màn hình.
 export async function awardExp(db, s, userId, amount) {
-  if (!userId || !amount) return null;
+  if (!userId || !amount) return [];
   const row = await first(db, 'UPDATE users SET exp = exp + ? WHERE id = ? RETURNING exp', amount, userId);
-  if (!row) return null;
+  if (!row) return [];
+  const rewards = [{ type: 'exp', n: amount }];
   const before = levelInfo(row.exp - amount).lvl;
   const after = levelInfo(row.exp);
   if (after.lvl > before) {
     const bonus = (after.lvl - before) * num(s, 'levelup_stones');
     if (bonus) await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
     await notify(db, userId, 'levelup', { text: `Chúc mừng đột phá ${after.realm} (Cấp ${after.lvl})${bonus ? ` · +${bonus} Linh Thạch` : ''}` });
+    rewards.push({ type: 'levelup', lvl: after.lvl, realm: after.realm, tier: after.tier });
+    if (bonus) rewards.push({ type: 'stones', n: bonus });
   }
-  return after;
+  return rewards;
 }
 
 // Gọi khi một bình luận được hiện (tự duyệt hoặc admin duyệt).
@@ -46,11 +50,12 @@ export async function onCommentApproved(db, s, c) {
   const u = await first(db, 'SELECT cexp_day, cexp_n FROM users WHERE id = ?', c.user_id);
   const n = u && u.cexp_day === today ? u.cexp_n : 0;
   await db.prepare('UPDATE users SET comments_n = comments_n + 1, cexp_day = ?, cexp_n = ? WHERE id = ?').bind(today, n + 1, c.user_id).run();
-  if (n < num(s, 'comment_exp_daily')) await awardExp(db, s, c.user_id, num(s, 'comment_exp'));
+  const rewards = n < num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp')) : [];
   if (c.parent_id) {
     const p = await first(db, 'SELECT user_id FROM comments WHERE id = ?', c.parent_id);
     if (p) await notify(db, p.user_id, 'reply', { actor: c.user_id, track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });
   }
+  return rewards;
 }
 
 // ---------- Thống kê người dùng cho thẻ tài khoản ----------
@@ -104,8 +109,8 @@ export async function handleGameApi(request, db, s, path, me, input) {
     const r = await db.prepare("UPDATE users SET checkin_day = ?, stones = stones + ? WHERE id = ? AND checkin_day != ?")
       .bind(today, num(s, 'checkin_stones'), me.id, today).run();
     if (!r.meta.changes) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
-    await awardExp(db, s, me.id, num(s, 'checkin_exp'));
-    return json({ ok: true, stones: num(s, 'checkin_stones'), exp: num(s, 'checkin_exp') });
+    const rewards = [{ type: 'stones', n: num(s, 'checkin_stones') }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'))];
+    return json({ ok: true, stones: num(s, 'checkin_stones'), exp: num(s, 'checkin_exp'), rewards });
   }
 
   // Đánh giá truyện (1–10 sao), mỗi truyện 1 lần, giới hạn số truyện / ngày.
@@ -129,9 +134,9 @@ export async function handleGameApi(request, db, s, path, me, input) {
       db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId),
       db.prepare('UPDATE users SET rate_day = ?, rate_n = ? WHERE id = ?').bind(today, used + 1, me.id),
     ]);
-    await awardExp(db, s, me.id, 1);
+    const rewards = await awardExp(db, s, me.id, 1);
     const tr = await first(db, 'SELECT rating_sum, rating_count FROM tracks WHERE id = ?', trackId);
-    return json({ ok: true, mine: stars, sum: tr.rating_sum, count: tr.rating_count });
+    return json({ ok: true, mine: stars, sum: tr.rating_sum, count: tr.rating_count, rewards });
   }
 
   return null;
