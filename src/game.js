@@ -18,7 +18,6 @@ export const GAME_DEFAULTS = {
   heart_daily: '50',        // số truyện được thả tim mỗi ngày
   comment_like_daily: '50', // số lượt thả tim bình luận mỗi ngày
   ref_rate: '5',            // % Linh Thạch người mời nhận từ người được mời
-  ref_daily: '20',          // số người được mời tối đa mỗi ngày (mỗi người mời)
   level_base_exp: '100',    // cấp N cần N × số này EXP để lên cấp (tính lại từ 0 mỗi cấp)
 };
 // Thưởng Linh Thạch mỗi lần lên cấp theo khoảng cấp: "đến cấp:Linh Thạch" mỗi dòng.

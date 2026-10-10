@@ -1,7 +1,7 @@
 // Giới thiệu bạn bè: người mời nhận ref_rate% Linh Thạch mà người được mời TỰ KIẾM (nhiệm vụ, điểm danh, đánh giá, thả tim, lên cấp).
 // Không tính tiền admin cộng tay, tiền hoàn rút, và chỉ 1 tầng (hoa hồng không sinh hoa hồng tiếp).
 import { all, first } from './db.js';
-import { json, now, randomId, getCookie, setCookie, vnDay } from './util.js';
+import { json, now, randomId, getCookie, setCookie } from './util.js';
 import { notify } from './game.js';
 
 export const REF_COOKIE = 'aw_ref';
@@ -20,12 +20,10 @@ export async function attachReferrer(db, s, request, newUserId, ip) {
   const code = getCookie(request, REF_COOKIE);
   if (!code || !REF_RE.test(code) || s.ref_enabled === '0') return code ? setCookie(REF_COOKIE, '', { maxAge: 0 }) : '';
   const r = await first(db, 'SELECT id, reg_ip, last_ip, locked, banned FROM users WHERE ref_code = ?', code);
-  const max = Math.max(0, parseInt(s.ref_daily, 10) || 0);
-  const today0 = Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000);
-  let ok = r && r.id !== newUserId && !r.locked && !r.banned
+  // Không giới hạn số người mời / ngày: đã chống clone bằng giới hạn IP, chặn VPN/Proxy và chặn cùng IP với người mời.
+  const ok = r && r.id !== newUserId && !r.locked && !r.banned
     // Chống tự mời chính mình: người mời và người được mời không được cùng IP.
     && r.reg_ip !== ip && r.last_ip !== ip;
-  if (ok && max) ok = (await first(db, 'SELECT COUNT(*) c FROM users WHERE referred_by = ? AND created_at >= ?', r.id, today0)).c < max;
   if (ok) {
     const w = await db.prepare('UPDATE users SET referred_by = ? WHERE id = ? AND referred_by = 0').bind(r.id, newUserId).run();
     if (w.meta.changes) {
