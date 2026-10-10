@@ -2,7 +2,7 @@
 // Gói (tên, hiệu ứng, giá, số ngày) do admin cài trong trang quản trị.
 import { all, first } from './db.js';
 import { json, now } from './util.js';
-import { walletLog, tooFast } from './game.js';
+import { walletLog, tooFast, vipActive } from './game.js';
 
 // Các hiệu ứng có sẵn: mã → [tên, dãy màu]. Màu dùng để vẽ CSS (public/assets/app.css + admin.css).
 export const NAME_FX = {
@@ -32,7 +32,7 @@ const keyOf = item => item.kind === 'frame' ? 'f' + item.id : item.fx;
 const valid = r => r && (!r.until || r.until > now());
 
 export async function shopData(db, me) {
-  const items = await all(db, "SELECT id, name, kind, fx, img, scale, price, days FROM shop_items WHERE active = 1 AND deleted = 0 ORDER BY kind = 'frame', pos, price, id");
+  const items = await all(db, "SELECT id, name, kind, fx, img, scale, price, days, sold FROM shop_items WHERE active = 1 AND deleted = 0 ORDER BY kind = 'vip' DESC, kind = 'frame', pos, price, id");
   const owned = me ? (await all(db, 'SELECT fx, until FROM user_fx WHERE user_id = ?', me.id)).filter(valid) : [];
   // Khung đã mua vẫn dùng được kể cả khi admin ngừng bán gói.
   const fids = owned.filter(o => /^f\d+$/.test(o.fx)).map(o => +o.fx.slice(1));
@@ -40,7 +40,7 @@ export async function shopData(db, me) {
   const fmap = Object.fromEntries(frames.map(f => [f.id, f]));
   return {
     ok: true,
-    items: items.filter(i => i.kind === 'frame' ? FRAME_RE.test(i.img) : NAME_FX[i.fx]).map(i => ({ ...i, key: keyOf(i) })),
+    items: items.filter(i => i.kind === 'vip' || (i.kind === 'frame' ? FRAME_RE.test(i.img) : NAME_FX[i.fx])).map(i => ({ ...i, key: keyOf(i) })),
     owned: owned.filter(o => NAME_FX[o.fx] || fmap[o.fx.slice(1)]).map(o => {
       const f = NAME_FX[o.fx] ? null : fmap[o.fx.slice(1)];
       return f ? { key: o.fx, kind: 'frame', id: f.id, name: f.name, img: f.img, scale: f.scale, until: o.until } : { key: o.fx, kind: 'fx', fx: o.fx, name: NAME_FX[o.fx][0], until: o.until };
@@ -48,6 +48,9 @@ export async function shopData(db, me) {
     using: me ? fxOf(me) : '',
     frameUsing: me && frameOf(me).frame ? me.frame_id : 0,
     stones: me ? me.stones : 0,
+    vipUntil: me && vipActive(me) ? me.vip_until : 0,
+    // Số người đang dùng VIP (còn hạn).
+    vipCount: (await first(db, 'SELECT COUNT(*) n FROM users WHERE vip_until > ?', now())).n,
   };
 }
 
@@ -65,6 +68,16 @@ export async function handleShopApi(request, db, s, path, me, input) {
 
   if (path === '/api/shop/buy') {
     const item = await first(db, 'SELECT * FROM shop_items WHERE id = ? AND active = 1 AND deleted = 0', parseInt(input.id, 10) || 0);
+    // Gói Promax VIP: bỏ quảng cáo, tích xanh, x2 EXP, x2 Linh Thạch kiếm được trong N ngày (mua thêm = cộng dồn ngày).
+    if (item && item.kind === 'vip') {
+      const price = Math.max(0, Math.floor(item.price)), days = Math.max(1, Math.floor(item.days) || 7), t = now();
+      const paid = price ? await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(price, me.id, price).run() : { meta: { changes: 1 } };
+      if (!paid.meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
+      const row = await first(db, 'UPDATE users SET vip_until = MAX(COALESCE(vip_until, 0), ?) + ? WHERE id = ? RETURNING vip_until', t, days * 86400, me.id);
+      if (price) await walletLog(db, me.id, 'stones', -price, `Cửa hàng: ${item.name}`);
+      await db.prepare('UPDATE shop_items SET sold = sold + 1 WHERE id = ?').bind(item.id).run();
+      return json({ ok: true, kind: 'vip', fx: '', until: row ? row.vip_until : t + days * 86400, name: item.name, price });
+    }
     if (!item || (item.kind === 'frame' ? !FRAME_RE.test(item.img) : !NAME_FX[item.fx])) return json({ ok: false, error: 'Gói này không còn bán.' }, 404);
     const key = keyOf(item);
     const price = Math.max(0, Math.floor(item.price)), days = Math.max(0, Math.floor(item.days));
@@ -96,6 +109,7 @@ export async function handleShopApi(request, db, s, path, me, input) {
       newUntil = row ? row.until : t + days * 86400;
     }
     if (price) await walletLog(db, me.id, 'stones', -price, `Cửa hàng: ${item.name}`);
+    await db.prepare('UPDATE shop_items SET sold = sold + 1 WHERE id = ?').bind(item.id).run();
     // Mua xong tự dùng luôn vật phẩm vừa mua.
     await equip(db, me, item, newUntil);
     return json({ ok: true, kind: item.kind, fx: item.kind === 'frame' ? '' : item.fx, until: newUntil, name: item.name, price });

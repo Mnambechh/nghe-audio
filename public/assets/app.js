@@ -176,6 +176,8 @@
   // Chế độ "mỗi lần phát": lần bấm phát nào (do người dùng bấm) cũng hiện quảng cáo; tự chuyển tập kế tiếp thì không.
   function needAd() {
     if (!(APP.ad && APP.ad.ads && APP.ad.ads.length)) return false;
+    // Promax VIP: không hiện quảng cáo.
+    if (((me ? me.vipUntil : store.get('vip_until', 0)) || 0) * 1000 > Date.now()) return false;
     return APP.ad.every || Date.now() > (store.get('ad_until', 0) || 0);
   }
   let adAction = null, adShown = null;
@@ -1121,11 +1123,21 @@
       return `<div class="sh-item"><div class="sh-prev">${prev}</div>
         <b class="sh-name">${esc(i.name)}</b>
         <small class="sh-dur">${i.days ? `${i.days} ngày` : 'Vĩnh viễn'}${o ? ` · bạn có: ${fxLeft(o.until)}` : ''}</small>
+        <small class="sh-sold">🔥 Đã bán ${nf(i.sold)}</small>
         <button type="button" class="sh-buy" data-buy="${i.id}"${perm ? ' disabled' : ''}>${perm ? 'Đã sở hữu' : `${o ? 'Gia hạn' : 'Mua'} · ${nf(i.price)} 💎`}</button></div>`;
     };
-    const fxItems = shop.items.filter(i => i.kind !== 'frame'), frItems = shop.items.filter(i => i.kind === 'frame');
+    const fxItems = shop.items.filter(i => i.kind === 'fx'), frItems = shop.items.filter(i => i.kind === 'frame'), vipItems = shop.items.filter(i => i.kind === 'vip');
+    const vipHtml = vipItems.length ? `<h2 class="h2">👑 Gói Promax VIP</h2>
+      <div class="vip-card">
+        <div class="vip-head"><b>Promax VIP</b>${VIP_TICK}${shop.vipUntil ? `<em class="vip-on">Đang dùng · ${vipLeft(shop.vipUntil)}</em>` : ''}</div>
+        <ul class="vip-perks"><li>🚫 Bỏ quảng cáo toàn web</li><li>${VIP_TICK} Tích xanh xác thực khi bình luận và ở trang cá nhân</li>
+          <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ</li><li>💎 x2 Linh Thạch kiếm được</li></ul>
+        <p class="vip-count">👥 ${nf(shop.vipCount)} người đang sở hữu</p>
+        <div class="vip-buy">${vipItems.map(i => `<button type="button" class="sh-buy" data-buy="${i.id}">${shop.vipUntil ? 'Gia hạn' : 'Mua'} ${esc(i.name)} · ${nf(i.price)} 💎</button><small class="sh-sold">🔥 Đã bán ${nf(i.sold)} · ${Math.max(1, i.days)} ngày${shop.vipUntil ? ', cộng dồn thêm' : ''}</small>`).join('')}</div>
+      </div>` : '';
     box.innerHTML = `${me ? `<div class="wd-balance"><span>Số dư</span><b>${nf(shop.stones)} 💎</b></div>`
       : '<div class="c-login"><p>Đăng nhập để mua vật phẩm.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>'}
+      ${vipHtml}
       ${mine}
       ${frItems.length ? `<h2 class="h2">Khung avatar</h2><div class="sh-grid">${frItems.map(i => card(i, frPrev(i.img, i.scale))).join('')}</div>` : ''}
       <h2 class="h2">Hiệu ứng tên</h2>
@@ -1139,12 +1151,13 @@
       const it = shop && shop.items.find(x => x.id === +b.dataset.buy);
       if (!it) return;
       if (shop.stones < it.price) { toast('Bạn không đủ Linh Thạch'); return; }
-      const prev = it.kind === 'frame' ? `<span class="sh-fav">${lvAv(me.name, me.avatar, null, 'c-av', { frame: it.img, fs: it.scale })}</span>` : `<span class="ask-fx nfx nfx-${esc(it.fx)}">${esc(me.name)}</span>`;
-      askConfirm(`${prev}<br>Mua <b>${esc(it.name)}</b> (${it.days ? it.days + ' ngày' : 'vĩnh viễn'})<br>giá <b>${nf(it.price)} 💎</b> Linh Thạch?`, 'Mua', '🛍️')
+      const prev = it.kind === 'vip' ? `<span class="ask-fx">👑 Promax VIP ${VIP_TICK}</span>` : it.kind === 'frame' ? `<span class="sh-fav">${lvAv(me.name, me.avatar, null, 'c-av', { frame: it.img, fs: it.scale })}</span>` : `<span class="ask-fx nfx nfx-${esc(it.fx)}">${esc(me.name)}</span>`;
+      askConfirm(`${prev}<br>Mua <b>${esc(it.name)}</b> (${it.kind === 'vip' ? Math.max(1, it.days) + ' ngày' : it.days ? it.days + ' ngày' : 'vĩnh viễn'})<br>giá <b>${nf(it.price)} 💎</b> Linh Thạch?`, 'Mua', '🛍️')
         .then(y => y && once('shop', () => api('/api/shop/buy', { id: it.id }).then(r => {
           if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa mua được'); return; }
           rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
-          if (r.kind !== 'frame') me.fx = r.fx;
+          if (r.kind === 'fx' || !r.kind) me.fx = r.fx;
+          if (r.kind === 'vip') { me.vipUntil = r.until; store.set('vip_until', r.until); renderGame(); }
           loadShop(); fetchMe();
         })));
     } else if (u) {
@@ -1213,6 +1226,9 @@
   };
   const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
   const nf = n => String(Math.floor(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  // Tích xanh xác thực của thành viên Promax VIP.
+  const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><path fill="#1d9bf0" d="M12 1.5l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3-2.6-1.9 1-3.1-1-3.1 2.6-1.9 1-3 3.2.1z"/><path fill="#fff" d="M10.4 16.2 6.8 12.6l1.5-1.5 2.1 2.1 5.3-5.3 1.5 1.5z"/></svg>';
+  const vipLeft = u => { const d = Math.ceil(((u || 0) - Date.now() / 1000) / 86400); return d > 1 ? `còn ${d} ngày` : 'còn dưới 1 ngày'; };
   // Hiệu ứng tên mua ở Cửa hàng (chữ đa sắc chạy từ phải qua trái).
   const fxCls = fx => /^[a-z]+$/.test(fx || '') ? ` class="nfx nfx-${fx}"` : '';
 
@@ -1234,8 +1250,9 @@
     if (!card || !me) return;
     const g = game || { stones: 0, exp: 0, comments: 0, level: { lvl: me.lvl || 1, tier: me.tier || 0, realm: me.realm || 'Luyện Khí 1', cur: 0, need: 100, pct: 0 }, checkedIn: false, checkinIn: 0, unread: 0 };
     const L = g.level;
-    card.innerHTML = `<div class="ac-head"><b${fxCls(me.fx)}>${esc(me.name)}</b><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
+    card.innerHTML = `<div class="ac-head"><span class="ac-name"><b${fxCls(me.fx)}>${esc(me.name)}</b>${me.vipUntil ? VIP_TICK : ''}</span><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
       <div class="ac-stones"><b>${nf(g.stones)}</b> Linh Thạch</div>
+      ${me.vipUntil ? `<a class="ac-vip" href="${APP.base}/cua-hang">👑 Promax VIP · x2 EXP · x2 💎 · ${vipLeft(me.vipUntil)}</a>` : ''}
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
@@ -1477,6 +1494,7 @@
     const prevLvl = !changed && game && game.level ? game.level.lvl : 0;
     me = m || null;
     game = me ? (g || game) : null;
+    store.set('vip_until', me ? me.vipUntil || 0 : 0); // nhớ VIP để bỏ quảng cáo ngay cả khi chưa tải xong tài khoản
     if (prevLvl && game && game.level && game.level.lvl !== prevLvl) setTimeout(syncMyLevel);
     if (game && game.quests && game.quests.resetIn != null) questResetAt = Date.now() + game.quests.resetIn * 1000;
     if (game) { ckLeftSec = Math.max(0, (game.checkinIn || 0) - onlinePending); if (game.checkedIn) ckNotified = false; }
@@ -1514,14 +1532,14 @@
   function syncMyLevel() {
     if (!me || !game || !cState) return;
     const L = game.level, b = { lvl: L.lvl, tier: L.tier, realm: L.realm };
-    cState.items.forEach(c => { if (c.mine) Object.assign(c, b, { fx: me.fx || '', frame: me.frame || '', fs: me.fs }); });
+    cState.items.forEach(c => { if (c.mine) Object.assign(c, b, { fx: me.fx || '', vip: !!me.vipUntil, frame: me.frame || '', fs: me.fs }); });
     if (cState.me) Object.assign(cState.me, b);
     $$('#comments .c-item').forEach(el => {
       const c = cState.items.find(x => String(x.id) === el.dataset.cid);
       if (!c || !c.mine) return;
       el.firstElementChild.outerHTML = lvAv(c.name, c.avatar, c, 'c-av');
       const name = $(':scope > .c-main > .c-bubble .c-name', el);
-      if (name) name.innerHTML = `<b${fxCls(c.fx)}>${esc(c.name)}</b>${realmTag(c)}`;
+      if (name) name.innerHTML = `<b${fxCls(c.fx)}>${esc(c.name)}</b>${c.vip ? VIP_TICK : ''}${realmTag(c)}`;
     });
     $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av', me); });
   }
@@ -1816,6 +1834,7 @@
         ${me.customAvatar ? '<button type="button" class="link-btn" data-act="avatar-reset">Dùng lại ảnh Google</button>' : ''}
       </div>
       <p class="prof-hint">Ảnh JPG, PNG, WebP. Tối đa ${String(avatarMaxMb).replace('.', ',')}MB.</p>
+      ${me.vipUntil ? `<p class="prof-vip">${VIP_TICK}<b>Promax VIP</b> · x2 EXP · x2 Linh Thạch · không quảng cáo · ${vipLeft(me.vipUntil)}</p>` : ''}
       <form class="prof-form" id="nameForm">
         <label>Tên hiển thị<input name="name" maxlength="40" value="${esc(me.name)}" autocomplete="nickname" required></label>
         <button class="btn-play inline" type="submit">Lưu tên</button>
@@ -1921,7 +1940,7 @@
     return `<div class="c-item${c.parent ? ' c-reply' : ''}" data-cid="${c.id}">
       ${lvAv(c.name, c.avatar, c.lvl ? c : null, 'c-av', c)}
       <div class="c-main">
-        <div class="c-bubble"><span class="c-name"><b${fxCls(c.fx)}>${esc(c.name)}</b>${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
+        <div class="c-bubble"><span class="c-name"><b${fxCls(c.fx)}>${esc(c.name)}</b>${c.vip ? VIP_TICK : ''}${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
           <span class="c-hearts"${c.likes ? '' : ' hidden'}>❤️ <b>${c.likes}</b></span></div>
         <div class="c-actions">
           <span>${cDate(c.at)}</span>

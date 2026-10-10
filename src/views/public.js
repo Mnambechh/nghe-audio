@@ -1,8 +1,10 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
+import { vipActive } from '../game.js';
+const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><path fill="#1d9bf0" d="M12 1.5l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3-2.6-1.9 1-3.1-1-3.1 2.6-1.9 1-3 3.2.1z"/><path fill="#fff" d="M10.4 16.2 6.8 12.6l1.5-1.5 2.1 2.1 5.3-5.3 1.5 1.5z"/></svg>';
 
-export const ASSET_V = '82';
+export const ASSET_V = '83';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -591,7 +593,7 @@ export function leaderboardPage(ctx, rows, kind = 'level') {
     <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
       <span class="lb-rank">${i + 1}</span>
       ${lvAvatar(r.name, r.avatar, r, 'lb-av')}
-      <span class="lb-body"><span class="lb-name"><b${fxOf(r) ? ` class="nfx nfx-${fxOf(r)}"` : ''}>${h(r.name)}</b>${realmBadge(r)}</span>
+      <span class="lb-body"><span class="lb-name"><b${fxOf(r) ? ` class="nfx nfx-${fxOf(r)}"` : ''}>${h(r.name)}</b>${vipActive(r) ? VIP_TICK : ''}${realmBadge(r)}</span>
         <span class="meta">Cấp ${r.lvl} · ☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
       <b class="lb-val">${B.val(r)}</b>
     </div>`).join('') || '<p class="c-note">Chưa có ai trên bảng này. Đăng nhập, điểm danh, bình luận và thả tim để lên bảng!</p>'}</div></div>`;

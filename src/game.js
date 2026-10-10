@@ -50,6 +50,14 @@ export function tooFast(key, max, ms) {
 }
 const num = (s, k) => Math.max(0, parseFloat(s[k] ?? GAME_DEFAULTS[k]) || 0);
 
+// ---------- Promax VIP ----------
+// Đang VIP: bỏ quảng cáo, tích xanh, x2 EXP và x2 Linh Thạch kiếm được (không áp dụng cho admin cộng tay, hoàn tiền, hoa hồng).
+export const vipActive = u => !!u && (u.vip_until || 0) > now();
+export async function vipMul(db, userId) {
+  const r = await first(db, 'SELECT vip_until FROM users WHERE id = ?', userId);
+  return vipActive(r) ? 2 : 1;
+}
+
 // ---------- Thông báo ----------
 
 export async function notify(db, userId, type, { actor = 0, track = 0, comment = 0, text = '' } = {}) {
@@ -83,6 +91,9 @@ export async function walletLog(db, userId, kind, amount, note) {
 // Cộng EXP, tự xử lý lên cấp. Trả về danh sách phần thưởng để hiện thông báo góc màn hình.
 export async function awardExp(db, s, userId, amount, note = '') {
   if (!userId || !amount) return [];
+  const mul = amount > 0 && !/^Admin/.test(note) ? await vipMul(db, userId) : 1;
+  amount *= mul;
+  if (mul > 1) note += ' (VIP x2)';
   const row = await first(db, 'UPDATE users SET exp = exp + ? WHERE id = ? RETURNING exp', amount, userId);
   if (!row) return [];
   await walletLog(db, userId, 'exp', amount, note);
@@ -92,6 +103,7 @@ export async function awardExp(db, s, userId, amount, note = '') {
   if (after.lvl > before) {
     let bonus = 0;
     for (let l = before + 1; l <= after.lvl; l++) bonus += levelupStones(s, l);
+    bonus *= mul; // VIP: thưởng đột phá cũng x2
     if (bonus) {
       await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
       await walletLog(db, userId, 'stones', bonus, `Thưởng đột phá ${after.realm} (Cấp ${after.lvl})`);
@@ -197,7 +209,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
     let rewards = [];
     if (r.meta.changes) {
       await db.prepare('UPDATE tracks SET hearts = hearts + 1 WHERE id = ?').bind(trackId).run();
-      const st = num(s, 'heart_stones'), ex = num(s, 'heart_exp');
+      const st = num(s, 'heart_stones') * (vipActive(me) ? 2 : 1), ex = num(s, 'heart_exp');
       if (st) {
         await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(st, me.id).run();
         await walletLog(db, me.id, 'stones', st, `Thả tim: ${tr0.title}`);
@@ -241,12 +253,13 @@ export async function handleGameApi(request, db, s, path, me, input) {
       return json({ ok: false, error: 'Chưa đủ thời gian online trên web.', wait: Math.max(1, Math.ceil(me.seen_day === today ? wait : num(s, 'checkin_wait'))) }, 400);
     }
     // Khóa kép: khác ngày + chưa điểm danh kể từ 0h hôm nay (đổi múi giờ giữa ngày cũng không điểm danh lại được).
+    const ckSt = num(s, 'checkin_stones') * (vipActive(me) ? 2 : 1);
     const r = await db.prepare("UPDATE users SET checkin_day = ?, checkin_at = ?, stones = stones + ? WHERE id = ? AND checkin_day != ? AND COALESCE(checkin_at, 0) < ?")
-      .bind(today, t, num(s, 'checkin_stones'), me.id, today, dayStartTs()).run();
+      .bind(today, t, ckSt, me.id, today, dayStartTs()).run();
     if (!r.meta.changes) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
-    await walletLog(db, me.id, 'stones', num(s, 'checkin_stones'), 'Điểm danh hằng ngày');
-    const rewards = [{ type: 'stones', n: num(s, 'checkin_stones') }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'), 'Điểm danh hằng ngày')];
-    return json({ ok: true, stones: num(s, 'checkin_stones'), exp: num(s, 'checkin_exp'), rewards });
+    await walletLog(db, me.id, 'stones', ckSt, 'Điểm danh hằng ngày' + (vipActive(me) ? ' (VIP x2)' : ''));
+    const rewards = [{ type: 'stones', n: ckSt }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'), 'Điểm danh hằng ngày')];
+    return json({ ok: true, stones: ckSt, exp: rewards.filter(x => x.type === 'exp').reduce((a, x) => a + x.n, 0), rewards });
   }
 
   // Đánh giá truyện (1–10 sao), mỗi truyện 1 lần, giới hạn số truyện / ngày.
@@ -277,7 +290,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
     await db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId).run();
     // Thưởng mỗi lần đánh giá (mỗi truyện chỉ 1 lần nhờ khóa chính user/track).
     const rewards = [];
-    const st = num(s, 'rate_stones'), ex = num(s, 'rate_exp');
+    const st = num(s, 'rate_stones') * (vipActive(me) ? 2 : 1), ex = num(s, 'rate_exp');
     if (st) {
       await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(st, me.id).run();
       await walletLog(db, me.id, 'stones', st, `Đánh giá ${stars} sao: ${track.title}`);
@@ -294,13 +307,13 @@ export async function handleGameApi(request, db, s, path, me, input) {
 // Bảng xếp hạng (lưu đệm phía gọi): cấp độ, Linh Thạch, bình luận, tim nhận được trên bình luận.
 export const BOARDS = ['level', 'stones', 'comments', 'hearts'];
 export async function leaderboard(db, kind = 'level', limit = 50) {
-  const base = 'SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.name_fx, u.name_fx_until, u.frame_img, u.frame_scale, u.frame_until FROM users u WHERE u.banned = 0 AND u.locked = 0';
+  const base = 'SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.vip_until, u.name_fx, u.name_fx_until, u.frame_img, u.frame_scale, u.frame_until FROM users u WHERE u.banned = 0 AND u.locked = 0';
   let rows;
   if (kind === 'stones') rows = await all(db, `${base} AND u.stones > 0 ORDER BY u.stones DESC, u.id LIMIT ?`, limit);
   else if (kind === 'comments') rows = await all(db, `${base} AND u.comments_n > 0 ORDER BY u.comments_n DESC, u.exp DESC LIMIT ?`, limit);
   else if (kind === 'hearts') {
     // Tim người khác thả vào bình luận của mình (tự thả tim cho mình không tính).
-    rows = await all(db, `SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.name_fx, u.name_fx_until, u.frame_img, u.frame_scale, u.frame_until, h.n hearts FROM (
+    rows = await all(db, `SELECT u.id, u.name, u.avatar, u.exp, u.stones, u.comments_n, u.vip_until, u.name_fx, u.name_fx_until, u.frame_img, u.frame_scale, u.frame_until, h.n hearts FROM (
         SELECT c.user_id uid, COUNT(*) n FROM comment_likes l JOIN comments c ON c.id = l.comment_id
         WHERE c.status = 'approved' AND l.user_id != c.user_id GROUP BY c.user_id) h
       JOIN users u ON u.id = h.uid WHERE u.banned = 0 AND u.locked = 0 ORDER BY h.n DESC, u.exp DESC LIMIT ?`, limit);

@@ -666,6 +666,14 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       const f = await request.formData();
       const act = f.getAll('action').pop();
       const int = k => Math.max(0, Math.min(100000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
+      if (act === 'vip_add' || act === 'vip_save') {
+        const id = parseInt(f.get('id'), 10) || 0, name = str(f, 'name').slice(0, 60);
+        if (!name) return go(back, ['err', 'Nhập tên gói VIP.']);
+        const vals = [name, int('price'), Math.max(1, Math.min(3650, int('days') || 7)), f.get('active') ? 1 : 0, int('pos')];
+        if (act === 'vip_add') await db.prepare("INSERT INTO shop_items (name, kind, fx, price, days, active, pos, created_at) VALUES (?, 'vip', '', ?, ?, ?, ?, ?)").bind(...vals, now()).run();
+        else await db.prepare("UPDATE shop_items SET name = ?, price = ?, days = ?, active = ?, pos = ? WHERE id = ? AND kind = 'vip'").bind(...vals, id).run();
+        return go(back, ['ok', act === 'vip_add' ? 'Đã thêm gói VIP.' : 'Đã lưu gói VIP.']);
+      }
       if (act === 'frame_add' || act === 'frame_save') {
         // Khung avatar: ảnh PNG/WebP trong suốt, trình duyệt admin đã thu nhỏ trước khi gửi.
         const id = parseInt(f.get('id'), 10) || 0, name = str(f, 'name').slice(0, 60);
@@ -709,7 +717,8 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       all(db, 'SELECT * FROM shop_items WHERE deleted = 0 ORDER BY pos, price, id'),
       all(db, 'SELECT fx, COUNT(*) n FROM user_fx GROUP BY fx'),
     ]);
-    return view(V.shopView({ items, sold: Object.fromEntries(owned.map(r => [r.fx, r.n])) }));
+    const vipCount = (await first(db, 'SELECT COUNT(*) n FROM users WHERE vip_until > ?', now())).n;
+    return view(V.shopView({ items, sold: Object.fromEntries(owned.map(r => [r.fx, r.n])), vipCount }));
   }
 
   // Rút Linh Thạch: duyệt yêu cầu

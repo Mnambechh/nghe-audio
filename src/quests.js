@@ -3,7 +3,7 @@
 // - Nghe audio đủ N phút (tính theo thời gian thực đang phát, tua không được tính).
 import { all, first } from './db.js';
 import { json, now, vnDay, secondsToReset, dayStartTs } from './util.js';
-import { awardExp, walletLog, tooFast } from './game.js';
+import { awardExp, walletLog, tooFast, vipMul } from './game.js';
 
 export const QUEST_DEFAULTS = {
   listen_quest_enabled: '1',
@@ -84,8 +84,10 @@ async function grant(db, s, me, questId, stones, exp, note) {
   if (!r.meta.changes) return null;
   const rewards = [];
   if (stones) {
+    const mul = await vipMul(db, me.id); // VIP: x2 Linh Thạch
+    stones *= mul;
     await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(stones, me.id).run();
-    await walletLog(db, me.id, 'stones', stones, note);
+    await walletLog(db, me.id, 'stones', stones, note + (mul > 1 ? ' (VIP x2)' : ''));
     rewards.push({ type: 'stones', n: stones });
   }
   if (exp) rewards.push(...await awardExp(db, s, me.id, exp, note));

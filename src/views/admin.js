@@ -936,7 +936,7 @@ ${quests.map(q => `<form method="post" class="form card">
 
 // ---------- Cửa hàng ----------
 
-export function shopView({ items, sold }) {
+export function shopView({ items, sold, vipCount = 0 }) {
   const fxSelect = cur => `<select name="fx">${Object.entries(NAME_FX).map(([k, v]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${h(v[0])}</option>`).join('')}</select>`;
   const fields = (i = {}) => `
     <label>Tên gói<input name="name" value="${h(i.name || '')}" maxlength="60" placeholder="vd. Hỏa Diệm 30 ngày" required></label>
@@ -947,7 +947,15 @@ export function shopView({ items, sold }) {
       <label>Thứ tự<input name="pos" inputmode="numeric" value="${i.pos ?? 0}"></label>
     </div>
     <label class="check"><input type="checkbox" name="active" value="1"${i.active === 0 ? '' : ' checked'}> Đang bán</label>`;
-  const fxItems = items.filter(i => i.kind !== 'frame'), frames = items.filter(i => i.kind === 'frame');
+  const fxItems = items.filter(i => i.kind === 'fx'), frames = items.filter(i => i.kind === 'frame'), vips = items.filter(i => i.kind === 'vip');
+  const vipFields = (i = {}) => `
+    <label>Tên gói<input name="name" value="${h(i.name || 'Promax VIP 7 ngày')}" maxlength="60" required></label>
+    <div class="grid3">
+      <label>Giá (Linh Thạch)<input name="price" inputmode="numeric" value="${i.price ?? 5000}"></label>
+      <label>Số ngày VIP<input name="days" inputmode="numeric" value="${i.days || 7}"></label>
+      <label>Thứ tự<input name="pos" inputmode="numeric" value="${i.pos ?? 0}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="active" value="1"${i.active === 0 ? '' : ' checked'}> Đang bán</label>`;
   const frameFields = (i = {}) => `
     <div class="fr-box">
       <div class="fr-prev" style="--fs:${i.scale || 160}%"><span class="fr-av"></span>${i.img ? `<img src="${h(i.img)}" alt="">` : ''}</div>
@@ -969,11 +977,26 @@ export function shopView({ items, sold }) {
 <h1>Cửa hàng</h1>
 <p class="muted">Thành viên đổi Linh Thạch lấy <b>hiệu ứng tên</b> (chữ đa sắc chạy từ phải qua trái) hiện ở bình luận, bảng xếp hạng và thẻ tài khoản. Mua gói có hạn nhiều lần sẽ cộng dồn ngày; gói vĩnh viễn chỉ mua được 1 lần. Máy chủ trừ Linh Thạch có điều kiện đủ số dư → bấm mua dồn dập không bị trừ sai.</p>
 <div class="card"><h2>Các hiệu ứng có sẵn</h2><div class="fx-demo">${Object.entries(NAME_FX).map(([k, v]) => `<span class="nfx nfx-${k}">${h(v[0])}</span>`).join('')}</div></div>
+<h2>👑 Gói Promax VIP</h2>
+<p class="muted">Quyền lợi trong thời hạn gói: <b>bỏ quảng cáo</b> toàn web, <b>tích xanh</b> khi bình luận / trang cá nhân / bảng xếp hạng, <b>x2 EXP</b> mọi nhiệm vụ, <b>x2 Linh Thạch</b> kiếm được (điểm danh, nhiệm vụ, đánh giá, thả tim, thưởng đột phá). Không nhân đôi khi admin cộng tay và hoa hồng giới thiệu. Mua thêm = cộng dồn ngày. Hiện đang có <b>${fmtInt(vipCount)}</b> người dùng VIP.</p>
+${vips.map(i => `<form method="post" class="form card">
+  <input type="hidden" name="action" value="vip_save"><input type="hidden" name="id" value="${i.id}">
+  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <small class="muted">Đã bán: ${fmtInt(i.sold || 0)} lượt</small></p>
+  ${vipFields(i)}
+  <div class="row-actions"><button class="btn">Lưu</button>
+    <button class="btn ghost danger-txt" name="action" value="delete" formnovalidate data-confirm="Xóa gói ${h(i.name)}? (người đã mua vẫn giữ VIP đến hết hạn)">Xóa</button></div>
+</form>`).join('')}
+<form method="post" class="form card"><input type="hidden" name="action" value="vip_add">
+  <h2>➕ Thêm gói VIP</h2>
+  ${vipFields()}
+  <div class="row-actions"><button class="btn">Thêm</button></div>
+</form>
+
 <h2>🖼️ Khung avatar</h2>
 <p class="muted">Tải ảnh khung lên, đặt tên, giá và thời hạn. Khung hiện quanh avatar ở bình luận, bảng xếp hạng và thẻ tài khoản.</p>
 ${frames.map(i => `<form method="post" class="form card">
   <input type="hidden" name="action" value="frame_save"><input type="hidden" name="id" value="${i.id}">
-  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <small class="muted">Đã bán: ${fmtInt(sold['f' + i.id] || 0)} người sở hữu</small></p>
+  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <small class="muted">Đã bán: ${fmtInt(i.sold || 0)} lượt · ${fmtInt(sold['f' + i.id] || 0)} người sở hữu</small></p>
   ${frameFields(i)}
   <div class="row-actions"><button class="btn">Lưu</button>
     <button class="btn ghost danger-txt" name="action" value="delete" formnovalidate data-confirm="Xóa khung ${h(i.name)}? (người đã mua vẫn giữ đến hết hạn)">Xóa</button></div>
@@ -987,7 +1010,7 @@ ${frames.map(i => `<form method="post" class="form card">
 <h2>✨ Hiệu ứng tên</h2>
 ${fxItems.map(i => `<form method="post" class="form card">
   <input type="hidden" name="action" value="save"><input type="hidden" name="id" value="${i.id}">
-  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <span class="nfx nfx-${h(i.fx)} fx-big">${h(i.name)}</span> <small class="muted">Đã bán: ${fmtInt(sold[i.fx] || 0)} người sở hữu hiệu ứng này</small></p>
+  <p>${i.active ? '<em class="pill ok">Đang bán</em>' : '<em class="pill">Đang ẩn</em>'} <span class="nfx nfx-${h(i.fx)} fx-big">${h(i.name)}</span> <small class="muted">Đã bán: ${fmtInt(i.sold || 0)} lượt · ${fmtInt(sold[i.fx] || 0)} người sở hữu hiệu ứng này</small></p>
   ${fields(i)}
   <div class="row-actions"><button class="btn">Lưu</button>
     <button class="btn ghost danger-txt" name="action" value="delete" formnovalidate data-confirm="Xóa gói ${h(i.name)}? (người đã mua vẫn giữ hiệu ứng)">Xóa</button></div>

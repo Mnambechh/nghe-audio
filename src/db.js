@@ -194,6 +194,18 @@ export async function migrate(db) {
       'ALTER TABLE users ADD COLUMN frame_until INTEGER NOT NULL DEFAULT 0',
     ].map(q => db.prepare(q)));
   }
+  // Bản 29: gói Promax VIP (users.vip_until) + đếm lượt bán từng gói trong cửa hàng.
+  try { await db.prepare('SELECT vip_until FROM users LIMIT 1').first(); }
+  catch {
+    const t = Math.floor(Date.now() / 1000);
+    await db.batch([
+      'ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE shop_items ADD COLUMN sold INTEGER NOT NULL DEFAULT 0',
+      // Lượt bán trước đây: đếm từ lịch sử Linh Thạch "Cửa hàng: <tên gói>".
+      "UPDATE shop_items SET sold = (SELECT COUNT(*) FROM wallet_log w WHERE w.amount < 0 AND w.note = 'Cửa hàng: ' || shop_items.name)",
+      `INSERT INTO shop_items (name, kind, fx, price, days, active, pos, created_at) VALUES ('Promax VIP 7 ngày', 'vip', '', 5000, 7, 1, 0, ${t})`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 26: mốc giờ điểm danh — chống điểm danh 2 lần trong ngày khi đổi múi giờ.
   try { await db.prepare('SELECT checkin_at FROM users LIMIT 1').first(); }
   catch { await db.prepare('ALTER TABLE users ADD COLUMN checkin_at INTEGER DEFAULT 0').run(); }
