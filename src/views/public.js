@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '72';
+export const ASSET_V = '73';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -233,7 +233,7 @@ ${body}
 <div id="toast" class="toast" hidden></div>
 <div id="rewards" class="rewards" aria-live="polite"></div>
 <audio id="audio" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
-<script>window.APP = ${jsonScript({ base: '', ad: adConfig })};</script>
+<script>window.APP = ${jsonScript({ base: '', ad: adConfig, tz: parseFloat(s.tz_offset) || 7 })};</script>
 <script src="${asset('app.js')}" defer></script>
 </body>
 </html>`;

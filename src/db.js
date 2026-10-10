@@ -1,5 +1,5 @@
 // Cơ sở dữ liệu D1: tạo bảng, cài đặt, bộ nhớ đệm, truy vấn dùng chung.
-import { now, LIVE_WINDOW } from './util.js';
+import { now, LIVE_WINDOW, setTzOffset } from './util.js';
 import { GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS } from './withdraw.js';
 import { setLevelBase } from './levels.js';
@@ -328,6 +328,7 @@ export const DEFAULT_SETTINGS = {
   comments_enabled: '1',
   avatar_max_mb: '5',
   levelup_tiers: '5:200\n20:500\n50:1000\n70:1500', // thưởng Linh Thạch lên cấp theo khoảng cấp (xem game.js)
+  tz_offset: '7',           // múi giờ (giờ lệch so với UTC), mặc định GMT+7 Hồ Chí Minh
   ref_enabled: '1',         // bật giới thiệu bạn bè
   reg_per_ip: '2',          // số tài khoản tối đa được đăng ký từ một IP (0 = không giới hạn)
   reg_block_proxy: '1',     // chặn đăng ký khi dùng proxy / VPN (cần khóa proxycheck.io)
@@ -346,6 +347,7 @@ export async function loadSettings(db) {
   const { results } = await db.prepare('SELECT k, v FROM settings').all();
   for (const r of results) s[r.k] = r.v;
   setLevelBase(s.level_base_exp);
+  setTzOffset(s.tz_offset);
   return s;
 }
 

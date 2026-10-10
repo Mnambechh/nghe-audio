@@ -287,6 +287,10 @@ export function settingsView(s, origin) {
   <label>Google Client ID<input name="google_client_id" value="${h(s.google_client_id)}" placeholder="123456789-xxxx.apps.googleusercontent.com">
     <small class="muted">Tạo tại console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID (Web). Xem hướng dẫn trong README.</small></label>
 
+  <h2>Múi giờ</h2>
+  <label>Múi giờ của web (mốc 0h làm mới nhiệm vụ, giới hạn mỗi ngày, thống kê "hôm nay")
+    <select name="tz_offset" class="sel">${[[-12,'Đảo Baker'],[-11,'Samoa thuộc Mỹ'],[-10,'Hawaii'],[-9,'Alaska'],[-8,'Los Angeles (PST)'],[-7,'Denver'],[-6,'Chicago, Mexico City'],[-5,'New York, Toronto'],[-4,'Santiago, Caracas'],[-3,'São Paulo, Buenos Aires'],[-2,'Nam Georgia'],[-1,'Azores'],[0,'London, Lisbon (UTC)'],[1,'Paris, Berlin, Rome'],[2,'Athens, Cairo, Kyiv'],[3,'Moskva, Istanbul, Riyadh'],[3.5,'Tehran'],[4,'Dubai'],[4.5,'Kabul'],[5,'Karachi, Tashkent'],[5.5,'Ấn Độ (New Delhi)'],[5.75,'Kathmandu'],[6,'Dhaka, Almaty'],[6.5,'Yangon (Myanmar)'],[7,'Hồ Chí Minh, Hà Nội, Bangkok, Jakarta'],[8,'Bắc Kinh, Singapore, Đài Bắc, Perth'],[9,'Tokyo, Seoul'],[9.5,'Adelaide'],[10,'Sydney, Melbourne'],[11,'Quần đảo Solomon'],[12,'Auckland, Fiji'],[13,'Tonga'],[14,'Kiribati']].map(([v, l]) => { const g = v === 0 ? 'GMT' : 'GMT' + (v > 0 ? '+' : '−') + (Math.abs(v) % 1 ? `${Math.floor(Math.abs(v))}:${String(Math.round(Math.abs(v) % 1 * 60)).padStart(2, '0')}` : Math.abs(v)); return `<option value="${v}"${String(v) === String(s.tz_offset ?? '7') ? ' selected' : ''}>(${g}) ${l}</option>`; }).join('')}</select></label>
+
   <h2>Tu luyện (cấp độ, Linh Thạch)</h2>
   <div class="grid2">
     <label>EXP lên cấp (cấp N cần N × số này, tính lại từ 0 mỗi cấp)<input name="level_base_exp" inputmode="numeric" value="${h(s.level_base_exp)}"></label>

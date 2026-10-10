@@ -1,7 +1,7 @@
 // Trang quản trị và trình cài đặt.
 import { saveSettings, loadSettings as loadSettingsFresh, clearCache, all, first, liveCounts, withLive, uniqueSlug, DEFAULT_SETTINGS } from './db.js';
 import {
-  html, redirect, now, vnDay, vnPlain, slugify, parseDuration, randomId, getCookie, setCookie,
+  html, redirect, now, vnDay, dayStartTs, vnPlain, slugify, parseDuration, randomId, getCookie, setCookie,
   hashPassword, verifyPassword, signToken, readToken, safeEqual, imageType, toBase64,
 } from './util.js';
 import * as V from './views/admin.js';
@@ -241,7 +241,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
 
   // Tổng quan: thành viên, Linh Thạch, bình luận chờ duyệt, yêu cầu rút.
   if (path === '/admin/overview') {
-    const day0 = Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000);
+    const day0 = dayStartTs();
     const QUEST = "kind = 'stones' AND amount > 0 AND (note LIKE 'Nhiệm vụ:%' OR note = 'Điểm danh hằng ngày')";
     const LEVEL = "kind = 'stones' AND amount > 0 AND note LIKE 'Thưởng đột phá%'";
     const [users, wallet, cmt, wd, live] = await Promise.all([
@@ -415,6 +415,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      { const tz = parseFloat(str(f, 'tz_offset')); data.tz_offset = String(Number.isFinite(tz) && tz >= -12 && tz <= 14 ? tz : 7); }
       const luL = f.getAll('lu_lvl'), luS = f.getAll('lu_stones');
       data.levelup_tiers = parseLevelTiers(luL.map((l, i) => `${l}:${luS[i] || 0}`).join('\n')).map(t => `${t.lvl}:${t.stones}`).join('\n') || '70:0';
       data.comment_words = parseWords(f.get('comment_words')).join('\n').slice(0, 20000);
@@ -743,7 +744,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
     if (filter === 'locked') where.push('locked = 1');
     if (filter === 'editor') where.push("role = 'editor'");
     if (filter === 'online') { where.push('last_seen > ?'); args.push(now() - 600); }
-    if (filter === 'today') { where.push('created_at >= ?'); args.push(Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000)); }
+    if (filter === 'today') { where.push('created_at >= ?'); args.push(dayStartTs()); }
     const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const order = { new: 'id DESC', exp: 'exp DESC', stones: 'stones DESC', login: 'last_login DESC', seen: 'last_seen DESC' }[sort];
     const [rows, total, stats] = await Promise.all([
@@ -757,7 +758,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       first(db, `SELECT COUNT(*) c FROM users ${w}`, ...args),
       first(db, `SELECT COUNT(*) total, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) today, SUM(CASE WHEN last_seen > ? THEN 1 ELSE 0 END) online,
         SUM(CASE WHEN last_login > ? OR last_seen > ? THEN 1 ELSE 0 END) active, COALESCE(SUM(stones), 0) stones, SUM(locked) locked FROM users`,
-        Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000), now() - 600, now() - 7 * 86400, now() - 7 * 86400),
+        dayStartTs(), now() - 600, now() - 7 * 86400, now() - 7 * 86400),
     ]);
     return view(V.membersView({ rows, total: total.c, stats, q, sort, filter, page, per, sharedCount }));
   }

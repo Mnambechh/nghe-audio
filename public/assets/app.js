@@ -744,9 +744,10 @@
       return `<div class="quest${fin ? ' done' : ''}"><span class="q-ico">${icon}</span>
         <span class="q-body"><b>${title}</b><small>${desc}</small>
           <span class="q-bar"><span style="width:${pct}%"></span></span><small class="q-prog">${done}/${total}</small></span>
-        <span class="q-side"><span class="q-reward">${reward}</span>${fin ? '<span class="q-ok">✓ Xong</span>' : btn || ''}</span></div>`;
+        <span class="q-side"><span class="q-reward">${reward}</span>${fin ? `<span class="q-ok">✓ Xong</span><small class="q-again">làm lại sau <b class="q-reset">${fmtClock(questLeft())}</b></small>` : btn || ''}</span></div>`;
     };
-    box.innerHTML = `<h2 class="h2">Hằng ngày</h2>
+    if (g.quests && g.quests.resetIn != null && !questResetAt) questResetAt = Date.now() + g.quests.resetIn * 1000;
+    box.innerHTML = `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">🔄 Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
       ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left">${ckLeft ? `Online thêm <b>${fmt(ckLeft)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận'}</span>`, g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
@@ -760,6 +761,16 @@
       <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
   }
 
+  // Đếm ngược tới 0h (múi giờ của web) — lúc đó nhiệm vụ hằng ngày làm mới.
+  let questResetAt = 0;
+  const questLeft = () => Math.max(0, Math.ceil((questResetAt - Date.now()) / 1000));
+  const fmtClock = sec => [Math.floor(sec / 3600), Math.floor(sec % 3600 / 60), sec % 60].map(x => String(x).padStart(2, '0')).join(':');
+  setInterval(() => {
+    if (!questResetAt || !$('#quests')) return;
+    const left = questLeft();
+    $$('#quests .q-reset').forEach(e => { e.textContent = fmtClock(left); });
+    if (!left) { questResetAt = 0; fetchMe(); } // qua 0h: tải lại tiến độ mới
+  }, 1000);
   const rewardText = (stones, exp) => [stones && `+${nf(stones)} 💎`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
 
   // Nhiệm vụ nghe audio: mỗi mốc (20 phút, 30 phút…) một dòng, tiến độ chung là thời gian đã nghe hôm nay.
@@ -1247,6 +1258,7 @@
     me = m || null;
     game = me ? (g || game) : null;
     if (prevLvl && game && game.level && game.level.lvl !== prevLvl) setTimeout(syncMyLevel);
+    if (game && game.quests && game.quests.resetIn != null) questResetAt = Date.now() + game.quests.resetIn * 1000;
     if (game) { ckLeftSec = Math.max(0, (game.checkinIn || 0) - onlinePending); if (game.checkedIn) ckNotified = false; }
     histCache = null;
     if (changed) renderAcct(); else renderGame();
@@ -1681,7 +1693,7 @@
     if (diff < 60) return 'vừa xong';
     if (diff < 3600) return Math.floor(diff / 60) + ' phút trước';
     if (diff < 86400) return Math.floor(diff / 3600) + ' giờ trước';
-    const d = new Date(ts * 1000 + 7 * 3600e3);
+    const d = new Date(ts * 1000 + (APP.tz != null ? APP.tz : 7) * 3600e3);
     return `ngày ${d.getUTCDate()} tháng ${d.getUTCMonth() + 1}, ${d.getUTCFullYear()}`;
   }
 

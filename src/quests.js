@@ -2,7 +2,7 @@
 // - Nhiệm vụ mở link (vd. quảng cáo TikTok): bấm "Mở" là mở link và nhận thưởng, mỗi ngày 1 lần.
 // - Nghe audio đủ N phút (tính theo thời gian thực đang phát, tua không được tính).
 import { all, first } from './db.js';
-import { json, now, vnDay } from './util.js';
+import { json, now, vnDay, secondsToReset } from './util.js';
 import { awardExp, walletLog } from './game.js';
 
 export const QUEST_DEFAULTS = {
@@ -64,6 +64,7 @@ export async function questStats(db, s, me) {
   const doneSet = new Set(done.map(d => d.quest_id));
   const L = listenConfig(s), C = commentConfig(s);
   return {
+    resetIn: secondsToReset(), // giây còn lại tới 0h (múi giờ của web) — nhiệm vụ làm mới
     comment: C.enabled && C.stones ? { stones: C.stones, done: doneSet.has(COMMENT_ID) } : null,
     links: links.map(q => ({ ...q, done: doneSet.has(q.id) })),
     listen: L.enabled ? {

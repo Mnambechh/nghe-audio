@@ -1,6 +1,6 @@
 // API cho trình phát: đếm lượt nghe, người đang nghe, thống kê quảng cáo.
-import { first, liveCounts } from './db.js';
-import { json, now, vnDay, LIVE_WINDOW } from './util.js';
+import { first, liveCounts, cached } from './db.js';
+import { json, now, vnDay, LIVE_WINDOW, setTzOffset } from './util.js';
 import { logEvent } from './security.js';
 import { searchTracks } from './search.js';
 import { handleCommentsApi } from './comments.js';
@@ -23,6 +23,8 @@ function overLimit(ip, kind, max) {
 
 export async function handleApi(request, db, path, ctx, info) {
   const post = request.method === 'POST';
+  // Múi giờ của web cho các API không tải toàn bộ cài đặt (lưu đệm 10 phút).
+  setTzOffset(await cached(db, 'tz_offset', 600, async () => { const r = await first(db, "SELECT v FROM settings WHERE k = 'tz_offset'"); return r ? r.v : '7'; }));
   if (overLimit(info.ip, post ? 'P' : 'G', post ? 300 : 600)) {
     if (Math.random() < 0.05) await logEvent(db, info, 'api_flood', path);
     return json({ ok: false, silent: true, error: 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít giây.' }, 429);

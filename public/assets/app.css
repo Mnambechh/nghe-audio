@@ -1188,3 +1188,8 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .c-send.wait::after { content: attr(data-left); position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
   font: 800 11px/18px system-ui, sans-serif; color: #fff; background: var(--text, #4A2C2A); }
 .rw-text b { white-space: nowrap; }
+/* Trang nhiệm vụ: đếm ngược tới lúc làm mới */
+.q-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.q-reset-all { font-family: var(--mono, inherit); font-size: 13px; font-weight: 700; color: var(--muted); padding: 4px 10px; border-radius: 999px; background: var(--surface); box-shadow: 0 2px 0 var(--line); }
+.q-reset-all b, .q-again b { color: var(--brand); font-variant-numeric: tabular-nums; }
+.q-again { font-size: 11.5px; color: var(--muted); white-space: nowrap; }

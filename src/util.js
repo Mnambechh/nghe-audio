@@ -1,7 +1,20 @@
 // Hàm tiện ích dùng chung.
 
 export const LIVE_WINDOW = 150; // giây: trình phát ping mỗi 60s, quá 150s coi như đã rời
-const TZ_OFFSET = 7 * 3600e3;   // giờ Việt Nam (UTC+7)
+// Múi giờ của web (mặc định GMT+7 Hồ Chí Minh). Admin chỉnh trong Cài đặt; loadSettings gọi setTzOffset.
+// Mọi mốc "0h làm mới" (nhiệm vụ, giới hạn mỗi ngày, thống kê hôm nay) tính theo múi giờ này.
+let TZ_OFFSET = 7 * 3600e3;
+export function setTzOffset(hours) {
+  const h = parseFloat(hours);
+  TZ_OFFSET = (Number.isFinite(h) && h >= -12 && h <= 14 ? h : 7) * 3600e3;
+}
+export const tzHours = () => TZ_OFFSET / 3600e3;
+// Thời điểm 0h hôm nay (giây, Unix) và số giây còn lại tới 0h hôm sau theo múi giờ của web.
+export function dayStartTs() {
+  const local = Date.now() + TZ_OFFSET;
+  return Math.floor((local - (local % 86400e3) - TZ_OFFSET) / 1000);
+}
+export const secondsToReset = () => dayStartTs() + 86400 - Math.floor(Date.now() / 1000);
 
 export function h(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
