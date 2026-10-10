@@ -182,13 +182,15 @@ document.addEventListener('change', e => {
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(img, 0, 0, c.width, c.height);
       // Giảm chất lượng dần đến khi ≤ 350KB. Trình duyệt quá cũ không nén được WebP thì dùng JPEG.
-      let type = 'image/webp', data = toData(c, type, 0.85);
-      if (!data.startsWith('data:image/webp')) { type = 'image/jpeg'; data = toData(c, type, 0.85); }
+      // Chỉ lưu WebP (không lưu file gốc). Trình duyệt quá cũ không tạo được WebP thì báo dùng trình duyệt khác.
+      const type = 'image/webp';
+      let data = toData(c, type, 0.85);
+      if (!data.startsWith('data:image/webp')) return fail('Trình duyệt này không xử lý được ảnh, hãy dùng Chrome / Edge / Safari bản mới.');
       for (let q = 0.75; data.length * 0.75 > 350 * 1024 && q >= 0.4; q -= 0.1) data = toData(c, type, q);
       out.value = data;
       prev.innerHTML = `<img src="${data}" alt="">`;
       const rm = form.querySelector('[name=cover_remove]'); if (rm) rm.checked = false;
-      info.innerHTML = `Đã nén: ${fmtKB(file.size)} → <b>${fmtKB(Math.round(data.length * 0.75))}</b> (${type === 'image/webp' ? '.webp' : '.jpg'}, ${c.width}×${c.height}). Bấm Lưu để đăng.`;
+      info.innerHTML = `Đã chọn ảnh (${fmtKB(file.size)} → <b>${fmtKB(Math.round(data.length * 0.75))}</b>). Bấm Lưu để đăng.`;
     } catch (e) {
       fail('Không đọc được ảnh này, hãy thử ảnh khác.');
     }

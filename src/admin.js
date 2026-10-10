@@ -75,18 +75,18 @@ async function saveUpload(db, file) {
   return `/media/${id}.${ext}`;
 }
 
-// Ảnh bìa: trình duyệt đã nén sang WebP (data URL). Máy chủ chỉ nhận đúng ảnh WebP/JPEG thật (kiểm tra chữ ký file), tối đa 1.5MB.
+// Ảnh bìa: trình duyệt đã nén sang WebP (data URL). Máy chủ chỉ nhận đúng ảnh WebP thật (kiểm tra chữ ký file), tối đa 1.5MB.
 async function saveCoverData(db, dataUrl) {
-  const m = String(dataUrl || '').match(/^data:image\/(webp|jpeg);base64,([A-Za-z0-9+/=]+)$/);
+  const m = String(dataUrl || '').match(/^data:image\/(webp);base64,([A-Za-z0-9+/=]+)$/);
   if (!m) throw new Error('Ảnh bìa không hợp lệ.');
   const bin = atob(m[2]);
   if (bin.length > 1.5 * 1024 * 1024) throw new Error('Ảnh bìa sau khi nén vẫn quá lớn.');
   const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
   const type = imageType(bytes);
-  if (type !== 'image/webp' && type !== 'image/jpeg') throw new Error('Ảnh bìa phải là ảnh thật (WebP/JPEG sau khi nén).');
+  if (type !== 'image/webp') throw new Error('Ảnh bìa không hợp lệ.');
   const id = randomId(20);
   await db.prepare('INSERT INTO media (id, type, data, created_at) VALUES (?, ?, ?, ?)').bind(id, type, toBase64(bytes), now()).run();
-  return `/media/${id}.${type === 'image/webp' ? 'webp' : 'jpg'}`;
+  return `/media/${id}.webp`;
 }
 
 async function deleteMedia(db, path) {
