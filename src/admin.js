@@ -6,6 +6,7 @@ import {
 } from './util.js';
 import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
+import { onCommentApproved, notify, GAME_DEFAULTS } from './game.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -280,6 +281,10 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      for (const k of Object.keys(GAME_DEFAULTS)) {
+        const v = parseFloat(str(f, k).replace(',', '.'));
+        data[k] = String(Number.isFinite(v) && v >= 0 ? Math.min(100000, v) : GAME_DEFAULTS[k]);
+      }
       data.avatar_max_mb = String(Math.min(20, Math.max(0.5, parseFloat(str(f, 'avatar_max_mb').replace(',', '.')) || 5)));
       const gid = str(f, 'google_client_id');
       if (gid && !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(gid)) return go(ADMIN + '/settings', ['err', 'Google Client ID không đúng dạng (…apps.googleusercontent.com).']);
@@ -367,14 +372,25 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const id = parseInt(f.get('id'), 10) || 0;
       const uid = parseInt(f.get('user_id'), 10) || 0;
       const back = ADMIN + '/comments' + (url.search || '');
-      if (act === 'approve' && id) await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(id).run();
+      // Duyệt: chuyển trạng thái, cộng EXP, báo cho người viết và người được trả lời.
+      const approve = async cid => {
+        const c = await first(db, "SELECT id, user_id, parent_id, track_id, body FROM comments WHERE id = ? AND status != 'approved'", cid);
+        if (!c) return;
+        await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(cid).run();
+        await onCommentApproved(db, s, c);
+        await notify(db, c.user_id, 'approved', { track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });
+      };
+      if (act === 'approve' && id) await approve(id);
       else if (act === 'hide' && id) await db.prepare("UPDATE comments SET status = 'hidden' WHERE id = ?").bind(id).run();
       else if (act === 'delete' && id) {
         await db.batch([
           db.prepare('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE id = ? OR parent_id = ?)').bind(id, id),
           db.prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?').bind(id, id),
         ]);
-      } else if (act === 'approve_all') await db.prepare("UPDATE comments SET status = 'approved' WHERE status = 'pending'").run();
+      } else if (act === 'approve_all') {
+        const ids = await all(db, "SELECT id FROM comments WHERE status = 'pending' ORDER BY created_at LIMIT 100");
+        for (const r of ids) await approve(r.id);
+      }
       else if (act === 'ban' && uid) {
         await db.batch([
           db.prepare('UPDATE users SET banned = 1 WHERE id = ?').bind(uid),

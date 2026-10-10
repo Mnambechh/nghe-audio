@@ -368,6 +368,7 @@
     }
     loadHistory();
     loadProfile();
+    initRating();
     refreshLive();
   }
 
@@ -436,7 +437,9 @@
       case 'login': openLogin(); return;
       case 'login-close': $('#loginbox').hidden = true; return;
       case 'logout': doLogout(); return;
-      case 'acct-menu': { const mm = $('.acct-menu'); mm.hidden = !mm.hidden; return; }
+      case 'acct-menu': { const mm = $('.acct-card'); mm.hidden = !mm.hidden; $('.notif-panel').hidden = true; return; }
+      case 'bell': openNotifs(); return;
+      case 'checkin': doCheckin(); return;
       case 'hist-del': {
         const row = t.closest('[data-hid]');
         api('/api/history/delete', { track_id: +row.dataset.hid }).then(() => { row.remove(); histCache = null; });
@@ -630,8 +633,10 @@
       inp.value = ''; e.target.closest('.sb-clear').hidden = true; hideSuggest(); inp.focus();
       return;
     }
-    const am = $('.acct-menu');
-    if (am && !am.hidden && (!e.target.closest('.acct') || e.target.closest('.acct-menu a'))) am.hidden = true;
+    ['.acct-card', '.notif-panel'].forEach(sel => {
+      const el = $(sel);
+      if (el && !el.hidden && (!e.target.closest('.acct') || e.target.closest(sel + ' a'))) el.hidden = true;
+    });
     const pop = $('#timerpop');
     if (pop && !pop.hidden && !e.target.closest('#timerpop, [data-act="timer-pop"], [data-act="timer-open"]')) pop.hidden = true;
     if (e.target.closest('.sg-item, .sg-all')) { hideSuggest(); return; }
@@ -650,18 +655,131 @@
   // ---------- Tài khoản (đăng nhập Google) + lịch sử nghe ----------
   let me = null, clientId = '', meLoaded = false, histCache = null, lastHist = 0, avatarMaxMb = 5;
 
+  const ICON_BELL = '<svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>';
+  const ICON_OUT = '<svg viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5zm9-14H12v2h7v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>';
+  let game = null, ckTimer = 0, ckDeadline = 0, ckNotified = false, notifs = null;
+
+  const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier}">${b.lvl}</i></span>` : avatar(name, url, cls);
+  const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
+  const nf = n => String(Math.floor(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
   function renderAcct() {
     const box = $('#acct');
     if (!box) return;
-    if (!me) { box.innerHTML = '<button class="btn-login" type="button" data-act="login">Đăng nhập</button>'; return; }
-    box.innerHTML = `<button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${avatar(me.name, me.avatar, 'acct-av')}<span>${esc(me.name)}</span></button>
-      <div class="acct-menu" hidden><p>${esc(me.name)}</p><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><button type="button" data-act="logout">Đăng xuất</button></div>`;
+    if (!me) { box.innerHTML = '<button class="btn-login" type="button" data-act="login">Đăng nhập</button>'; stopCk(); return; }
+    box.innerHTML = `<button class="bell" type="button" data-act="bell" aria-label="Thông báo">${ICON_BELL}<b class="bell-n" hidden></b></button>
+      <div class="notif-panel" hidden><div class="np-head">Thông báo</div><div class="np-list"><p class="c-note">Đang tải…</p></div></div>
+      <button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${lvAv(me.name, me.avatar, game && game.level, 'acct-av')}</button>
+      <div class="acct-card" hidden></div>`;
+    renderGame();
   }
 
-  function setMe(m) {
+  // Thẻ tài khoản: Linh Thạch, điểm danh, EXP, bình luận, cấp, cảnh giới, thanh tiến độ.
+  function renderGame() {
+    const card = $('.acct-card');
+    if (!card || !me) return;
+    const g = game || { stones: 0, exp: 0, comments: 0, level: { lvl: me.lvl || 1, tier: me.tier || 0, realm: me.realm || 'Luyện Khí 1', cur: 0, need: 100, pct: 0 }, checkedIn: false, checkinIn: 0, unread: 0 };
+    const L = g.level;
+    card.innerHTML = `<div class="ac-head"><b>${esc(me.name)}</b><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
+      <div class="ac-stones"><b>${nf(g.stones)}</b> Linh Thạch</div>
+      <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
+      <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
+      <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
+    const av = $('.acct-btn');
+    if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av');
+    updateBell();
+    tickCk();
+  }
+
+  function stopCk() { clearInterval(ckTimer); ckTimer = 0; }
+  // Đồng hồ đếm ngược điểm danh (máy chủ vẫn kiểm tra lại thời gian thật).
+  function tickCk() {
+    stopCk();
+    if (!game || game.checkedIn) { const t = $('.ck-time'); if (t) t.textContent = ''; return; }
+    const step = () => {
+      const left = Math.max(0, Math.ceil((ckDeadline - Date.now()) / 1000));
+      const t = $('.ck-time'), b = $('.ck-btn');
+      if (t) t.textContent = left ? ' · ' + fmt(left) : ' · Sẵn sàng!';
+      if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
+      if (!left) {
+        stopCk();
+        if (!ckNotified) { ckNotified = true; updateBell(); }
+      }
+    };
+    step();
+    if (ckDeadline > Date.now()) ckTimer = setInterval(step, 1000);
+  }
+
+  function updateBell() {
+    const n = (game ? game.unread : 0) + (game && !game.checkedIn && ckNotified ? 1 : 0);
+    const b = $('.bell-n');
+    if (b) { b.textContent = n > 9 ? '9+' : n; b.hidden = !n; }
+  }
+
+  const NOTIF_TEXT = {
+    reply: n => `<b>${esc(n.actor || 'Ai đó')}</b> đã trả lời bình luận của bạn`,
+    like: n => `<b>${esc(n.actor || 'Ai đó')}</b> đã thả tim bình luận của bạn ❤️`,
+    approved: () => 'Bình luận của bạn đã được duyệt',
+    levelup: () => '🎉 Đột phá thành công!',
+  };
+
+  function renderNotifs() {
+    const list = $('.np-list');
+    if (!list) return;
+    let html = '';
+    if (game && !game.checkedIn && ckNotified) {
+      html += `<button type="button" class="np-item unread" data-act="checkin"><span class="np-ico">🎁</span><span class="np-body"><span>Đã đến giờ <b>điểm danh</b> hôm nay! Nhận ${nf(game.ckStones || 10)} Linh Thạch.</span></span></button>`;
+    }
+    html += (notifs || []).map(n => {
+      const href = n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/tai-khoan`;
+      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${n.type === 'levelup' ? '⚡' : '✅'}</span>`;
+      return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${href}">${ico}<span class="np-body">
+        <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
+        <small>${cDate(n.created_at)}${n.title ? ' · ' + esc(n.title) : ''}</small></span></a>`;
+    }).join('');
+    list.innerHTML = html || '<p class="c-note">Chưa có thông báo nào.</p>';
+  }
+
+  function openNotifs() {
+    const panel = $('.notif-panel');
+    panel.hidden = !panel.hidden;
+    if (panel.hidden) return;
+    $('.acct-card').hidden = true;
+    renderNotifs();
+    fetch(`${APP.base}/api/notifications`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok) return;
+      notifs = r.items;
+      renderNotifs();
+      if (game && game.unread) {
+        api('/api/notifications', {});
+        game.unread = 0;
+        updateBell();
+      }
+    }).catch(() => {});
+  }
+
+  function doCheckin() {
+    api('/api/checkin', {}).then(r => {
+      if (r && r.ok) {
+        toast(`Điểm danh thành công! +${r.stones} Linh Thạch, +${r.exp} EXP`);
+        ckNotified = false;
+        fetchMe();
+      } else {
+        if (r && r.wait) ckDeadline = Date.now() + r.wait * 1000;
+        toast((r && r.error) || 'Chưa điểm danh được');
+        tickCk();
+      }
+    });
+  }
+
+  function setMe(m, g) {
+    const changed = (me && me.id) !== (m && m.id) || !$('.acct-btn') !== !m;
     me = m || null;
+    game = me ? (g || game) : null;
+    if (game) { ckDeadline = Date.now() + (game.checkinIn || 0) * 1000; if (game.checkedIn) ckNotified = false; }
     histCache = null;
-    renderAcct();
+    if (changed) renderAcct(); else renderGame();
   }
 
   function fetchMe() {
@@ -669,9 +787,11 @@
       if (!r || !r.ok) return;
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
-      setMe(r.me);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); });
+      setMe(r.me, r.game);
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); initRating(); });
   }
+
+  setInterval(() => { if (me && !document.hidden) fetchMe(); }, 120000);
 
   function openLogin() {
     const m = $('#loginbox');
@@ -749,6 +869,44 @@
       }).join('') : '<p class="c-note">Bạn chưa nghe audio nào. Nghe xong sẽ hiện ở đây.</p>';
     });
   }
+
+  // ---------- Đánh giá truyện ----------
+  function initRating() {
+    const box = $('.rating');
+    if (!box || !me || box.dataset.loaded) return;
+    box.dataset.loaded = '1';
+    fetch(`${APP.base}/api/rate?track=${box.dataset.track}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (r && r.ok && r.mine && $('.rating') === box) showMine(box, r.mine);
+    }).catch(() => {});
+  }
+  function showMine(box, n) {
+    box.classList.add('rated');
+    const m = $('.rate-mine', box);
+    m.hidden = false;
+    m.textContent = `Bạn đã chấm ${n}★`;
+  }
+  document.addEventListener('mouseover', e => {
+    const b = e.target.closest('.rating:not(.rated) [data-star]');
+    const box = e.target.closest('.rating');
+    if (box) box.style.setProperty('--hover', b ? b.dataset.star * 10 + '%' : '');
+    if (box) box.classList.toggle('hovering', !!b);
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.rating [data-star]');
+    if (!b) return;
+    const box = b.closest('.rating');
+    if (!me) { openLogin(); return; }
+    if (box.classList.contains('rated')) { toast('Bạn đã đánh giá truyện này rồi'); return; }
+    api('/api/rate', { track_id: +box.dataset.track, stars: +b.dataset.star }).then(r => {
+      if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được đánh giá'); return; }
+      const avg = r.sum / r.count, pct = Math.round(avg * 10);
+      $('.stars', box).style.setProperty('--pct', pct + '%');
+      $('.rate-text', box).textContent = `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${r.count} đánh giá`;
+      showMine(box, r.mine);
+      toast(`Cảm ơn bạn đã đánh giá ${r.mine}★ · +1 EXP`);
+      fetchMe();
+    });
+  });
 
   // ---------- Thông tin tài khoản: đổi ảnh, đổi tên ----------
   function loadProfile() {
@@ -864,9 +1022,9 @@
 
   function cItem(c) {
     return `<div class="c-item${c.parent ? ' c-reply' : ''}" data-cid="${c.id}">
-      ${avatar(c.name, c.avatar)}
+      ${lvAv(c.name, c.avatar, c.lvl ? c : null, 'c-av')}
       <div class="c-main">
-        <div class="c-bubble"><b>${esc(c.name)}</b><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
+        <div class="c-bubble"><span class="c-name"><b>${esc(c.name)}</b>${c.lvl ? realmTag(c) : ''}</span><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
           <span class="c-hearts"${c.likes ? '' : ' hidden'}>❤️ <b>${c.likes}</b></span></div>
         <div class="c-actions">
           <span>${cDate(c.at)}</span>
@@ -883,7 +1041,7 @@
     const me = cState.me;
     const ph = placeholder || ('Viết bình luận...' + (cState.config.moderation ? ' (sẽ hiện sau khi duyệt)' : ''));
     return `<form class="c-form" data-parent="${parent}">
-      ${avatar(me.name, me.avatar)}
+      ${lvAv(me.name, me.avatar, game ? game.level : null, 'c-av')}
       <div class="c-field">
         <textarea rows="1" maxlength="1000" placeholder="${esc(ph)}" aria-label="Nội dung bình luận"></textarea>
         <button type="button" class="c-ico" data-c="emoji" aria-label="Chèn emoji">😊</button>
@@ -1028,7 +1186,7 @@
           box.insertAdjacentHTML('beforeend', composeHtml(id, 'Viết câu trả lời...'));
           f = $(':scope > .c-form', box);
         }
-        const name = $('.c-bubble b', item).textContent;
+        const name = $('.c-name b', item).textContent;
         const ta = $('textarea', f);
         if (item !== root && !ta.value) ta.value = '@' + name + ' ';
         ta.focus();

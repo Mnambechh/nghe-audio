@@ -1,5 +1,7 @@
 // Cơ sở dữ liệu D1: tạo bảng, cài đặt, bộ nhớ đệm, truy vấn dùng chung.
 import { now, LIVE_WINDOW } from './util.js';
+import { GAME_DEFAULTS } from './game.js';
+import { setLevelBase } from './levels.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`,
@@ -87,6 +89,31 @@ export async function migrate(db) {
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
   if (await missing(db, 'history')) await db.batch(SCHEMA_V4.map(s => db.prepare(s)));
+  // Bản 6: tu luyện (EXP, Linh Thạch, điểm danh), đánh giá truyện, thông báo.
+  if (await missing(db, 'notifications')) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN exp INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN stones INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN comments_n INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN checkin_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN seen_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN seen_at INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN rate_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN rate_n INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN cexp_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN cexp_n INTEGER NOT NULL DEFAULT 0`,
+      `CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC)`,
+      `ALTER TABLE tracks ADD COLUMN rating_sum INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE tracks ADD COLUMN rating_count INTEGER NOT NULL DEFAULT 0`,
+      `CREATE TABLE IF NOT EXISTS ratings (user_id INTEGER NOT NULL, track_id INTEGER NOT NULL, stars INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, track_id))`,
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, type TEXT NOT NULL, actor_id INTEGER NOT NULL DEFAULT 0,
+        track_id INTEGER NOT NULL DEFAULT 0, comment_id INTEGER NOT NULL DEFAULT 0, text TEXT NOT NULL DEFAULT '',
+        is_read INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, is_read, created_at)`,
+      `UPDATE users SET comments_n = (SELECT COUNT(*) FROM comments c WHERE c.user_id = users.id AND c.status = 'approved')`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 5: người dùng tự đổi tên/ảnh (không bị Google ghi đè khi đăng nhập lại).
   try {
     await db.prepare('SELECT name_locked FROM users LIMIT 1').first();
@@ -126,9 +153,10 @@ export const DEFAULT_SETTINGS = {
 };
 
 export async function loadSettings(db) {
-  const s = { ...DEFAULT_SETTINGS };
+  const s = { ...DEFAULT_SETTINGS, ...GAME_DEFAULTS };
   const { results } = await db.prepare('SELECT k, v FROM settings').all();
   for (const r of results) s[r.k] = r.v;
+  setLevelBase(s.level_base_exp);
   return s;
 }
 

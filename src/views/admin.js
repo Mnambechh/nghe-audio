@@ -249,6 +249,18 @@ export function settingsView(s, origin) {
   <label>Google Client ID<input name="google_client_id" value="${h(s.google_client_id)}" placeholder="123456789-xxxx.apps.googleusercontent.com">
     <small class="muted">Tạo tại console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID (Web). Xem hướng dẫn trong README.</small></label>
 
+  <h2>Tu luyện (cấp độ, Linh Thạch)</h2>
+  <div class="grid2">
+    <label>EXP lên cấp (cấp N cần N × số này, tính lại từ 0 mỗi cấp)<input name="level_base_exp" inputmode="numeric" value="${h(s.level_base_exp)}"></label>
+    <label>Điểm danh: Linh Thạch<input name="checkin_stones" inputmode="numeric" value="${h(s.checkin_stones)}"></label>
+    <label>Điểm danh: EXP<input name="checkin_exp" inputmode="numeric" value="${h(s.checkin_exp)}"></label>
+    <label>Phải online bao lâu mới điểm danh được (giây)<input name="checkin_wait" inputmode="numeric" value="${h(s.checkin_wait)}"></label>
+    <label>Thưởng Linh Thạch mỗi lần lên cấp<input name="levelup_stones" inputmode="numeric" value="${h(s.levelup_stones)}"></label>
+    <label>EXP mỗi bình luận được duyệt<input name="comment_exp" inputmode="numeric" value="${h(s.comment_exp)}"></label>
+    <label>Số bình luận/ngày được cộng EXP<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
+    <label>Số truyện được đánh giá mỗi ngày (mỗi lượt +1 EXP)<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
+  </div>
+
   <h2>SEO</h2>
   <label>Tiêu đề trang chủ (title)<input name="seo_title" maxlength="70" value="${h(s.seo_title)}"><small class="muted">Nên dưới 60 ký tự.</small></label>
   <label>Mô tả web (meta description)<textarea name="seo_description" rows="3" maxlength="300">${h(s.seo_description)}</textarea><small class="muted">Nên 120–160 ký tự. Hiện trên Google và khi chia sẻ Facebook/Zalo.</small></label>

@@ -3,6 +3,8 @@ import { all, first, loadSettings, saveSettings } from './db.js';
 import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
+import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
+import { badge } from './levels.js';
 
 const USER_COOKIE = 'aw_user';
 const USER_DAYS = 60;
@@ -29,10 +31,11 @@ export async function currentUser(request, db) {
   if (!tok) return null;
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
-  return first(db, 'SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at FROM users WHERE id = ?', p.uid);
+  return first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
+    checkin_day, seen_day, seen_at, rate_day, rate_n FROM users WHERE id = ?`, p.uid);
 }
 
-const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned };
+const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
 // Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
 const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked };
 
@@ -60,7 +63,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const me = await currentUser(request, db);
     const config = { enabled, clientId: s.google_client_id || '', moderation: s.comment_moderation === '1' };
     if (!enabled || !trackId) return json({ ok: true, me: publicUser(me), config, total: 0, items: [] });
-    const rows = await all(db, `SELECT c.id, c.parent_id, c.body, c.status, c.likes, c.created_at, c.user_id, u.name, u.avatar
+    const rows = await all(db, `SELECT c.id, c.parent_id, c.body, c.status, c.likes, c.created_at, c.user_id, u.name, u.avatar, u.exp
       FROM comments c JOIN users u ON u.id = c.user_id
       WHERE c.track_id = ? AND (c.status = 'approved' OR (c.status = 'pending' AND c.user_id = ?))
       ORDER BY c.created_at DESC LIMIT 300`, trackId, me ? me.id : -1);
@@ -72,7 +75,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     }
     const items = rows.map(r => ({
       id: r.id, parent: r.parent_id, body: r.body, pending: r.status === 'pending', likes: r.likes, at: r.created_at,
-      name: r.name, avatar: r.avatar, mine: !!me && r.user_id === me.id, liked: liked.has(r.id),
+      name: r.name, avatar: r.avatar, mine: !!me && r.user_id === me.id, liked: liked.has(r.id), ...badge(r.exp),
     }));
     return json({ ok: true, me: publicUser(me), config, total: items.filter(i => !i.pending).length, items });
   }
@@ -80,7 +83,13 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   // Thông tin người đang đăng nhập (cho thanh đầu trang).
   if (path === '/api/me') {
     const me = await currentUser(request, db);
-    return json({ ok: true, me: selfUser(me), clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
+    return json({ ok: true, me: selfUser(me), game: me ? await gameStats(db, s, me) : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
+  }
+
+  if (request.method === 'GET' && (path === '/api/notifications' || path === '/api/rate')) {
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    return handleGameApi(request, db, s, path, me, {});
   }
 
   // Lịch sử nghe của người đang đăng nhập.
@@ -150,6 +159,9 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
+  if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate') {
+    return handleGameApi(request, db, s, path, me, input);
+  }
   if (me.banned && path.startsWith('/api/comments')) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);
 
   // Đổi tên hiển thị.
@@ -216,20 +228,27 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const status = s.comment_moderation === '1' || hasLink ? 'pending' : 'approved';
     const r = await db.prepare('INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(trackId, me.id, parent, body, status, t, info.ip).run();
+    if (status === 'approved') {
+      await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body });
+    }
     return json({
       ok: true,
-      item: { id: r.meta.last_row_id, parent, body, pending: status === 'pending', likes: 0, at: t, name: me.name, avatar: me.avatar, mine: true, liked: false },
+      item: { id: r.meta.last_row_id, parent, body, pending: status === 'pending', likes: 0, at: t, name: me.name, avatar: me.avatar, mine: true, liked: false, ...badge(me.exp) },
     });
   }
 
   // Thích / bỏ thích.
   if (path === '/api/comments/like') {
     const id = parseInt(input.id, 10) || 0;
-    const c = await first(db, "SELECT id FROM comments WHERE id = ? AND status = 'approved'", id);
+    const c = await first(db, "SELECT id, user_id, track_id, body FROM comments WHERE id = ? AND status = 'approved'", id);
     if (!c) return json({ ok: false }, 404);
     const del = await db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?').bind(id, me.id).run();
     const liked = del.meta.changes === 0;
-    if (liked) await db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)').bind(id, me.id).run();
+    if (liked) {
+      await db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)').bind(id, me.id).run();
+      const seen = await first(db, "SELECT 1 x FROM notifications WHERE user_id = ? AND type = 'like' AND actor_id = ? AND comment_id = ?", c.user_id, me.id, id);
+      if (!seen) await notify(db, c.user_id, 'like', { actor: me.id, track: c.track_id, comment: id, text: c.body.slice(0, 120) });
+    }
     await db.prepare('UPDATE comments SET likes = (SELECT COUNT(*) FROM comment_likes WHERE comment_id = ?) WHERE id = ?').bind(id, id).run();
     const n = await first(db, 'SELECT likes FROM comments WHERE id = ?', id);
     return json({ ok: true, liked, likes: n.likes });

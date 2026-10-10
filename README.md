@@ -44,6 +44,13 @@ Dự án → **Custom domains → Set up a custom domain** → nhập tên miề
 Người nghe bấm **Đăng nhập** ở góc trên (hoặc trong phần bình luận) để đăng nhập bằng Google. Đăng nhập xong có **Lịch sử nghe** (menu tài khoản → Lịch sử nghe): lưu tập và phút đang nghe, mở trên máy khác vẫn nghe tiếp được. Bình luận mới mặc định **chờ duyệt** (quản trị → **Bình luận**), muốn hiện ngay thì bỏ tick "Duyệt bình luận trước khi hiện". Bình luận có link luôn phải chờ duyệt.
 Chống spam: mỗi người cách nhau tối thiểu 15 giây, tối đa 50 bình luận/ngày. Admin có thể **Khóa người này** (ẩn mọi bình luận của họ).
 
+## Tu luyện: cấp độ, Linh Thạch, điểm danh, đánh giá, thông báo
+- **70 cấp theo Phàm Nhân Tu Tiên:** Luyện Khí 1–10, rồi Trúc Cơ, Kết Đan, Nguyên Anh, Hóa Thần, Luyện Hư, Hợp Thể, Đại Thừa, Độ Kiếp, Chân Tiên, Kim Tiên, Thái Ất, Đại La (mỗi cảnh giới 5 bậc: Sơ Kỳ → Đại Viên Mãn). Mỗi cảnh giới một màu.
+- **EXP tính lại từ 0 mỗi cấp:** cấp N cần N × 100 EXP (cấp 1→2: 100, cấp 2→3: 200…). Số 100 chỉnh trong Cài đặt.
+- **Nguồn EXP / Linh Thạch** (chỉnh trong Cài đặt & SEO → Tu luyện): điểm danh (+10 Linh Thạch, +5 EXP, phải online 3 phút trong ngày), đánh giá truyện (+1 EXP, 15 truyện/ngày, mỗi truyện 1 lần), bình luận được duyệt (+2 EXP, tối đa 10/ngày), lên cấp (+20 Linh Thạch).
+- **Chuông thông báo:** có người trả lời, thả tim bình luận, bình luận được duyệt, lên cấp, đến giờ điểm danh.
+- **Bảng xếp hạng:** `/bang-xep-hang`.
+
 ## Audio trên R2
 - Tạo bucket R2, vào **Settings → Public access → Custom domain**, gắn một tên miền phụ như `cdn.tenmien.com`.
 - Upload file `.mp3` hoặc `.m4a` lên bucket, rồi dán link dạng `https://cdn.tenmien.com/ten-file.mp3` vào trang admin. Thời lượng sẽ tự lấy.

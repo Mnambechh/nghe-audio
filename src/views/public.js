@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '10';
+export const ASSET_V = '12';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -211,6 +211,29 @@ function rail(tracks, { ranked = false, periodKey = '', attrs = '' } = {}) {
   return `<div class="rail"${attrs}>` + tracks.map((t, i) => card(t, ranked ? i + 1 : null, periodKey ? t[periodKey] : null)).join('') + '</div>';
 }
 
+// Đánh giá 10 sao: lớp sao hồng phủ theo điểm trung bình; bấm sao để chấm (cần đăng nhập).
+function ratingWidget(t) {
+  const n = t.rating_count || 0;
+  const avg = n ? t.rating_sum / n : 0;
+  const pct = Math.round(avg * 10);
+  return `<div class="rating" data-track="${t.id}">
+    <div class="stars" style="--pct:${pct}%" role="group" aria-label="Đánh giá">
+      ${Array.from({ length: 10 }, (_, i) => `<button type="button" data-star="${i + 1}" aria-label="${i + 1} sao">★</button>`).join('')}
+    </div>
+    <span class="rate-text">${n ? `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${n} đánh giá` : 'Chưa có đánh giá'}</span>
+    <span class="rate-mine" hidden></span>
+  </div>`;
+}
+
+// Ảnh đại diện kèm số cấp; huy hiệu cảnh giới nhiều màu.
+export function lvAvatar(name, url, b, cls = 'c-av') {
+  const img = url
+    ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : `<span class="${cls} av-letter">${h(Array.from(String(name || '?').trim())[0] || '?').toUpperCase()}</span>`;
+  return `<span class="av-wrap t${b.tier}">${img}<i class="lv t${b.tier}">${b.lvl}</i></span>`;
+}
+export const realmBadge = b => `<span class="realm t${b.tier}">${h(b.realm)}</span>`;
+
 // Ô tìm kiếm lớn có gợi ý khi gõ.
 function searchBox(q = '') {
   return `<form class="searchbox" action="/" method="get" role="search" autocomplete="off">
@@ -279,6 +302,9 @@ export function trackPage(ctx, t, related) {
     uploadDate: new Date(t.created_at * 1000).toISOString(), duration: `PT${t.duration}S`, contentUrl: parts[0]?.url || '',
     interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ListenAction', userInteractionCount: t.views },
   };
+  if (t.rating_count > 0) {
+    ld.aggregateRating = { '@type': 'AggregateRating', ratingValue: +(t.rating_sum / t.rating_count).toFixed(1), bestRating: 10, worstRating: 1, ratingCount: t.rating_count };
+  }
 
   const body = `<div class="wrap narrow">
   <a class="back" href="/">← Trang chủ</a>
@@ -295,6 +321,7 @@ export function trackPage(ctx, t, related) {
         ${liveBadge(t)}
         <span class="meta">${vnDate(t.created_at)}</span>
       </div>
+      ${ratingWidget(t)}
       <div class="hero-actions">
         <button class="btn-play" type="button" data-act="play-track" data-part="0"${parts.length ? '' : ' disabled'}>${ICON_PLAY}<span>Phát</span></button>
         <button class="btn-ghost" type="button" data-act="timer-open">${ICON_MOON} Hẹn giờ</button>
@@ -349,4 +376,17 @@ export function profilePage(ctx) {
     <h1 class="h1">Thông tin tài khoản</h1>
     <div id="profile"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Tài khoản - ${ctx.s.site_name}`, canonical: ctx.origin + '/tai-khoan', noindex: true }, body);
+}
+
+export function leaderboardPage(ctx, rows) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Bảng xếp hạng tu vi</h1>
+    <p class="sub">Top ${rows.length} đạo hữu nhiều EXP nhất · cập nhật mỗi 5 phút</p>
+    <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
+      <span class="lb-rank">${i + 1}</span>
+      ${lvAvatar(r.name, r.avatar, r, 'lb-av')}
+      <span class="lb-body"><span class="lb-name"><b>${h(r.name)}</b>${realmBadge(r)}</span>
+        <span class="meta">☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
+    </div>`).join('') || '<p class="c-note">Chưa có ai tu luyện. Đăng nhập, điểm danh và đánh giá truyện để lên bảng!</p>'}</div></div>`;
+  return layout(ctx, { title: `Bảng xếp hạng - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' }, body);
 }
