@@ -160,6 +160,16 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 17: vai trò thành viên (biên tập viên) và người đăng / sửa truyện.
+  try {
+    await db.prepare('SELECT role FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE tracks ADD COLUMN created_by INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE tracks ADD COLUMN updated_by INTEGER NOT NULL DEFAULT 0`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 16: bắn tim cho truyện (mỗi tài khoản 1 lần / truyện, không bỏ được).
   if (await missing(db, 'track_hearts')) {
     await db.batch([

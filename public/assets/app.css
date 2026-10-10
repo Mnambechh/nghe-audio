@@ -1068,3 +1068,8 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
 .acct-btn .av-wrap .lv { left: -6px; right: auto; top: -5px; }
 .prof-av .av-wrap .lv, .lb-top .av-wrap .lv { min-width: 30px; height: 30px; border-radius: 15px; font-size: 15px; line-height: 30px; left: -4px; top: -4px; }
 
+
+/* Bình luận: chỉ ảnh đại diện + huy hiệu cấp, bỏ vòng tròn viền quanh avatar */
+.c-item > .av-wrap, .c-form > .av-wrap, .comments .av-wrap { padding: 0; background: none; }
+.comments .av-wrap > .c-av { border: 0; box-shadow: none; }
+.comments .av-wrap .lv { left: -8px; top: -7px; }

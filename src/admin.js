@@ -10,7 +10,7 @@ import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAUL
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
 import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
-import { demoLoginCookie } from './comments.js';
+import { demoLoginCookie, currentUser } from './comments.js';
 import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
 
 const SESSION_COOKIE = 'aw_admin';
@@ -174,9 +174,20 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
   }
 
   const session = await readToken(s.secret, getCookie(request, SESSION_COOKIE));
-  if (!session || session.u !== s.admin_user) return redirect(ADMIN + '/login');
+  // Biên tập viên: đăng nhập bằng tài khoản thành viên (Google) có vai trò "editor", chỉ được đăng / sửa audio.
+  let editor = null;
+  if (!session || session.u !== s.admin_user) {
+    const u = await currentUser(request, db);
+    if (!u || u.demo || u.role !== 'editor' || u.banned) return redirect(ADMIN + '/login');
+    editor = u;
+    const allowed = path === '/admin' || path === '/admin/track/new' || /^\/admin\/track\/\d+$/.test(path);
+    if (!allowed) {
+      await logEvent(db, info, 'editor_deny', `#${u.id} ${u.name}: ${ADMIN + path.slice('/admin'.length)}`);
+      return go(ADMIN, ['err', 'Biên tập viên chỉ có quyền đăng và sửa audio.']);
+    }
+  }
   // Phiên gắn với thiết bị đã đăng nhập: cookie dùng trên thiết bị khác → bắt đăng nhập lại và ghi nhật ký.
-  if (s.admin_bind_device !== '0' && session.d && session.d !== await uaHash(request)) {
+  if (!editor && s.admin_bind_device !== '0' && session.d && session.d !== await uaHash(request)) {
     await logEvent(db, info, 'session_stolen', ADMIN + path.slice('/admin'.length));
     return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
   }
@@ -190,7 +201,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
   const view = (content, status = 200) => {
     const headers = { ...noStore };
     if (flash) headers['Set-Cookie'] = setCookie(FLASH_COOKIE, '', { maxAge: 0, path: ADMIN });
-    return html(V.adminLayout(s, path, flash, content), status, headers);
+    return html(V.adminLayout(s, path, flash, content, editor), status, headers);
   };
 
   // Tổng quan: thành viên, Linh Thạch, bình luận chờ duyệt, yêu cầu rút.
@@ -221,7 +232,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     const where = q ? 'WHERE search LIKE ?' : '';
     const args = q ? ['%' + vnPlain(q) + '%'] : [];
     const total = (await first(db, `SELECT COUNT(*) c FROM tracks ${where}`, ...args)).c;
-    const rows = await all(db, `SELECT t.*, (SELECT COUNT(*) FROM parts p WHERE p.track_id = t.id) nparts FROM tracks t ${where}
+    const rows = await all(db, `SELECT t.*, (SELECT COUNT(*) FROM parts p WHERE p.track_id = t.id) nparts, (SELECT name FROM users u WHERE u.id = t.created_by) creator FROM tracks t ${where}
       ORDER BY created_at DESC LIMIT ${per} OFFSET ${(page - 1) * per}`, ...args);
     const live = await liveCounts(db);
     const stats = {
@@ -230,7 +241,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       today: (await first(db, 'SELECT COALESCE(SUM(n), 0) c FROM views_daily WHERE day = ?', vnDay())).c,
       live: Object.values(live).reduce((a, b) => a + b, 0),
     };
-    return view(V.tracksView({ tracks: await withLive(db, rows, live), stats, q, page, total, per }));
+    return view(V.tracksView({ tracks: await withLive(db, rows, live), stats, q, page, total, per, editor }));
   }
 
   // Thêm / sửa audio
@@ -242,9 +253,10 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     if (id) {
       track = await first(db, 'SELECT * FROM tracks WHERE id = ?', id);
       if (!track) return redirect(ADMIN);
+      if (editor && track.created_by !== editor.id) return go(ADMIN, ['err', 'Biên tập viên chỉ sửa được audio do chính mình đăng.']);
       parts = await all(db, 'SELECT * FROM parts WHERE track_id = ? ORDER BY pos, id', id);
     }
-    if (!isPost) return view(V.trackForm({ track, parts, err: '' }));
+    if (!isPost) return view(V.trackForm({ track, parts, err: '', editor }));
 
     const f = await request.formData();
     const title = str(f, 'title');
@@ -261,7 +273,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     else if (!newParts.length && !err) err = 'Cần ít nhất một link audio.';
     track = { ...track, title, slug: str(f, 'slug'), tag: str(f, 'tag'), description: str(f, 'description'), published: f.get('published') ? 1 : 0,
       seo_title: str(f, 'seo_title').slice(0, 120), seo_desc: str(f, 'seo_desc').replace(/\s+/g, ' ').slice(0, 320), seo_keywords: str(f, 'seo_keywords').slice(0, 300) };
-    if (err) return view(V.trackForm({ track, parts: newParts, err }), 400);
+    if (err) return view(V.trackForm({ track, parts: newParts, err, editor }), 400);
 
     const slug = await uniqueSlug(db, 'tracks', slugify(track.slug || title), id);
     const t = now();
@@ -270,7 +282,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       await db.batch([
         db.prepare('UPDATE tracks SET title=?, slug=?, search=?, tag=?, description=?, published=?, duration=?, updated_at=? WHERE id=?')
           .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, id),
-        db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, id),
+        db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, updated_by=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, id),
         ...(f.get('bump') ? [db.prepare('UPDATE tracks SET created_at = ? WHERE id = ?').bind(t, id)] : []),
         db.prepare('DELETE FROM parts WHERE track_id = ?').bind(id),
       ]);
@@ -278,7 +290,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const r = await db.prepare('INSERT INTO tracks (title, slug, search, tag, description, published, duration, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
         .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, t).run();
       id = r.meta.last_row_id;
-      await db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, id).run();
+      await db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=?, created_by=?, updated_by=? WHERE id=?')
+        .bind(track.seo_title, track.seo_desc, track.seo_keywords, editor ? editor.id : 0, editor ? editor.id : 0, id).run();
     }
     const ins = db.prepare('INSERT INTO parts (track_id, pos, title, url, duration) VALUES (?,?,?,?,?)');
     await db.batch(newParts.map((p, i) => ins.bind(id, i, p.title, p.url, p.duration)));
@@ -673,7 +686,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     }
     const q = (url.searchParams.get('q') || '').trim();
     const sort = ['new', 'exp', 'stones', 'login', 'seen'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
-    const filter = ['all', 'banned', 'locked', 'online', 'today'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
+    const filter = ['all', 'banned', 'locked', 'online', 'today', 'editor'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
     const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
     const per = 30;
     const where = [], args = [];
@@ -683,13 +696,14 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     }
     if (filter === 'banned') where.push('banned = 1');
     if (filter === 'locked') where.push('locked = 1');
+    if (filter === 'editor') where.push("role = 'editor'");
     if (filter === 'online') { where.push('last_seen > ?'); args.push(now() - 600); }
     if (filter === 'today') { where.push('created_at >= ?'); args.push(Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000)); }
     const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const order = { new: 'id DESC', exp: 'exp DESC', stones: 'stones DESC', login: 'last_login DESC', seen: 'last_seen DESC' }[sort];
     const [rows, total, stats] = await Promise.all([
       all(db, `SELECT u.id, u.name, u.email, u.avatar, u.exp, u.stones, u.comments_n, u.created_at, u.last_login, u.last_seen, u.reg_ip, u.last_ip,
-          u.country, u.device, u.note, u.banned, u.locked,
+          u.country, u.device, u.note, u.banned, u.locked, u.role,
           (SELECT COUNT(*) FROM users x WHERE x.id != u.id AND u.reg_ip != '' AND (x.reg_ip = u.reg_ip OR x.last_ip = u.reg_ip)) same_ip,
           (SELECT COALESCE(SUM(vnd), 0) FROM withdrawals wd WHERE wd.user_id = u.id AND wd.status = 'paid') paid,
           (SELECT COUNT(*) FROM withdrawals wd WHERE wd.user_id = u.id AND wd.status = 'pending') wd_pending
@@ -719,6 +733,13 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       // Bấm từ danh sách: quay lại danh sách (giữ bộ lọc).
       if (f.get('from') === 'list') back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
       if (uid === OWNER_ID && OWNER_BLOCKED.includes(act)) return go(back, ['err', 'Tài khoản quản trị (#1) được bảo vệ: không thể xóa, khóa hay đăng xuất từ đây.']);
+      if (act === 'role') {
+        const role = f.get('role') === 'editor' ? 'editor' : '';
+        await db.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, uid).run();
+        await log('role', 0, role ? 'Đặt làm biên tập viên' : 'Bỏ quyền biên tập viên');
+        await notify(db, uid, 'admin', { text: role ? 'Bạn đã được cấp quyền Biên tập viên: có thể đăng truyện audio trong trang quản lý.' : 'Quyền Biên tập viên của bạn đã được gỡ.' });
+        return go(back, ['ok', role ? `Đã đặt ${u.name} làm Biên tập viên.` : `Đã gỡ quyền Biên tập viên của ${u.name}.`]);
+      }
       if (act === 'impersonate') {
         await log('impersonate', 0, 'Admin đăng nhập xem thử');
         return redirect('/', { 'Set-Cookie': await demoLoginCookie(db, u) });

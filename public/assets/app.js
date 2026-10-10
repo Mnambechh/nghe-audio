@@ -971,6 +971,7 @@
 
   const ICON_BELL = '<svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>';
   const ICON_OUT = '<svg viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5zm9-14H12v2h7v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>';
+  let editorUrl = '';
   let game = null, ckTimer = 0, ckLeftSec = 0, ckNotified = false, notifs = null;
 
   const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>` : avatar(name, url, cls);
@@ -1000,7 +1001,7 @@
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a><a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" data-nopjax target="_blank">✏️ Đăng truyện (Biên tập viên)</a>` : ''}<a href="${APP.base}/bang-xep-hang">🏆 Bảng xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av');
     updateBell();
@@ -1278,6 +1279,7 @@
       if (!r || !r.ok) return;
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
+      editorUrl = r.editorUrl || '';
       setMe(r.me, r.game);
     }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); });
   }

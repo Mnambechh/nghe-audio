@@ -2,7 +2,7 @@
 import { all, first, loadSettings, saveSettings } from './db.js';
 import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
-import { deviceOf, logEvent } from './security.js';
+import { deviceOf, logEvent, ADMIN } from './security.js';
 import { checkIp } from './proxycheck.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
@@ -36,7 +36,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen, online_sec FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen, online_sec, role FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   if (p.demo) u.demo = true; // admin đang xem thử tài khoản này
@@ -51,7 +51,7 @@ export async function demoLoginCookie(db, u) {
 
 const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
 // Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
-const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked, demo: !!u.demo };
+const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked, demo: !!u.demo, editor: u.role === 'editor' && !u.demo };
 
 const NAME_GAP = 60; // giây giữa hai lần đổi tên
 
@@ -102,7 +102,8 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       const job = db.prepare('UPDATE users SET last_seen = ?, last_ip = ?, device = ? WHERE id = ?').bind(now(), info.ip, deviceOf(info.ua), me.id).run();
       if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
     }
-    return json({ ok: true, me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
+    // Đường dẫn trang quản trị chỉ gửi cho biên tập viên (người thường không biết link admin).
+    return json({ ok: true, editorUrl: me && me.role === 'editor' && !me.demo ? ADMIN : '', me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
   if (request.method === 'GET' && path === '/api/withdraw') {

@@ -262,3 +262,6 @@ a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(
 .ipg-u > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ipg-u small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .tabs-admin b { font-weight: 800; }
+.st-editor { font-style: normal; background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; font-size: 11px; padding: 1px 8px; vertical-align: 2px; }
+.trow-off { opacity: .55; cursor: default; }
+.inline-form { display: inline-flex; gap: 6px; align-items: center; }

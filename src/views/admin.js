@@ -26,15 +26,16 @@ const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/q
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
-export function adminLayout(s, path, flash, content) {
+export function adminLayout(s, path, flash, content, editor = null) {
   const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path.startsWith('/admin/members') ? '/admin/members' : path;
   return shell(`Quản trị - ${s.site_name}`, `<body>
 <header class="qt-top">
-  <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>admin</small></a>
-  <nav class="qt-nav">${NAV.map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
+  <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>${editor ? 'biên tập' : 'admin'}</small></a>
+  <nav class="qt-nav">${(editor ? NAV.filter(([p]) => p === '/admin') : NAV).map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
   <div class="qt-right">
+    ${editor ? `<span class="muted">✏️ ${h(editor.name)}</span>` : ''}
     <a href="/" target="_blank">Xem web ↗</a>
-    <form method="post" action="${ADMIN}/logout"><button type="submit">Thoát</button></form>
+    ${editor ? '' : `<form method="post" action="${ADMIN}/logout"><button type="submit">Thoát</button></form>`}
   </div>
 </header>
 <main class="qt-main${path === '/admin/members' || path === '/admin/overview' ? ' wide' : ''}">
@@ -49,6 +50,7 @@ export function loginPage(s, err) {
   return shell('Đăng nhập quản trị', `<body class="auth">
 <form class="auth-box form" method="post">
   <h1>${h(s.site_name)}</h1>
+  <p class="muted"><small>Biên tập viên: đăng nhập Google trên web rồi mở lại đường dẫn này (không cần mật khẩu).</small></p>
   ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   <label>Tên đăng nhập<input name="user" required autocomplete="username" autofocus></label>
   <label>Mật khẩu<input name="pass" type="password" required autocomplete="current-password"></label>
@@ -82,7 +84,7 @@ export function noDbPage() {
 
 // ---------- Danh sách audio ----------
 
-export function tracksView({ tracks, stats, q, page, total, per }) {
+export function tracksView({ tracks, stats, q, page, total, per, editor = null }) {
   const pages = Math.max(1, Math.ceil(total / per));
   return `
 <div class="stats">
@@ -96,12 +98,16 @@ export function tracksView({ tracks, stats, q, page, total, per }) {
   <a class="btn" href="${ADMIN}/track/new">+ Đăng audio</a>
 </div>
 <div class="table">
-  ${tracks.map(t => `<a class="trow" href="${ADMIN}/track/${t.id}">
+  ${editor ? '<p class="muted">Bạn đang ở chế độ <b>Biên tập viên</b>: đăng audio mới và sửa audio do chính mình đăng.</p>' : ''}
+  ${tracks.map(t => {
+    const mine = !editor || t.created_by === editor.id;
+    return `<${mine ? `a href="${ADMIN}/track/${t.id}"` : 'div'} class="trow${mine ? '' : ' trow-off'}">
     <span class="tmain"><b>${h(t.title)}</b>
-      <small>${t.published ? '' : '<em class="pill">Ẩn</em> '}${t.nparts} phần · ${fmtTime(t.duration)} · ${vnDate(t.created_at, true)}</small></span>
+      <small>${t.published ? '' : '<em class="pill">Ẩn</em> '}${t.nparts} phần · ${fmtTime(t.duration)} · ${vnDate(t.created_at, true)}${t.creator ? ` · ✏️ ${h(t.creator)}` : ''}</small></span>
     <span class="tnum">${fmtNum(t.views)}<small>lượt nghe</small></span>
     <span class="tnum live-n">${t.live}<small>đang nghe</small></span>
-  </a>`).join('')}
+  </${mine ? 'a' : 'div'}>`;
+  }).join('')}
   ${tracks.length ? '' : '<p class="muted pad">Chưa có audio nào. Bấm “Đăng audio” để bắt đầu.</p>'}
 </div>
 ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1)
@@ -110,7 +116,7 @@ ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 
 
 // ---------- Thêm / sửa audio ----------
 
-export function trackForm({ track, parts, err }) {
+export function trackForm({ track, parts, err, editor = null }) {
   if (!parts.length) parts = [{ title: '', url: '', duration: 0 }];
   return `
 <div class="bar">
@@ -174,7 +180,7 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
     ${track.id ? '' : '<button class="btn ghost" type="submit" name="and_new" value="1">Lưu & đăng tiếp</button>'}
   </div>
 </form>
-${track.id ? `<form method="post" action="${ADMIN}/track/${track.id}/delete" class="danger" data-confirm="Xóa audio này? Không thể hoàn tác.">
+${track.id && !editor ? `<form method="post" action="${ADMIN}/track/${track.id}/delete" class="danger" data-confirm="Xóa audio này? Không thể hoàn tác.">
   <button type="submit">Xóa audio này</button></form>` : ''}`;
 }
 
@@ -505,7 +511,7 @@ const memberAv = (u, size = 40) => u.avatar
 const realmTag = exp => { const L = levelInfo(exp); return `<span class="m-realm t${L.tier}">Cấp ${L.lvl} · ${h(L.realm)}</span>`; };
 const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP', ban: 'Khóa bình luận', unban: 'Mở khóa bình luận', lock: 'Khóa tài khoản',
   unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP',
-  withdraw: 'Yêu cầu rút Linh Thạch', impersonate: 'Admin xem thử tài khoản', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
+  withdraw: 'Yêu cầu rút Linh Thạch', role: 'Đổi vai trò', impersonate: 'Admin xem thử tài khoản', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
 
 const MI = {
   view: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -551,7 +557,7 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per, sh
 <form method="get" class="bar">
   <input class="search" type="search" name="q" value="${h(q)}" placeholder="Tìm tên, email, ID hoặc IP...">
   <select name="sort" class="sel">${[['new', 'Mới đăng ký'], ['seen', 'Hoạt động gần đây'], ['exp', 'EXP cao nhất'], ['stones', 'Nhiều Linh Thạch'], ['login', 'Đăng nhập gần đây']].map(([k, l]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${l}</option>`).join('')}</select>
-  <select name="f" class="sel">${[['all', 'Tất cả'], ['online', 'Đang online'], ['today', 'Đăng ký hôm nay'], ['banned', 'Bị khóa bình luận'], ['locked', 'Bị khóa tài khoản']].map(([k, l]) => `<option value="${k}"${k === filter ? ' selected' : ''}>${l}</option>`).join('')}</select>
+  <select name="f" class="sel">${[['all', 'Tất cả'], ['online', 'Đang online'], ['today', 'Đăng ký hôm nay'], ['editor', 'Biên tập viên'], ['banned', 'Bị khóa bình luận'], ['locked', 'Bị khóa tài khoản']].map(([k, l]) => `<option value="${k}"${k === filter ? ' selected' : ''}>${l}</option>`).join('')}</select>
   <button class="btn ghost" type="submit">Lọc</button>
 </form>
 
@@ -572,7 +578,7 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per, sh
     <div class="mt-head"><span></span><span>Thành viên</span><span>Ghi chú</span><span>Cấp độ</span><span>Linh Thạch</span><span>Đã rút</span><span>Trạng thái</span><span>IP · Thiết bị</span><span>Hoạt động</span><span>Thao tác</span></div>
     ${rows.map(u => `<div class="mt-row${u.locked ? ' is-locked' : ''}">
       <span class="mt-cb">${u.id === 1 ? '<span title="Tài khoản quản trị được bảo vệ">🔒</span>' : `<input type="checkbox" name="ids" value="${u.id}" form="bulkForm" aria-label="Chọn ${h(u.name)}">`}</span>
-      <a class="mt-user" href="${ADMIN}/members/${u.id}">${memberAv(u, 36)}<span><b>${h(u.name)} <small>#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}</b><small>${h(u.email)}</small></span></a>
+      <a class="mt-user" href="${ADMIN}/members/${u.id}">${memberAv(u, 36)}<span><b>${h(u.name)} <small>#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}${u.role === 'editor' ? ' <em class="st st-editor">Biên tập viên</em>' : ''}</b><small>${h(u.email)}</small></span></a>
       <span class="mt-note" data-l="Ghi chú">${u.note ? h(u.note.length > 40 ? u.note.slice(0, 40) + '…' : u.note) : '<i>Không có</i>'}</span>
       <span data-l="Cấp độ">${realmTag(u.exp)}</span>
       <span class="mt-num" data-l="Linh Thạch"><b>${fmtInt(u.stones)}</b><small>${fmtInt(u.exp)} EXP</small></span>
@@ -660,7 +666,7 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
 <p><a href="${ADMIN}/members">← Danh sách thành viên</a></p>
 <div class="card mhead">
   ${memberAv(u, 72)}
-  <div><h1>${h(u.name)} <small class="muted">#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}</h1>
+  <div><h1>${h(u.name)} <small class="muted">#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}${u.role === 'editor' ? ' <em class="st st-editor">Biên tập viên</em>' : ''}</h1>
     <p>${realmTag(u.exp)} ${u.locked ? '<em class="pill bad">Tài khoản bị khóa</em>' : ''} ${u.banned ? '<em class="pill">Khóa bình luận</em>' : ''}</p>
     <p class="muted">${h(u.email)} · đăng nhập bằng Google</p></div>
 </div>
@@ -711,6 +717,9 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
   <h2>Mật khẩu & đăng nhập</h2>
   <p class="muted">Thành viên đăng nhập bằng Google nên web không lưu mật khẩu; mật khẩu do Google quản lý. Bạn có thể buộc đăng xuất hoặc khóa tài khoản:</p>
   <div class="row-actions">
+    <form method="post" class="inline-form"><input type="hidden" name="action" value="role">
+      <select name="role" class="sel"><option value="">Vai trò: Thành viên</option><option value="editor"${u.role === 'editor' ? ' selected' : ''}>Vai trò: Biên tập viên (đăng audio)</option></select>
+      <button class="btn ghost">Lưu vai trò</button></form>
     <form method="post" target="_blank"><input type="hidden" name="action" value="impersonate"><button class="btn ghost">Đăng nhập vào tài khoản (xem thử)</button></form>
     ${act('logout', 'Đăng xuất mọi thiết bị', 'btn ghost', 'Đăng xuất thành viên này khỏi mọi thiết bị?')}
     ${u.id === 1 ? '' : u.locked ? act('unlock', 'Mở khóa tài khoản', 'btn') : act('lock', 'Khóa tài khoản', 'btn ghost danger-txt', 'Khóa tài khoản này? Thành viên sẽ không đăng nhập được.')}
