@@ -1,8 +1,13 @@
 // API cho trình phát: đếm lượt nghe, người đang nghe, thống kê quảng cáo.
 import { first, liveCounts } from './db.js';
 import { json, now, vnDay, LIVE_WINDOW } from './util.js';
+import { logEvent } from './security.js';
 
-export async function handleApi(request, db, path, ctx) {
+// Tối đa số lượt nghe được tính cho một IP mỗi ngày (chống bơm lượt nghe).
+// Đặt cao vì nhà mạng di động dùng chung IP cho nhiều người.
+const MAX_PLAYS_PER_IP_DAY = 300;
+
+export async function handleApi(request, db, path, ctx, info) {
   // Cập nhật số đang nghe cho các thẻ trên trang.
   if (path === '/api/live') return json({ ok: true, live: await liveCounts(db) });
 
@@ -19,7 +24,12 @@ export async function handleApi(request, db, path, ctx) {
       if (!validSid || trackId <= 0) return json({ ok: false }, 400);
       if (!(await first(db, 'SELECT 1 x FROM tracks WHERE id = ? AND published = 1', trackId))) return json({ ok: false }, 404);
       const day = vnDay();
-      const r = await db.prepare('INSERT OR IGNORE INTO plays (sid, track_id, day) VALUES (?, ?, ?)').bind(sid, trackId, day).run();
+      const used = (await first(db, 'SELECT COUNT(*) c FROM plays WHERE ip = ? AND day = ?', info.ip, day)).c;
+      if (used >= MAX_PLAYS_PER_IP_DAY) {
+        ctx?.waitUntil?.(logEvent(db, info, 'play_spam', `${used} lượt/ngày`));
+        return json({ ok: true });
+      }
+      const r = await db.prepare('INSERT OR IGNORE INTO plays (sid, track_id, day, ip) VALUES (?, ?, ?, ?)').bind(sid, trackId, day, info.ip).run();
       if (r.meta.changes > 0) {
         await db.batch([
           db.prepare('UPDATE tracks SET views = views + 1 WHERE id = ?').bind(trackId),
@@ -52,6 +62,7 @@ export async function handleApi(request, db, path, ctx) {
     // Thống kê hiển thị / bấm quảng cáo.
     case '/api/stat': {
       const adId = parseInt(input.id, 10) || 0;
+      if (input.ev !== 'click' && input.ev !== 'show') return json({ ok: false }, 400);
       const col = input.ev === 'click' ? 'clicks' : 'shows';
       if (adId > 0) await db.prepare(`UPDATE ads SET ${col} = ${col} + 1 WHERE id = ?`).bind(adId).run();
       return json({ ok: true });

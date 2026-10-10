@@ -26,7 +26,7 @@ Không cần server, không cần cài thư viện. Mỗi lần đẩy code lên
 ### Bước 4: Cài đặt web
 1. Mở link `https://ten-du-an.pages.dev`, trang cài đặt sẽ hiện ra.
 2. Nhập tên web, tài khoản và mật khẩu admin. **Hãy cài ngay** để người khác không chiếm trước được.
-3. Trang quản trị nằm ở `/admin`.
+3. Trang quản trị nằm ở **`/quanly-199x`**. Link `/admin` không tồn tại (trả về 404) để tránh bot dò.
 
 ### Bước 5: Gắn tên miền (tùy chọn)
 Dự án → **Custom domains → Set up a custom domain** → nhập tên miền. Nếu tên miền đang dùng DNS của Cloudflare thì mọi thứ tự cấu hình.
@@ -42,6 +42,21 @@ Dự án → **Custom domains → Set up a custom domain** → nhập tên miề
 - **Cài đặt & SEO:** tên web, logo, favicon, màu chủ đạo, title, description, từ khóa, mã Google Analytics/Search Console. Sitemap tự tạo tại `/sitemap.xml`.
 - **Trang:** Giới thiệu, Liên hệ, Chính sách… hiện ở chân trang.
 - Ảnh logo và ảnh quảng cáo tải lên tối đa **1MB**, lưu thẳng trong D1.
+
+## Bảo mật
+- **Link quản trị ẩn:** `/quanly-199x`. Muốn đổi thì sửa `ADMIN` trong `src/security.js`.
+- **Chống dò mật khẩu:** sai 5 lần / 15 phút → khóa IP đó 15 phút. Sai 10 lần / 10 phút → chặn IP 24 giờ. Tổng mọi IP sai 30 lần / 15 phút → khóa đăng nhập 15 phút.
+- **Chặn bot dò lỗ hổng:** truy cập các link như `/wp-login.php`, `/.env`, `/phpmyadmin`, `/admin`, file `.sql/.bak`… sẽ được ghi nhật ký. Dò 20 lần / 10 phút → tự chặn IP 24 giờ.
+- **Chống bơm lượt nghe:** mỗi thiết bị tính 1 lượt / truyện / ngày, mỗi IP tối đa 300 lượt / ngày.
+- **Chống gửi form giả mạo (CSRF):** form admin chỉ nhận yêu cầu từ chính tên miền của web.
+- **Trang Bảo mật** trong admin: xem nhật ký tấn công 30 ngày (IP, quốc gia, đường dẫn, trình duyệt), chặn hoặc bỏ chặn IP, đăng xuất khỏi mọi thiết bị.
+- **Cơ sở dữ liệu D1** không mở ra internet. Chỉ code của web đọc được, mọi truy vấn đều dùng tham số nên không bị SQL injection.
+- Header bảo mật: HSTS, chống nhúng iframe, CSP cho trang admin. Phiên đăng nhập 7 ngày, cookie chỉ gửi trong link quản trị.
+
+**Nên làm thêm (miễn phí):**
+- Bảo vệ link quản trị bằng **Cloudflare Zero Trust → Access**: tạo ứng dụng cho `truyengi.info/quanly-199x*`, chỉ cho email của bạn (nhận mã OTP qua email). Người lạ sẽ không thấy được cả trang đăng nhập.
+- **Security → WAF → Rate limiting rules:** giới hạn ví dụ 60 yêu cầu / 10 giây mỗi IP cho `/api/`.
+- **Security → Bots → Bot Fight Mode:** bật lên.
 
 ## Giới hạn gói miễn phí (tham khảo)
 | Dịch vụ | Miễn phí |

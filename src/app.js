@@ -5,6 +5,7 @@ import { homePage, trackPage, staticPage, notFoundPage } from './views/public.js
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
 import { handleAdmin, handleInstall } from './admin.js';
+import { ADMIN, clientInfo, isBlocked, isProbe, logEvent, withSecurityHeaders } from './security.js';
 
 export async function handle(request, env, ctx) {
   const url = new URL(request.url);
@@ -13,18 +14,35 @@ export async function handle(request, env, ctx) {
   if (!db) return html(noDbPage(), 500);
   await migrate(db);
 
-  if (path.startsWith('/api/')) return handleApi(request, db, path, ctx);
+  const info = clientInfo(request);
+  if (await isBlocked(db, info.ip)) {
+    return new Response('Truy cập bị từ chối.', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+
+  if (path.startsWith('/api/')) return handleApi(request, db, path, ctx, info);
   if (path.startsWith('/media/')) return serveMedia(request, db, path, ctx);
 
   const s = await loadSettings(db);
   if (!s.admin_user) {
     // Chưa cài đặt: mọi trang đều dẫn tới trình cài đặt.
-    return handleInstall(request, db, s);
+    return withSecurityHeaders(await handleInstall(request, db), true);
   }
-  if (path === '/admin' || path.startsWith('/admin/')) return handleAdmin(request, env, db, s, path, url);
+
+  // Trang quản trị nằm ở đường dẫn riêng; bên trong vẫn xử lý như /admin/...
+  if (path === ADMIN || path.startsWith(ADMIN + '/')) {
+    const res = await handleAdmin(request, env, db, s, '/admin' + path.slice(ADMIN.length), url, info);
+    return withSecurityHeaders(res, true);
+  }
+
+  // Bot dò lỗ hổng: ghi nhật ký, tự chặn IP nếu dò quá 20 lần / 10 phút.
+  if (isProbe(path)) {
+    const job = logEvent(db, info, 'probe', path, { hits: 20, hours: 24 });
+    if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
+    return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
 
   if (path === '/robots.txt') {
-    return new Response(`User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${url.origin}/sitemap.xml\n`, {
+    return new Response(`User-agent: *\nDisallow: /api/\nSitemap: ${url.origin}/sitemap.xml\n`, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }

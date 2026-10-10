@@ -1,6 +1,7 @@
 // Giao diện trang quản trị.
 import { h, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { ASSET_V } from './public.js';
+import { ADMIN, EVENT_LABELS } from '../security.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 
@@ -18,17 +19,19 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/pages', 'Trang'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+// Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
+const A = p => ADMIN + p.slice('/admin'.length);
 
 export function adminLayout(s, path, flash, content) {
   const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path;
   return shell(`Quản trị - ${s.site_name}`, `<body>
 <header class="qt-top">
-  <a class="qt-brand" href="/admin">${h(s.site_name)} <small>admin</small></a>
-  <nav class="qt-nav">${NAV.map(([p, l]) => `<a href="${p}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
+  <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>admin</small></a>
+  <nav class="qt-nav">${NAV.map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
   <div class="qt-right">
     <a href="/" target="_blank">Xem web ↗</a>
-    <form method="post" action="/admin/logout"><button type="submit">Thoát</button></form>
+    <form method="post" action="${ADMIN}/logout"><button type="submit">Thoát</button></form>
   </div>
 </header>
 <main class="qt-main">
@@ -54,7 +57,7 @@ export function loginPage(s, err) {
 export function installPage(err, done, form = {}) {
   const inner = done
     ? `<div class="flash ok">Cài đặt thành công!</div>
-       <p class="row-actions"><a class="btn" href="/admin">Vào trang quản trị</a><a class="btn ghost" href="/">Xem trang chủ</a></p>`
+       <p class="row-actions"><a class="btn" href="${ADMIN}">Vào trang quản trị</a><a class="btn ghost" href="/">Xem trang chủ</a></p>`
     : `${err ? `<div class="flash err">${h(err)}</div>` : ''}
        <form method="post" class="form">
          <label>Tên website<input name="site_name" required value="${h(form.site_name || '')}" placeholder="Ví dụ: Yêu Đời Audio"></label>
@@ -86,10 +89,10 @@ export function tracksView({ tracks, stats, q, page, total, per }) {
 </div>
 <div class="bar">
   <form method="get" class="search"><input type="search" name="q" value="${h(q)}" placeholder="Tìm theo tên..."></form>
-  <a class="btn" href="/admin/track/new">+ Đăng audio</a>
+  <a class="btn" href="${ADMIN}/track/new">+ Đăng audio</a>
 </div>
 <div class="table">
-  ${tracks.map(t => `<a class="trow" href="/admin/track/${t.id}">
+  ${tracks.map(t => `<a class="trow" href="${ADMIN}/track/${t.id}">
     <span class="tmain"><b>${h(t.title)}</b>
       <small>${t.published ? '' : '<em class="pill">Ẩn</em> '}${t.nparts} phần · ${fmtTime(t.duration)} · ${vnDate(t.created_at, true)}</small></span>
     <span class="tnum">${fmtNum(t.views)}<small>lượt nghe</small></span>
@@ -153,7 +156,7 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
     ${track.id ? '' : '<button class="btn ghost" type="submit" name="and_new" value="1">Lưu & đăng tiếp</button>'}
   </div>
 </form>
-${track.id ? `<form method="post" action="/admin/track/${track.id}/delete" class="danger" onsubmit="return confirm('Xóa audio này? Không thể hoàn tác.')">
+${track.id ? `<form method="post" action="${ADMIN}/track/${track.id}/delete" class="danger" data-confirm="Xóa audio này? Không thể hoàn tác.">
   <button type="submit">Xóa audio này</button></form>` : ''}`;
 }
 
@@ -194,7 +197,7 @@ export function adsView(s, ads, edit) {
   <label class="check"><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}> Đang chạy</label>
   <div class="row-actions">
     <button class="btn" type="submit">Lưu sản phẩm</button>
-    ${e.id ? '<a class="btn ghost" href="/admin/qc">Hủy</a>' : ''}
+    ${e.id ? '<a class="btn ghost" href="${ADMIN}/qc">Hủy</a>' : ''}
   </div>
 </form>
 
@@ -208,7 +211,7 @@ export function adsView(s, ads, edit) {
     <span class="tnum">${fmtInt(a.clicks)}<small>lượt bấm</small></span>
     <span class="tact">
       <a href="?edit=${a.id}#qcform">Sửa</a>
-      <form method="post" onsubmit="return confirm('Xóa sản phẩm này?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="${a.id}"><button>Xóa</button></form>
+      <form method="post" data-confirm="Xóa sản phẩm này?"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="${a.id}"><button>Xóa</button></form>
     </span>
   </div>`).join('')}
   ${ads.length ? '' : '<p class="muted pad">Chưa có sản phẩm. Khi chưa có sản phẩm nào đang chạy, audio sẽ không bị khóa.</p>'}
@@ -251,8 +254,8 @@ export function settingsView(s, origin) {
 // ---------- Trang tĩnh ----------
 
 export function pagesView(pages) {
-  return `<div class="bar"><h1>Trang (hiện ở chân trang)</h1><a class="btn" href="/admin/page/new">+ Thêm trang</a></div>
-<div class="table">${pages.map(p => `<a class="trow" href="/admin/page/${p.id}"><span class="tmain"><b>${h(p.title)}</b><small>/trang/${h(p.slug)}</small></span></a>`).join('')}</div>`;
+  return `<div class="bar"><h1>Trang (hiện ở chân trang)</h1><a class="btn" href="${ADMIN}/page/new">+ Thêm trang</a></div>
+<div class="table">${pages.map(p => `<a class="trow" href="${ADMIN}/page/${p.id}"><span class="tmain"><b>${h(p.title)}</b><small>/trang/${h(p.slug)}</small></span></a>`).join('')}</div>`;
 }
 
 export function pageForm(p) {
@@ -265,7 +268,7 @@ export function pageForm(p) {
   <label>Thứ tự<input name="pos" type="number" value="${p.pos}"></label>
   <label>Nội dung (cho phép HTML: &lt;p&gt;, &lt;a&gt;, &lt;b&gt;...)<textarea name="content" rows="12" class="code">${h(p.content)}</textarea></label>
   <div class="row-actions"><button class="btn" type="submit">Lưu</button>
-  ${p.id ? `<button class="btn ghost danger-txt" type="submit" name="action" value="delete" formnovalidate onclick="return confirm('Xóa trang này?')">Xóa</button>` : ''}</div>
+  ${p.id ? `<button class="btn ghost danger-txt" type="submit" name="action" value="delete" formnovalidate data-confirm="Xóa trang này?">Xóa</button>` : ''}</div>
 </form>`;
 }
 
@@ -278,5 +281,61 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   <label>Mật khẩu mới (ít nhất 8 ký tự)<input name="new" type="password" required minlength="8" autocomplete="new-password"></label>
   <label>Nhập lại mật khẩu mới<input name="new2" type="password" required minlength="8" autocomplete="new-password"></label>
   <div class="row-actions"><button class="btn" type="submit">Lưu</button></div>
+</form>`;
+}
+
+// ---------- Bảo mật ----------
+
+export function securityView({ stats, logs, blocked, myIp }) {
+  const by = Object.fromEntries(stats.map(r => [r.event, r]));
+  const stat = (k, label) => `<div><b>${fmtInt(by[k]?.n || 0)}</b><span>${label} (${by[k]?.ips || 0} IP)</span></div>`;
+  const label = e => EVENT_LABELS[e] || e;
+  const bad = e => !['login_ok'].includes(e);
+  const blockForm = (ip, reason = '') => `<form method="post" data-confirm="Chặn IP ${h(ip)}?"><input type="hidden" name="action" value="block">
+    <input type="hidden" name="ip" value="${h(ip)}"><input type="hidden" name="reason" value="${h(reason)}"><input type="hidden" name="hours" value="0"><button>Chặn</button></form>`;
+  return `
+<h1>Bảo mật</h1>
+<p class="muted">IP của bạn: <b>${h(myIp)}</b>. Link quản trị: <code>${h(ADMIN)}</code>. Đừng chia sẻ link này.</p>
+<h2>24 giờ qua</h2>
+<div class="stats">
+  ${stat('probe', 'lượt dò lỗ hổng')}
+  ${stat('login_fail', 'lần đăng nhập sai')}
+  ${stat('login_lock', 'lần bị khóa đăng nhập')}
+  ${stat('play_spam', 'lần bơm lượt nghe')}
+</div>
+
+<form method="post" class="form card">
+  <input type="hidden" name="action" value="block">
+  <h2>Chặn IP thủ công</h2>
+  <div class="grid2">
+    <label>Địa chỉ IP<input name="ip" required placeholder="1.2.3.4"></label>
+    <label>Thời gian<select name="hours"><option value="0">Vĩnh viễn</option><option value="24">24 giờ</option><option value="168">7 ngày</option><option value="720">30 ngày</option></select></label>
+  </div>
+  <label>Lý do<input name="reason" placeholder="Spam, tấn công..."></label>
+  <div class="row-actions"><button class="btn" type="submit">Chặn IP</button></div>
+</form>
+
+<h2>IP đang bị chặn (${blocked.length})</h2>
+<div class="table">
+  ${blocked.map(b => `<div class="trow">
+    <span class="tmain"><b>${h(b.ip)}</b><small>${h(b.reason)} · ${b.until ? 'đến ' + vnDate(b.until, true) : 'vĩnh viễn'}</small></span>
+    <span class="tact"><form method="post"><input type="hidden" name="action" value="unblock"><input type="hidden" name="ip" value="${h(b.ip)}"><button class="ok-txt">Bỏ chặn</button></form></span>
+  </div>`).join('') || '<p class="muted pad">Chưa chặn IP nào.</p>'}
+</div>
+
+<div class="bar"><h2>Nhật ký (30 ngày, mới nhất trước)</h2>
+  <form method="post" data-confirm="Xóa toàn bộ nhật ký?"><input type="hidden" name="action" value="clear_log"><button class="btn ghost">Xóa nhật ký</button></form>
+</div>
+<div class="table">
+  ${logs.map(l => `<div class="trow">
+    <span class="tmain"><b class="${bad(l.event) ? 'danger-txt' : 'ok-txt'}">${h(label(l.event))}${l.hits > 1 ? ` ×${l.hits}` : ''}</b>
+      <small>${vnDate(l.at, true)} · ${h(l.ip)}${l.country ? ' (' + h(l.country) + ')' : ''} · ${h(l.detail)}</small>
+      <small class="ua">${h(l.ua)}</small></span>
+    <span class="tact">${bad(l.event) && l.ip !== myIp ? blockForm(l.ip, label(l.event)) : ''}</span>
+  </div>`).join('') || '<p class="muted pad">Chưa có sự kiện nào.</p>'}
+</div>
+
+<form method="post" class="danger" data-confirm="Đăng xuất khỏi mọi thiết bị, kể cả máy này?">
+  <input type="hidden" name="action" value="logout_all"><button type="submit">Đăng xuất khỏi mọi thiết bị</button>
 </form>`;
 }

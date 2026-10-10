@@ -5,10 +5,15 @@ import {
   hashPassword, verifyPassword, signToken, readToken, safeEqual, imageType, toBase64,
 } from './util.js';
 import * as V from './views/admin.js';
+import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 7;
+// Đăng nhập sai: 5 lần / 15 phút mỗi IP thì tạm khóa; 10 lần / 10 phút thì chặn IP 24 giờ.
+// Tổng cộng mọi IP sai 30 lần / 15 phút thì khóa đăng nhập 15 phút (chống dò mật khẩu từ nhiều IP).
+const FAILS_PER_IP = 5, FAILS_GLOBAL = 30;
+const sessionCookie = (token, maxAge) => setCookie(SESSION_COOKIE, token, { maxAge, path: ADMIN, sameSite: 'Strict' });
 
 // Chặn gửi form từ trang web khác (CSRF): yêu cầu POST phải đến từ chính tên miền này.
 function sameOrigin(request) {
@@ -22,7 +27,7 @@ function sameOrigin(request) {
 const noStore = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'X-Frame-Options': 'DENY' };
 
 function flashCookie(type, msg) {
-  return setCookie(FLASH_COOKIE, JSON.stringify([type, msg]), { maxAge: 60, path: '/admin' });
+  return setCookie(FLASH_COOKIE, JSON.stringify([type, msg]), { maxAge: 60, path: ADMIN });
 }
 
 function go(location, flash) {
@@ -66,7 +71,7 @@ export async function handleInstall(request, db) {
   if (err) return html(V.installPage(err, false, form), 400, noStore);
 
   // Kiểm tra lại để tránh hai người cài cùng lúc.
-  if (await first(db, "SELECT 1 x FROM settings WHERE k = 'admin_user'")) return redirect('/admin');
+  if (await first(db, "SELECT 1 x FROM settings WHERE k = 'admin_user'")) return redirect(ADMIN);
 
   await saveSettings(db, {
     site_name: site,
@@ -90,25 +95,30 @@ export async function handleInstall(request, db) {
 
 // ---------- Trang quản trị ----------
 
-export async function handleAdmin(request, env, db, s, path, url) {
+export async function handleAdmin(request, env, db, s, path, url, info) {
   const isPost = request.method === 'POST';
-  if (isPost && !sameOrigin(request)) return new Response('Yêu cầu không hợp lệ, vui lòng tải lại trang.', { status: 400 });
+  if (isPost && !sameOrigin(request)) {
+    await logEvent(db, info, 'csrf', ADMIN + path.slice('/admin'.length));
+    return new Response('Yêu cầu không hợp lệ, vui lòng tải lại trang.', { status: 400 });
+  }
 
   // Đăng nhập
   if (path === '/admin/login') {
     let err = '';
     if (isPost) {
-      const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
-      await db.prepare('DELETE FROM login_fails WHERE at < ?').bind(now() - 900).run();
-      const fails = (await first(db, 'SELECT COUNT(*) c FROM login_fails WHERE ip = ?', ip)).c;
       const f = await request.formData();
-      if (fails >= 5) {
+      const ipFails = await recentHits(db, 'login_fail', 900, info.ip);
+      const allFails = await recentHits(db, 'login_fail', 900);
+      if (ipFails >= FAILS_PER_IP || allFails >= FAILS_GLOBAL) {
+        await logEvent(db, info, 'login_lock', `user=${str(f, 'user')}`);
         err = 'Sai quá nhiều lần, vui lòng thử lại sau 15 phút.';
       } else if (safeEqual(str(f, 'user'), s.admin_user) && await verifyPassword(String(f.get('pass') || ''), s.admin_pass)) {
+        await logEvent(db, info, 'login_ok', `user=${s.admin_user}`);
         const token = await signToken(s.secret, { u: s.admin_user, exp: now() + SESSION_DAYS * 86400 });
-        return redirect('/admin', { 'Set-Cookie': setCookie(SESSION_COOKIE, token, { maxAge: SESSION_DAYS * 86400, path: '/' }) });
+        return redirect(ADMIN, { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
       } else {
-        await db.prepare('INSERT INTO login_fails (ip, at) VALUES (?, ?)').bind(ip, now()).run();
+        await logEvent(db, info, 'login_fail', `user=${str(f, 'user')}`, { hits: 10, hours: 24 });
+        await new Promise(r => setTimeout(r, 600)); // làm chậm dò mật khẩu
         err = 'Sai tên đăng nhập hoặc mật khẩu.';
       }
     }
@@ -116,17 +126,17 @@ export async function handleAdmin(request, env, db, s, path, url) {
   }
 
   const session = await readToken(s.secret, getCookie(request, SESSION_COOKIE));
-  if (!session || session.u !== s.admin_user) return redirect('/admin/login');
+  if (!session || session.u !== s.admin_user) return redirect(ADMIN + '/login');
 
   if (path === '/admin/logout' && isPost) {
-    return redirect('/admin/login', { 'Set-Cookie': setCookie(SESSION_COOKIE, '', { maxAge: 0, path: '/' }) });
+    return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
   }
 
   let flash = null;
   try { flash = JSON.parse(getCookie(request, FLASH_COOKIE) || 'null'); } catch (e) { /* bỏ qua */ }
   const view = (content, status = 200) => {
     const headers = { ...noStore };
-    if (flash) headers['Set-Cookie'] = setCookie(FLASH_COOKIE, '', { maxAge: 0, path: '/admin' });
+    if (flash) headers['Set-Cookie'] = setCookie(FLASH_COOKIE, '', { maxAge: 0, path: ADMIN });
     return html(V.adminLayout(s, path, flash, content), status, headers);
   };
 
@@ -158,7 +168,7 @@ export async function handleAdmin(request, env, db, s, path, url) {
     let parts = [];
     if (id) {
       track = await first(db, 'SELECT * FROM tracks WHERE id = ?', id);
-      if (!track) return redirect('/admin');
+      if (!track) return redirect(ADMIN);
       parts = await all(db, 'SELECT * FROM parts WHERE track_id = ? ORDER BY pos, id', id);
     }
     if (!isPost) return view(V.trackForm({ track, parts, err: '' }));
@@ -197,7 +207,7 @@ export async function handleAdmin(request, env, db, s, path, url) {
     const ins = db.prepare('INSERT INTO parts (track_id, pos, title, url, duration) VALUES (?,?,?,?,?)');
     await db.batch(newParts.map((p, i) => ins.bind(id, i, p.title, p.url, p.duration)));
     await clearCache(db);
-    return go(f.get('and_new') ? '/admin/track/new' : `/admin/track/${id}`, ['ok', `Đã lưu “${title}”.`]);
+    return go(f.get('and_new') ? ADMIN + '/track/new' : `${ADMIN}/track/${id}`, ['ok', `Đã lưu “${title}”.`]);
   }
 
   m = path.match(/^\/admin\/track\/(\d+)\/delete$/);
@@ -209,7 +219,7 @@ export async function handleAdmin(request, env, db, s, path, url) {
       db.prepare('DELETE FROM tracks WHERE id = ?').bind(id),
     ]);
     await clearCache(db);
-    return go('/admin', ['ok', 'Đã xóa audio.']);
+    return go(ADMIN, ['ok', 'Đã xóa audio.']);
   }
 
   // Quảng cáo
@@ -228,17 +238,17 @@ export async function handleAdmin(request, env, db, s, path, url) {
           ad_note: str(f, 'ad_note'),
         });
         await clearCache(db);
-        return go('/admin/qc', ['ok', 'Đã lưu cài đặt quảng cáo.']);
+        return go(ADMIN + '/qc', ['ok', 'Đã lưu cài đặt quảng cáo.']);
       }
       if (act === 'save') {
         const adUrl = str(f, 'url');
-        if (!/^https?:\/\//i.test(adUrl)) return go('/admin/qc', ['err', 'Link quảng cáo phải bắt đầu bằng https://']);
+        if (!/^https?:\/\//i.test(adUrl)) return go(ADMIN + '/qc', ['err', 'Link quảng cáo phải bắt đầu bằng https://']);
         const old = adId ? await first(db, 'SELECT image FROM ads WHERE id = ?', adId) : null;
         let image;
         try {
           image = await saveUpload(db, f.get('image_file'));
         } catch (e) {
-          return go('/admin/qc', ['err', e.message]);
+          return go(ADMIN + '/qc', ['err', e.message]);
         }
         image = image || str(f, 'image');
         if (old && old.image !== image) await deleteMedia(db, old.image);
@@ -246,16 +256,16 @@ export async function handleAdmin(request, env, db, s, path, url) {
         if (adId) await db.prepare('UPDATE ads SET title=?, image=?, price=?, old_price=?, url=?, active=? WHERE id=?').bind(...vals, adId).run();
         else await db.prepare('INSERT INTO ads (title, image, price, old_price, url, active) VALUES (?,?,?,?,?,?)').bind(...vals).run();
         await clearCache(db);
-        return go('/admin/qc', ['ok', 'Đã lưu quảng cáo.']);
+        return go(ADMIN + '/qc', ['ok', 'Đã lưu quảng cáo.']);
       }
       if (act === 'delete' && adId) {
         const old = await first(db, 'SELECT image FROM ads WHERE id = ?', adId);
         if (old) await deleteMedia(db, old.image);
         await db.prepare('DELETE FROM ads WHERE id = ?').bind(adId).run();
         await clearCache(db);
-        return go('/admin/qc', ['ok', 'Đã xóa quảng cáo.']);
+        return go(ADMIN + '/qc', ['ok', 'Đã xóa quảng cáo.']);
       }
-      return go('/admin/qc');
+      return go(ADMIN + '/qc');
     }
     const ads = await all(db, 'SELECT * FROM ads ORDER BY id DESC');
     const editId = parseInt(url.searchParams.get('edit'), 10) || 0;
@@ -280,11 +290,11 @@ export async function handleAdmin(request, env, db, s, path, url) {
           }
         }
       } catch (e) {
-        return go('/admin/settings', ['err', e.message]);
+        return go(ADMIN + '/settings', ['err', e.message]);
       }
       await saveSettings(db, data);
       await clearCache(db);
-      return go('/admin/settings', ['ok', 'Đã lưu cài đặt.']);
+      return go(ADMIN + '/settings', ['ok', 'Đã lưu cài đặt.']);
     }
     return view(V.settingsView(s, url.origin));
   }
@@ -298,14 +308,14 @@ export async function handleAdmin(request, env, db, s, path, url) {
     let p = { id: 0, title: '', slug: '', content: '', pos: 0 };
     if (id) {
       p = await first(db, 'SELECT * FROM pages WHERE id = ?', id);
-      if (!p) return redirect('/admin/pages');
+      if (!p) return redirect(ADMIN + '/pages');
     }
     if (isPost) {
       const f = await request.formData();
       if (f.get('action') === 'delete' && id) {
         await db.prepare('DELETE FROM pages WHERE id = ?').bind(id).run();
         await clearCache(db);
-        return go('/admin/pages', ['ok', 'Đã xóa trang.']);
+        return go(ADMIN + '/pages', ['ok', 'Đã xóa trang.']);
       }
       const title = str(f, 'title');
       if (title) {
@@ -314,7 +324,7 @@ export async function handleAdmin(request, env, db, s, path, url) {
         if (id) await db.prepare('UPDATE pages SET title=?, slug=?, content=?, pos=? WHERE id=?').bind(...vals, id).run();
         else await db.prepare('INSERT INTO pages (title, slug, content, pos) VALUES (?,?,?,?)').bind(...vals).run();
         await clearCache(db);
-        return go('/admin/pages', ['ok', 'Đã lưu trang.']);
+        return go(ADMIN + '/pages', ['ok', 'Đã lưu trang.']);
       }
     }
     return view(V.pageForm(p));
@@ -334,13 +344,49 @@ export async function handleAdmin(request, env, db, s, path, url) {
         const secret = randomId(40); // đổi khóa để đăng xuất mọi thiết bị khác
         await saveSettings(db, { admin_user: user, admin_pass: await hashPassword(nw), secret });
         const token = await signToken(secret, { u: user, exp: now() + SESSION_DAYS * 86400 });
-        const headers = new Headers({ Location: '/admin/password' });
-        headers.append('Set-Cookie', setCookie(SESSION_COOKIE, token, { maxAge: SESSION_DAYS * 86400, path: '/' }));
+        const headers = new Headers({ Location: ADMIN + '/password' });
+        headers.append('Set-Cookie', sessionCookie(token, SESSION_DAYS * 86400));
         headers.append('Set-Cookie', flashCookie('ok', 'Đã đổi thông tin đăng nhập.'));
         return new Response(null, { status: 303, headers });
       }
     }
     return view(V.passwordView(s, err), err ? 400 : 200);
+  }
+
+  // Bảo mật: nhật ký tấn công, chặn IP, đăng xuất mọi thiết bị
+  if (path === '/admin/security') {
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.get('action');
+      const ip = str(f, 'ip');
+      const validIp = /^[0-9a-fA-F:.]{3,45}$/.test(ip);
+      if (act === 'block') {
+        if (!validIp) return go(ADMIN + '/security', ['err', 'Địa chỉ IP không hợp lệ.']);
+        if (ip === info.ip) return go(ADMIN + '/security', ['err', 'Đây là IP của chính bạn, không chặn được.']);
+        await blockIp(db, ip, str(f, 'reason') || 'Chặn thủ công', parseFloat(f.get('hours')) || 0);
+        return go(ADMIN + '/security', ['ok', `Đã chặn ${ip}.`]);
+      }
+      if (act === 'unblock' && validIp) {
+        await unblockIp(db, ip);
+        return go(ADMIN + '/security', ['ok', `Đã bỏ chặn ${ip}.`]);
+      }
+      if (act === 'clear_log') {
+        await db.prepare('DELETE FROM security_log').run();
+        return go(ADMIN + '/security', ['ok', 'Đã xóa nhật ký.']);
+      }
+      if (act === 'logout_all') {
+        await saveSettings(db, { secret: randomId(40) });
+        return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
+      }
+      return go(ADMIN + '/security');
+    }
+    const t = now();
+    const [stats, logs, blocked] = await Promise.all([
+      all(db, 'SELECT event, SUM(hits) n, COUNT(DISTINCT ip) ips FROM security_log WHERE at > ? GROUP BY event', t - 86400),
+      all(db, 'SELECT * FROM security_log ORDER BY at DESC LIMIT 150'),
+      all(db, 'SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300'),
+    ]);
+    return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip }));
   }
 
   return new Response('Không tìm thấy', { status: 404 });

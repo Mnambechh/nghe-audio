@@ -32,18 +32,35 @@ const SCHEMA = [
     content TEXT NOT NULL DEFAULT '', pos INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS cache (k TEXT PRIMARY KEY, v TEXT NOT NULL, exp INTEGER NOT NULL)`,
-  `CREATE TABLE IF NOT EXISTS login_fails (ip TEXT NOT NULL, at INTEGER NOT NULL)`,
+];
+
+// Bản 2: nhật ký bảo mật, chặn IP, ghi IP cho lượt nghe (chống bơm lượt nghe).
+const SCHEMA_V2 = [
+  `CREATE TABLE IF NOT EXISTS security_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, ip TEXT NOT NULL, country TEXT NOT NULL DEFAULT '',
+    event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', ua TEXT NOT NULL DEFAULT '', hits INTEGER NOT NULL DEFAULT 1)`,
+  `CREATE INDEX IF NOT EXISTS idx_seclog_ip ON security_log(ip, event, at)`,
+  `CREATE INDEX IF NOT EXISTS idx_seclog_at ON security_log(at)`,
+  `CREATE TABLE IF NOT EXISTS blocked_ips (ip TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', until INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`,
+  `ALTER TABLE plays ADD COLUMN ip TEXT NOT NULL DEFAULT ''`,
+  `CREATE INDEX IF NOT EXISTS idx_plays_ip ON plays(ip, day)`,
 ];
 
 let migrated = false;
 
+async function missing(db, table) {
+  try {
+    await db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).first();
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
 export async function migrate(db) {
   if (migrated) return;
-  try {
-    await db.prepare('SELECT 1 FROM cache LIMIT 1').first();
-  } catch (e) {
-    await db.batch(SCHEMA.map(s => db.prepare(s)));
-  }
+  if (await missing(db, 'cache')) await db.batch(SCHEMA.map(s => db.prepare(s)));
+  if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   migrated = true;
 }
 

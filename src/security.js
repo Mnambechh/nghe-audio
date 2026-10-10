@@ -1,0 +1,116 @@
+// Bảo mật: đường dẫn quản trị, nhật ký tấn công, chặn IP, header bảo mật.
+import { cached, all, first, clearCache } from './db.js';
+import { now } from './util.js';
+
+// Đường dẫn trang quản trị. Đổi ở đây nếu muốn dùng link khác.
+export const ADMIN = '/quanly-199x';
+
+// Các đường dẫn mà bot dò lỗ hổng hay thử (WordPress, phpMyAdmin, file cấu hình, file sao lưu…).
+const PROBE_RE = new RegExp([
+  '^/(wp-|wordpress|xmlrpc\\.php|phpmyadmin|pma|myadmin|mysql|adminer|administrator|admin(/|$|\\.)|login\\.php',
+  '|cgi-bin|vendor/|\\.env|\\.git|\\.svn|\\.aws|\\.ssh|\\.ds_store|server-status|boaform|actuator|telescope|debug',
+  '|shell|config\\.(php|json|ya?ml|js)|backup|dump|database|db\\.)',
+  '|\\.(php\\d?|asp|aspx|jsp|cgi|sql|sqlite|db|bak|old|zip|tar|gz|rar|7z|ini|log|sh|env)$',
+].join(''), 'i');
+
+export function isProbe(path) {
+  return PROBE_RE.test(path);
+}
+
+export function clientInfo(request) {
+  return {
+    ip: request.headers.get('CF-Connecting-IP') || '0.0.0.0',
+    country: request.headers.get('CF-IPCountry') || '',
+    ua: (request.headers.get('User-Agent') || '').slice(0, 200),
+  };
+}
+
+// ---------- Chặn IP ----------
+
+export async function isBlocked(db, ip) {
+  const list = await cached(db, 'blocked_ips', 120, () => all(db, 'SELECT ip, until FROM blocked_ips'));
+  const t = now();
+  return list.some(b => b.ip === ip && (!b.until || b.until > t));
+}
+
+export async function blockIp(db, ip, reason, hours = 0) {
+  await db.prepare('INSERT INTO blocked_ips (ip, reason, until, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(ip) DO UPDATE SET reason = excluded.reason, until = excluded.until, created_at = excluded.created_at')
+    .bind(ip, reason, hours ? now() + hours * 3600 : 0, now()).run();
+  await clearCache(db);
+}
+
+export async function unblockIp(db, ip) {
+  await db.prepare('DELETE FROM blocked_ips WHERE ip = ?').bind(ip).run();
+  await clearCache(db);
+}
+
+// ---------- Nhật ký ----------
+
+// Ghi một sự kiện. Cùng IP + cùng loại trong 10 phút thì cộng dồn số lần (tiết kiệm lượt ghi).
+// autoBlock: { hits, hours } → tự chặn IP khi số lần trong 10 phút đạt ngưỡng.
+export async function logEvent(db, info, event, detail = '', autoBlock = null) {
+  const t = now();
+  const row = await first(db, 'SELECT id, hits FROM security_log WHERE ip = ? AND event = ? AND at > ? ORDER BY at DESC LIMIT 1', info.ip, event, t - 600);
+  let hits = 1;
+  if (row) {
+    hits = row.hits + 1;
+    await db.prepare('UPDATE security_log SET hits = ?, at = ?, detail = ?, ua = ? WHERE id = ?').bind(hits, t, String(detail).slice(0, 300), info.ua, row.id).run();
+  } else {
+    await db.prepare('INSERT INTO security_log (at, ip, country, event, detail, ua, hits) VALUES (?, ?, ?, ?, ?, ?, 1)')
+      .bind(t, info.ip, info.country, event, String(detail).slice(0, 300), info.ua).run();
+  }
+  if (autoBlock && hits >= autoBlock.hits) {
+    await blockIp(db, info.ip, `Tự động: ${EVENT_LABELS[event] || event} ${hits} lần / 10 phút`, autoBlock.hours);
+  }
+  if (Math.random() < 0.02) {
+    await db.prepare('DELETE FROM security_log WHERE at < ?').bind(t - 30 * 86400).run();
+  }
+  return hits;
+}
+
+// Số lần một sự kiện của IP trong khoảng thời gian gần đây.
+export async function recentHits(db, event, sinceSec, ip = null) {
+  const sql = 'SELECT COALESCE(SUM(hits), 0) c FROM security_log WHERE event = ? AND at > ?' + (ip ? ' AND ip = ?' : '');
+  const args = [event, now() - sinceSec, ...(ip ? [ip] : [])];
+  return (await first(db, sql, ...args)).c;
+}
+
+export const EVENT_LABELS = {
+  probe: 'Dò quét lỗ hổng',
+  login_fail: 'Đăng nhập sai',
+  login_ok: 'Đăng nhập thành công',
+  login_lock: 'Khóa đăng nhập tạm thời',
+  csrf: 'Gửi form giả mạo',
+  play_spam: 'Bơm lượt nghe',
+};
+
+// ---------- Header bảo mật ----------
+
+const ADMIN_CSP = [
+  "default-src 'self'",
+  "img-src 'self' https: data:",
+  "media-src https: http:",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
+
+export function withSecurityHeaders(res, isAdmin) {
+  const out = new Response(res.body, res);
+  const h = out.headers;
+  h.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  h.set('X-Content-Type-Options', 'nosniff');
+  h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  h.set('X-Frame-Options', isAdmin ? 'DENY' : 'SAMEORIGIN');
+  if (isAdmin) {
+    h.set('Content-Security-Policy', ADMIN_CSP);
+    h.set('X-Robots-Tag', 'noindex, nofollow');
+    h.set('Cache-Control', 'no-store');
+  }
+  return out;
+}

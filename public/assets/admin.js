@@ -1,3 +1,11 @@
+// Hỏi xác nhận trước khi xóa/chặn (thay cho onsubmit nội tuyến, vì CSP chặn script nội tuyến).
+document.addEventListener('submit', e => {
+  const f = e.target;
+  const btn = e.submitter;
+  const msg = (btn && btn.dataset.confirm) || f.dataset.confirm;
+  if (msg && !confirm(msg)) e.preventDefault();
+});
+
 (() => {
   'use strict';
   const box = document.getElementById('parts');
