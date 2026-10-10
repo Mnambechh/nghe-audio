@@ -711,8 +711,11 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         return go(back, ['ok', 'Đã lưu thông tin.']);
       }
       if (act === 'stones' || act === 'exp') {
-        const amt = Math.trunc(parseFloat(str(f, 'amount').replace(/[.,\s]/g, '')) || 0);
-        if (!amt) return go(back, ['err', 'Nhập số cần cộng (số dương) hoặc trừ (số âm).']);
+        // Chỉ lấy chữ số; nút bấm quyết định cộng hay trừ.
+        const n = parseInt(str(f, 'amount').replace(/\D/g, ''), 10) || 0;
+        if (!n) return go(back, ['err', 'Nhập số lượng (chỉ gồm chữ số) rồi bấm Cộng hoặc Trừ.']);
+        if (n > 100000000) return go(back, ['err', 'Số quá lớn (tối đa 100.000.000 mỗi lần).']);
+        const amt = f.get('dir') === 'sub' ? -n : n;
         const label = act === 'stones' ? 'Linh Thạch' : 'EXP';
         const why = `Admin ${amt > 0 ? 'cộng' : 'trừ'}${reason ? ': ' + reason : ''}`;
         if (act === 'exp' && amt > 0) await awardExp(db, s, uid, amt, why);
@@ -727,7 +730,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         await log(act, amt, reason);
         await notify(db, uid, 'admin', { text: `${amt > 0 ? 'Cộng' : 'Trừ'} ${Math.abs(amt).toLocaleString('vi-VN')} ${label}${reason ? ' · ' + reason : ''}` });
         await clearCache(db);
-        return go(back, ['ok', `Đã ${amt > 0 ? 'cộng' : 'trừ'} ${Math.abs(amt)} ${label}.`]);
+        return go(back, ['ok', `Đã ${amt > 0 ? 'cộng' : 'trừ'} ${Math.abs(amt).toLocaleString('vi-VN')} ${label}.`]);
       }
       const simple = {
         ban: ['UPDATE users SET banned = 1 WHERE id = ?', 'Đã khóa bình luận.'],

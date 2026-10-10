@@ -602,16 +602,22 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
 
 <div class="grid2">
   <form method="post" class="form card"><input type="hidden" name="action" value="stones">
-    <h2>Cộng / trừ Linh Thạch</h2>
-    <label>Số lượng (số âm để trừ)<input name="amount" inputmode="numeric" placeholder="100 hoặc -50" required></label>
+    <h2>💎 Linh Thạch <small class="muted">· hiện có ${fmtInt(u.stones)}</small></h2>
+    <label>Số lượng<input name="amount" inputmode="numeric" placeholder="Ví dụ: 100" required></label>
     <label>Lý do (thành viên sẽ thấy trong thông báo)<input name="reason" placeholder="Thưởng sự kiện..."></label>
-    <button class="btn">Cập nhật Linh Thạch</button>
+    <div class="row-actions pm-btns">
+      <button class="btn" name="dir" value="add">＋ Cộng Linh Thạch</button>
+      <button class="btn ghost danger-txt" name="dir" value="sub">－ Trừ Linh Thạch</button>
+    </div>
   </form>
   <form method="post" class="form card"><input type="hidden" name="action" value="exp">
-    <h2>Cộng / trừ EXP</h2>
-    <label>Số lượng (số âm để trừ)<input name="amount" inputmode="numeric" placeholder="500 hoặc -100" required></label>
+    <h2>⭐ EXP <small class="muted">· hiện có ${fmtInt(u.exp)}</small></h2>
+    <label>Số lượng<input name="amount" inputmode="numeric" placeholder="Ví dụ: 500" required></label>
     <label>Lý do<input name="reason" placeholder="Bù EXP do lỗi..."></label>
-    <button class="btn">Cập nhật EXP</button>
+    <div class="row-actions pm-btns">
+      <button class="btn" name="dir" value="add">＋ Cộng EXP</button>
+      <button class="btn ghost danger-txt" name="dir" value="sub">－ Trừ EXP</button>
+    </div>
   </form>
 </div>
 

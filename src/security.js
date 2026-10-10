@@ -134,7 +134,8 @@ export function withSecurityHeaders(res, isAdmin) {
     h.set('Cache-Control', 'no-store');
     h.set('Cross-Origin-Opener-Policy', 'same-origin');
     h.set('Cross-Origin-Resource-Policy', 'same-origin');
-    h.set('Referrer-Policy', 'no-referrer'); // không để lộ đường dẫn quản trị khi bấm link ra ngoài
+    // same-origin: không gửi đường dẫn quản trị ra trang ngoài, nhưng vẫn gửi Origin cho form nội bộ (no-referrer làm Origin = null → chặn nhầm mọi thao tác).
+    h.set('Referrer-Policy', 'same-origin');
   }
   return out;
 }
