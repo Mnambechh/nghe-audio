@@ -160,6 +160,14 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 22: lịch sử hoa hồng giới thiệu.
+  if (await missing(db, 'ref_log')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS ref_log (id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, referee_id INTEGER NOT NULL,
+        amount INTEGER NOT NULL, source INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_ref_log ON ref_log(referrer_id, id DESC)`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 21: giới thiệu bạn bè.
   try {
     await db.prepare('SELECT ref_code FROM users LIMIT 1').first();

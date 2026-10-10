@@ -1081,6 +1081,8 @@
     levelup: () => '🎉 Đột phá thành công!',
     admin: () => '🛡️ Quản trị viên',
     withdraw: () => '💎 Rút Linh Thạch',
+    ref_join: () => '🤝 Giới thiệu bạn bè',
+    ref_pay: () => '💎 Hoa hồng giới thiệu',
   };
 
   function renderNotifs() {
@@ -1095,8 +1097,8 @@
   }
 
   // Bấm thông báo: bình luận → mở đúng truyện (khung bình luận); thông báo khác → trang Thông báo, xem chi tiết.
-  const notifHref = n => n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/thong-bao?id=${n.id}`;
-  const notifIco = n => n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎', withdraw: '💸', approved: '✅' }[n.type] || '🔔'}</span>`;
+  const notifHref = n => n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : /^ref_/.test(n.type) ? `${APP.base}/gioi-thieu` : `${APP.base}/thong-bao?id=${n.id}`;
+  const notifIco = n => n.actor && !/^ref_/.test(n.type) ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎', withdraw: '💸', approved: '✅', ref_join: '🤝', ref_pay: '💎' }[n.type] || '🔔'}</span>`;
   function notifItem(n) {
     return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${notifHref(n)}">${notifIco(n)}<span class="np-body">
       <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
@@ -1205,13 +1207,13 @@
       if (!r || !r.ok) return;
       notifs = r.items;
       const fresh = r.items.filter(n => !n.is_read && !shownNotifs.has(n.id)).slice(0, 4).reverse();
-      const ICON = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎', withdraw: '💸' };
+      const ICON = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎', withdraw: '💸', ref_join: '🤝', ref_pay: '💎' };
       const lines = [];
       let icon = '🔔';
       fresh.forEach(n => {
         shownNotifs.add(n.id);
         if (n.type === 'levelup' && Date.now() - lastLevelToast < 300000) return;
-        const withText = n.type === 'levelup' || n.type === 'admin' || n.type === 'withdraw';
+        const withText = ['levelup', 'admin', 'withdraw', 'ref_join', 'ref_pay'].includes(n.type);
         icon = ICON[n.type] || '🔔';
         lines.push(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`);
       });
@@ -1426,8 +1428,12 @@
           <li>Mỗi khi bạn bè nhận Linh Thạch từ điểm danh, nhiệm vụ, đánh giá, thả tim, lên cấp… bạn được cộng <b>${nf(r.rate)}%</b> (phần lẻ được cộng dồn).</li>
         </ol>
         <p class="c-note">Không tính khi tự mời chính mình hoặc mời người dùng chung mạng/IP. Tài khoản gian lận sẽ bị khóa và hủy hoa hồng.</p>
-        <h2 class="h2">Bạn bè đã mời (${nf(r.count)})</h2>
-        <div class="ref-list">${r.list.map(x => `<div class="ref-row"><b>${esc(x.name)}</b><small>Tham gia ${cDate(x.at).replace(/^ngày /, '')}</small><span>+${nf(x.given)} 💎</span></div>`).join('') || '<p class="c-note">Chưa có ai. Hãy gửi link cho bạn bè nhé!</p>'}</div>`;
+        <h2 class="h2">Lịch sử nhận hoa hồng</h2>
+        <div class="ref-list">${(r.log || []).map(x => `<div class="ref-row ref-log"><span class="ref-ico">💎</span>
+          <span class="ref-txt"><b>${esc(x.name)}</b> kiếm được <b>${nf(x.source)}</b> Linh Thạch → bạn nhận <b class="ref-plus">+${nf(x.amount)}</b>
+          <small>${cDate(x.at)}</small></span></div>`).join('') || '<p class="c-note">Chưa có hoa hồng nào. Khi bạn bè kiếm Linh Thạch, hoa hồng sẽ hiện ở đây.</p>'}</div>
+        <h2 class="h2">Bạn bè đã đăng ký qua link (${nf(r.count)})</h2>
+        <div class="ref-list">${r.list.map(x => `<div class="ref-row"><span class="ref-txt"><b>${esc(x.name)}</b><small>${esc(x.email)} · đăng ký ${cDate(x.at).replace(/^ngày /, '')}</small></span><span class="ref-plus">+${nf(x.given)} 💎</span></div>`).join('') || '<p class="c-note">Chưa có ai. Hãy gửi link cho bạn bè nhé!</p>'}</div>`;
       box.dataset.link = link;
     }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
   }

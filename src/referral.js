@@ -2,6 +2,7 @@
 // Không tính tiền admin cộng tay, tiền hoàn rút, và chỉ 1 tầng (hoa hồng không sinh hoa hồng tiếp).
 import { all, first } from './db.js';
 import { json, now, randomId, getCookie, setCookie, vnDay } from './util.js';
+import { notify } from './game.js';
 
 export const REF_COOKIE = 'aw_ref';
 export const REF_RE = /^[A-Za-z0-9]{8}$/;
@@ -25,7 +26,13 @@ export async function attachReferrer(db, s, request, newUserId, ip) {
     // Chống tự mời chính mình: người mời và người được mời không được cùng IP.
     && r.reg_ip !== ip && r.last_ip !== ip;
   if (ok && max) ok = (await first(db, 'SELECT COUNT(*) c FROM users WHERE referred_by = ? AND created_at >= ?', r.id, today0)).c < max;
-  if (ok) await db.prepare('UPDATE users SET referred_by = ? WHERE id = ? AND referred_by = 0').bind(r.id, newUserId).run();
+  if (ok) {
+    const w = await db.prepare('UPDATE users SET referred_by = ? WHERE id = ? AND referred_by = 0').bind(r.id, newUserId).run();
+    if (w.meta.changes) {
+      const nu = await first(db, 'SELECT name FROM users WHERE id = ?', newUserId);
+      await notify(db, r.id, 'ref_join', { actor: newUserId, text: `${nu ? nu.name : 'Một người bạn'} đã đăng ký qua link giới thiệu của bạn` });
+    }
+  }
   return setCookie(REF_COOKIE, '', { maxAge: 0 });
 }
 
@@ -42,12 +49,15 @@ export async function payCommission(db, userId, amount, note, s) {
   if (!r.meta.changes) return;
   const ref = await first(db, 'SELECT id, locked, banned FROM users WHERE id = ?', u.referred_by);
   if (!ref || ref.locked) return;
+  const source = Math.round(n / rate); // số Linh Thạch người được mời đã kiếm tương ứng phần hoa hồng này
   await db.batch([
+    db.prepare('INSERT INTO ref_log (referrer_id, referee_id, amount, source, created_at) VALUES (?, ?, ?, ?, ?)').bind(ref.id, userId, n, source, now()),
     db.prepare('UPDATE users SET stones = stones + ?, ref_earned = ref_earned + ? WHERE id = ?').bind(n, n, ref.id),
     db.prepare(`INSERT INTO wallet_log (user_id, kind, amount, balance, note, created_at)
       SELECT id, 'stones', ?, stones, ?, ? FROM users WHERE id = ?`).bind(n, `Hoa hồng giới thiệu: ${String(u.name).slice(0, 60)}`, now(), ref.id),
     db.prepare('UPDATE users SET ref_given = ref_given + ? WHERE id = ?').bind(n, userId),
   ]);
+  await notify(db, ref.id, 'ref_pay', { actor: userId, text: `${u.name} kiếm được ${source.toLocaleString('vi-VN')} Linh Thạch → bạn nhận +${n.toLocaleString('vi-VN')} Linh Thạch hoa hồng (${Math.round(rate * 100 * 10) / 10}%)` });
 }
 
 async function ensureCode(db, uid) {
@@ -65,13 +75,17 @@ async function ensureCode(db, uid) {
 
 export async function handleReferralApi(request, db, s, me) {
   const code = await ensureCode(db, me.id);
-  const [stat, list] = await Promise.all([
+  const [stat, list, log] = await Promise.all([
     first(db, 'SELECT ref_earned FROM users WHERE id = ?', me.id),
-    all(db, 'SELECT name, avatar, exp, created_at, ref_given FROM users WHERE referred_by = ? ORDER BY id DESC LIMIT 100', me.id),
+    all(db, 'SELECT name, email, avatar, exp, created_at, ref_given FROM users WHERE referred_by = ? ORDER BY id DESC LIMIT 200', me.id),
+    all(db, `SELECT l.amount, l.source, l.created_at, u.name FROM ref_log l LEFT JOIN users u ON u.id = l.referee_id
+      WHERE l.referrer_id = ? ORDER BY l.id DESC LIMIT 100`, me.id),
   ]);
   const count = (await first(db, 'SELECT COUNT(*) c FROM users WHERE referred_by = ?', me.id)).c;
   // Ẩn bớt tên người được mời (bảo vệ riêng tư).
-  const mask = n => { const a = Array.from(String(n || '?')); return a.length <= 2 ? a[0] + '*' : a[0] + '*'.repeat(Math.min(4, a.length - 2)) + a[a.length - 1]; };
+  // Email che bớt phần giữa (vd. ng****h@gmail.com) để bảo vệ riêng tư người được mời.
+  const maskMail = e => { const [u, d] = String(e || '').split('@'); if (!d) return ''; const a = Array.from(u); return (a.length <= 2 ? a[0] + '*' : a.slice(0, 2).join('') + '*'.repeat(Math.min(4, a.length - 3)) + a[a.length - 1]) + '@' + d; };
   return json({ ok: true, code, rate: Math.max(0, parseFloat(s.ref_rate) || 5), enabled: s.ref_enabled !== '0', count, earned: stat ? stat.ref_earned : 0,
-    list: list.map(x => ({ name: mask(x.name), at: x.created_at, given: x.ref_given })) });
+    list: list.map(x => ({ name: x.name, email: maskMail(x.email), at: x.created_at, given: x.ref_given })),
+    log: log.map(x => ({ name: x.name || 'Tài khoản đã xóa', amount: x.amount, source: x.source, at: x.created_at })) });
 }

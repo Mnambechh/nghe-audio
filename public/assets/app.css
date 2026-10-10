@@ -1154,3 +1154,9 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .ref-row:last-child { border-bottom: 0; }
 .ref-row small { color: var(--muted); flex: 1; }
 .ref-row span { font-weight: 700; color: var(--brand); }
+.ref-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.ref-txt small { color: var(--muted); font-size: 12px; }
+.ref-ico { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--dh-pink, #FFE3E6); }
+.ref-plus { color: #2F7D4F !important; font-weight: 800; white-space: nowrap; }
+.ref-log .ref-txt { display: block; }
+.ref-log .ref-txt small { display: block; margin-top: 2px; }

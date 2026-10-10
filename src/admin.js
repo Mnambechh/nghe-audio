@@ -854,6 +854,8 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
           db.prepare('DELETE FROM member_log WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM wallet_log WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM quest_done WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM ref_log WHERE referrer_id = ? OR referee_id = ?').bind(uid, uid),
+          db.prepare('UPDATE users SET referred_by = 0 WHERE referred_by = ?').bind(uid),
           db.prepare('DELETE FROM users WHERE id = ?').bind(uid),
         ]);
         await clearCache(db);
