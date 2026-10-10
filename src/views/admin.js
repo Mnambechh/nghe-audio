@@ -19,7 +19,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -241,6 +241,12 @@ export function settingsView(s, origin) {
   </div>
   <label>Chữ ở chân trang<input name="footer_text" value="${h(s.footer_text)}"></label>
 
+  <h2>Bình luận & đăng nhập Google</h2>
+  <label class="check"><input type="checkbox" name="comments_enabled" value="1"${s.comments_enabled === '1' ? ' checked' : ''}> Bật bình luận</label>
+  <label class="check"><input type="checkbox" name="comment_moderation" value="1"${s.comment_moderation === '1' ? ' checked' : ''}> Duyệt bình luận trước khi hiện (bình luận có link luôn phải duyệt)</label>
+  <label>Google Client ID<input name="google_client_id" value="${h(s.google_client_id)}" placeholder="123456789-xxxx.apps.googleusercontent.com">
+    <small class="muted">Tạo tại console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID (Web). Xem hướng dẫn trong README.</small></label>
+
   <h2>SEO</h2>
   <label>Tiêu đề trang chủ (title)<input name="seo_title" maxlength="70" value="${h(s.seo_title)}"><small class="muted">Nên dưới 60 ký tự.</small></label>
   <label>Mô tả web (meta description)<textarea name="seo_description" rows="3" maxlength="300">${h(s.seo_description)}</textarea><small class="muted">Nên 120–160 ký tự. Hiện trên Google và khi chia sẻ Facebook/Zalo.</small></label>
@@ -338,4 +344,36 @@ export function securityView({ stats, logs, blocked, myIp }) {
 <form method="post" class="danger" data-confirm="Đăng xuất khỏi mọi thiết bị, kể cả máy này?">
   <input type="hidden" name="action" value="logout_all"><button type="submit">Đăng xuất khỏi mọi thiết bị</button>
 </form>`;
+}
+
+// ---------- Bình luận ----------
+
+export function commentsView({ rows, count, status, page, per, banned, moderation, clientId }) {
+  const tabs = [['pending', 'Chờ duyệt'], ['approved', 'Đã hiện'], ['hidden', 'Đã ẩn']];
+  const total = count[status] || 0;
+  const pages = Math.max(1, Math.ceil(total / per));
+  const btn = (act, label, c, extra = '') => `<form method="post"${extra}><input type="hidden" name="action" value="${act}"><input type="hidden" name="id" value="${c.id}"><input type="hidden" name="user_id" value="${c.user_id}"><button>${label}</button></form>`;
+  return `
+<div class="bar"><h1>Bình luận</h1>
+  ${status === 'pending' && total ? `<form method="post" data-confirm="Duyệt tất cả ${total} bình luận đang chờ?"><input type="hidden" name="action" value="approve_all"><button class="btn">Duyệt tất cả</button></form>` : ''}
+</div>
+${clientId ? '' : `<div class="flash err">Chưa nhập Google Client ID nên người nghe chưa đăng nhập được. Vào <a href="${ADMIN}/settings">Cài đặt & SEO</a> để nhập.</div>`}
+<p class="muted">${moderation ? 'Đang bật duyệt: bình luận mới chỉ hiện sau khi bạn bấm Duyệt.' : 'Đang tắt duyệt: bình luận hiện ngay (trừ bình luận có link).'}</p>
+<nav class="tabs-admin">${tabs.map(([k, l]) => `<a href="?status=${k}" class="${k === status ? 'on' : ''}">${l} (${count[k] || 0})</a>`).join('')}</nav>
+<div class="table">
+  ${rows.map(c => `<div class="trow crow">
+    <span class="tmain"><b>${h(c.name)}${c.banned ? ' <em class="pill">Đã khóa</em>' : ''} <small>${h(c.email)}</small></b>
+      <span class="cbody">${h(c.body)}</span>
+      <small>${vnDate(c.created_at, true)} · ${c.parent_id ? 'trả lời · ' : ''}${c.track_slug ? `<a href="/track/${h(c.track_slug)}#comments" target="_blank">${h(c.track_title)}</a>` : 'audio đã xóa'} · ${c.likes} thích · ${h(c.ip)}</small></span>
+    <span class="tact col">
+      ${c.status !== 'approved' ? btn('approve', 'Duyệt', c, ' class="ok-form"') : ''}
+      ${c.status !== 'hidden' ? btn('hide', 'Ẩn', c) : ''}
+      ${btn('delete', 'Xóa', c, ' data-confirm="Xóa bình luận này?"')}
+      ${c.banned ? btn('unban', 'Mở khóa', c) : btn('ban', 'Khóa người này', c, ` data-confirm="Khóa ${h(c.name)} và ẩn mọi bình luận của họ?"`)}
+    </span>
+  </div>`).join('') || '<p class="muted pad">Không có bình luận nào.</p>'}
+</div>
+${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="?status=${status}&page=${i}">${i}</a>`).join('')}</nav>` : ''}
+${banned.length ? `<h2>Người dùng bị khóa (${banned.length})</h2><div class="table">${banned.map(u => `<div class="trow"><span class="tmain"><b>${h(u.name)}</b><small>${h(u.email)}</small></span>
+  <span class="tact"><form method="post"><input type="hidden" name="action" value="unban"><input type="hidden" name="user_id" value="${u.id}"><button class="ok-txt">Mở khóa</button></form></span></div>`).join('')}</div>` : ''}`;
 }

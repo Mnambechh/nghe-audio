@@ -358,6 +358,7 @@
 
   function initPage() {
     pageTrack = readTrack();
+    initComments();
     if (pageTrack) {
       const li = Math.min(store.get('lastidx_' + pageTrack.id, 0) || 0, pageTrack.parts.length - 1);
       const pos = store.get(posKey(pageTrack.id, li), 0);
@@ -613,6 +614,230 @@
     inp.focus({ preventScroll: true });
   }
   window.addEventListener('hashchange', focusSearchFromHash);
+
+  // ---------- Bình luận + đăng nhập Google ----------
+  const EMOJIS = ['😂', '🤣', '😍', '🥰', '😘', '😊', '😁', '😅', '😢', '😭', '😡', '😤', '😱', '🤔', '😴', '🥺', '👍', '👏', '🙏', '💪', '❤️', '💔', '🔥', '🎧'];
+  const AV_COLORS = ['#e91e63', '#9c27b0', '#3f51b5', '#0288d1', '#00897b', '#43a047', '#f4511e', '#6d4c41', '#546e7a', '#d81b60'];
+  let cState = null;
+  let gsiPromise = null, gsiClient = '';
+
+  function avatar(name, url, cls = 'c-av') {
+    if (url) return `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+    const n = String(name || '?').trim();
+    let hsh = 0;
+    for (const ch of n) hsh = (hsh * 31 + ch.codePointAt(0)) >>> 0;
+    const letters = Array.from(n)[0].toUpperCase();
+    return `<span class="${cls}" style="background:${AV_COLORS[hsh % AV_COLORS.length]}">${esc(letters)}</span>`;
+  }
+
+  function cDate(ts) {
+    const diff = Date.now() / 1000 - ts;
+    if (diff < 60) return 'vừa xong';
+    if (diff < 3600) return Math.floor(diff / 60) + ' phút trước';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' giờ trước';
+    const d = new Date(ts * 1000 + 7 * 3600e3);
+    return `ngày ${d.getUTCDate()} tháng ${d.getUTCMonth() + 1}, ${d.getUTCFullYear()}`;
+  }
+
+  function cItem(c) {
+    return `<div class="c-item${c.parent ? ' c-reply' : ''}" data-cid="${c.id}">
+      ${avatar(c.name, c.avatar)}
+      <div class="c-main">
+        <div class="c-bubble"><b>${esc(c.name)}</b><p>${esc(c.body).replace(/\n/g, '<br>')}</p>
+          <span class="c-hearts"${c.likes ? '' : ' hidden'}>❤️ <b>${c.likes}</b></span></div>
+        <div class="c-actions">
+          <span>${cDate(c.at)}</span>
+          ${c.pending ? '<span class="c-pending">Đang chờ duyệt</span>' : `<button type="button" data-c="like" class="${c.liked ? 'on' : ''}">Thích</button>
+          <button type="button" data-c="reply">Trả lời</button>`}
+          ${c.mine ? '<button type="button" data-c="del">Xóa</button>' : ''}
+        </div>
+        ${c.parent ? '' : '<div class="c-replies"></div>'}
+      </div>
+    </div>`;
+  }
+
+  function composeHtml(parent = 0, placeholder = '') {
+    const me = cState.me;
+    const ph = placeholder || ('Viết bình luận...' + (cState.config.moderation ? ' (sẽ hiện sau khi duyệt)' : ''));
+    return `<form class="c-form" data-parent="${parent}">
+      ${avatar(me.name, me.avatar)}
+      <div class="c-field">
+        <textarea rows="1" maxlength="1000" placeholder="${esc(ph)}" aria-label="Nội dung bình luận"></textarea>
+        <button type="button" class="c-ico" data-c="emoji" aria-label="Chèn emoji">😊</button>
+        <button type="submit" class="c-send" aria-label="Gửi"><svg viewBox="0 0 24 24"><path d="M3 20.5 21 12 3 3.5V10l12 2-12 2z"/></svg></button>
+        <div class="c-emojis" hidden>${EMOJIS.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('')}</div>
+      </div>
+    </form>`;
+  }
+
+  function renderComments() {
+    const sec = $('#comments');
+    if (!sec || !cState) return;
+    const { me, config, items } = cState;
+    if (!config.enabled) { sec.hidden = true; return; }
+    $('.c-count', sec).textContent = `(${cState.total})`;
+    const compose = $('.c-compose', sec);
+    if (me && me.banned) compose.innerHTML = '<p class="c-note">Tài khoản của bạn đã bị khóa bình luận.</p>';
+    else if (me) compose.innerHTML = composeHtml() + `<p class="c-who">Đang bình luận với tên <b>${esc(me.name)}</b> · <button type="button" data-c="logout">Đăng xuất</button></p>`;
+    else {
+      compose.innerHTML = `<div class="c-login"><p>Đăng nhập để bình luận</p><div class="g-btn"></div></div>`;
+      if (config.clientId) renderGoogleButton($('.g-btn', compose), config.clientId);
+      else $('.g-btn', compose).innerHTML = '<span class="c-note">Đăng nhập Google chưa được bật.</span>';
+    }
+    const tops = items.filter(c => !c.parent);
+    const list = $('.c-list', sec);
+    list.innerHTML = tops.length ? tops.map(cItem).join('') : '<p class="c-note">Chưa có bình luận nào. Hãy là người đầu tiên!</p>';
+    items.filter(c => c.parent).sort((a, b) => a.at - b.at).forEach(r => {
+      const box = $(`.c-item[data-cid="${r.parent}"] .c-replies`, list);
+      if (box) box.insertAdjacentHTML('beforeend', cItem(r));
+    });
+  }
+
+  function loadComments() {
+    const sec = $('#comments');
+    if (!sec) return;
+    fetch(`${APP.base}/api/comments?track=${sec.dataset.track}`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('#comments') !== sec) return;
+      cState = r;
+      renderComments();
+    }).catch(() => { $('.c-list', sec).innerHTML = '<p class="c-note">Không tải được bình luận.</p>'; });
+  }
+
+  function initComments() {
+    const sec = $('#comments');
+    cState = null;
+    if (!sec) return;
+    if (!('IntersectionObserver' in window)) return loadComments();
+    const io = new IntersectionObserver(es => {
+      if (es.some(e => e.isIntersecting)) { io.disconnect(); loadComments(); }
+    }, { rootMargin: '600px 0px' });
+    io.observe(sec);
+  }
+
+  function loadGsi() {
+    if (!gsiPromise) {
+      gsiPromise = new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = 'https://accounts.google.com/gsi/client';
+        sc.async = true; sc.onload = resolve; sc.onerror = reject;
+        document.head.appendChild(sc);
+      });
+    }
+    return gsiPromise;
+  }
+
+  async function renderGoogleButton(el, clientId) {
+    try {
+      await loadGsi();
+      if (gsiClient !== clientId) {
+        google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential, cancel_on_tap_outside: true, use_fedcm_for_prompt: true });
+        gsiClient = clientId;
+      }
+      google.accounts.id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', locale: 'vi', width: Math.min(320, el.clientWidth || 320) });
+      setTimeout(() => {
+        if (el.isConnected && !el.querySelector('iframe, div[role=button]')) {
+          el.innerHTML = '<span class="c-note">Không hiện được nút Google. Hãy tắt trình chặn quảng cáo cho trang này rồi tải lại.</span>';
+        }
+      }, 6000);
+    } catch (e) {
+      el.innerHTML = '<span class="c-note">Không tải được nút đăng nhập Google. Hãy tắt trình chặn quảng cáo cho trang này rồi tải lại.</span>';
+    }
+  }
+
+  function onGoogleCredential(resp) {
+    api('/api/auth/google', { credential: resp.credential }).then(r => {
+      if (r && r.ok) { toast('Xin chào ' + r.me.name + '!'); loadComments(); }
+      else toast((r && r.error) || 'Đăng nhập không thành công');
+    });
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-c], [data-emoji]');
+    if (!b || !b.closest('#comments')) {
+      if (!e.target.closest('.c-emojis')) $$('.c-emojis').forEach(x => { x.hidden = true; });
+      return;
+    }
+    if (b.dataset.emoji) {
+      const ta = $('textarea', b.closest('.c-form'));
+      const st = ta.selectionStart ?? ta.value.length;
+      ta.value = ta.value.slice(0, st) + b.dataset.emoji + ta.value.slice(ta.selectionEnd ?? st);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = st + b.dataset.emoji.length;
+      return;
+    }
+    const item = b.closest('.c-item');
+    const id = item ? +item.dataset.cid : 0;
+    switch (b.dataset.c) {
+      case 'emoji': {
+        const pop = $('.c-emojis', b.closest('.c-form'));
+        pop.hidden = !pop.hidden;
+        return;
+      }
+      case 'logout':
+        api('/api/auth/logout', {}).then(() => { toast('Đã đăng xuất'); loadComments(); });
+        return;
+      case 'like': {
+        if (!cState.me) { toast('Đăng nhập để thích bình luận'); $('#comments').scrollIntoView({ behavior: 'smooth' }); return; }
+        api('/api/comments/like', { id }).then(r => {
+          if (!r || !r.ok) return;
+          b.classList.toggle('on', r.liked);
+          const hearts = $(':scope > .c-main > .c-bubble .c-hearts', item);
+          hearts.hidden = !r.likes;
+          $('b', hearts).textContent = r.likes;
+        });
+        return;
+      }
+      case 'reply': {
+        if (!cState.me) { toast('Đăng nhập để trả lời'); return; }
+        const root = item.classList.contains('c-reply') ? item.parentElement.closest('.c-item') : item;
+        const box = $(':scope > .c-main > .c-replies', root);
+        let f = $(':scope > .c-form', box);
+        if (!f) {
+          box.insertAdjacentHTML('beforeend', composeHtml(id, 'Viết câu trả lời...'));
+          f = $(':scope > .c-form', box);
+        }
+        const name = $('.c-bubble b', item).textContent;
+        const ta = $('textarea', f);
+        if (item !== root && !ta.value) ta.value = '@' + name + ' ';
+        ta.focus();
+        return;
+      }
+      case 'del':
+        if (!confirm('Xóa bình luận này?')) return;
+        api('/api/comments/delete', { id }).then(r => { if (r && r.ok) { toast('Đã xóa'); loadComments(); } });
+    }
+  });
+
+  document.addEventListener('input', e => {
+    if (e.target.matches('.c-form textarea')) {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px';
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && e.target.matches('.c-form textarea') && matchMedia('(pointer: fine)').matches) {
+      e.preventDefault();
+      e.target.closest('.c-form').requestSubmit();
+    }
+  });
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (!f.classList.contains('c-form')) return;
+    e.preventDefault();
+    const ta = $('textarea', f), btn = $('.c-send', f);
+    const body = ta.value.trim();
+    if (!body || btn.disabled) return;
+    btn.disabled = true;
+    api('/api/comments', { track_id: +$('#comments').dataset.track, parent_id: +f.dataset.parent, body }).then(r => {
+      btn.disabled = false;
+      if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được, thử lại sau'); return; }
+      ta.value = ''; ta.style.height = '';
+      cState.items.unshift(r.item);
+      if (!r.item.pending) cState.total++;
+      renderComments();
+      toast(r.item.pending ? 'Đã gửi, bình luận sẽ hiện sau khi được duyệt' : 'Đã đăng bình luận');
+    });
+  });
 
   // ---------- Khởi động ----------
   const last = store.get('last');

@@ -278,6 +278,11 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const f = await request.formData();
       const data = {};
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
+      data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
+      data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      const gid = str(f, 'google_client_id');
+      if (gid && !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(gid)) return go(ADMIN + '/settings', ['err', 'Google Client ID không đúng dạng (…apps.googleusercontent.com).']);
+      data.google_client_id = gid;
       const color = str(f, 'theme_color');
       data.theme_color = /^#[0-9a-fA-F]{6}$/.test(color) ? color : DEFAULT_SETTINGS.theme_color;
       data.per_page = String(Math.min(100, Math.max(5, parseInt(f.get('per_page'), 10) || 15)));
@@ -351,6 +356,45 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       }
     }
     return view(V.passwordView(s, err), err ? 400 : 200);
+  }
+
+  // Bình luận: duyệt, ẩn, xóa, khóa người dùng
+  if (path === '/admin/comments') {
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.get('action');
+      const id = parseInt(f.get('id'), 10) || 0;
+      const uid = parseInt(f.get('user_id'), 10) || 0;
+      const back = ADMIN + '/comments' + (url.search || '');
+      if (act === 'approve' && id) await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(id).run();
+      else if (act === 'hide' && id) await db.prepare("UPDATE comments SET status = 'hidden' WHERE id = ?").bind(id).run();
+      else if (act === 'delete' && id) {
+        await db.batch([
+          db.prepare('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE id = ? OR parent_id = ?)').bind(id, id),
+          db.prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?').bind(id, id),
+        ]);
+      } else if (act === 'approve_all') await db.prepare("UPDATE comments SET status = 'approved' WHERE status = 'pending'").run();
+      else if (act === 'ban' && uid) {
+        await db.batch([
+          db.prepare('UPDATE users SET banned = 1 WHERE id = ?').bind(uid),
+          db.prepare("UPDATE comments SET status = 'hidden' WHERE user_id = ?").bind(uid),
+        ]);
+        return go(back, ['ok', 'Đã khóa người dùng và ẩn mọi bình luận của họ.']);
+      } else if (act === 'unban' && uid) await db.prepare('UPDATE users SET banned = 0 WHERE id = ?').bind(uid).run();
+      return go(back, ['ok', 'Đã cập nhật.']);
+    }
+    const status = ['pending', 'approved', 'hidden'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
+    const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+    const per = 40;
+    const [rows, counts, banned] = await Promise.all([
+      all(db, `SELECT c.*, u.name, u.email, u.avatar, u.banned, t.title track_title, t.slug track_slug
+        FROM comments c JOIN users u ON u.id = c.user_id LEFT JOIN tracks t ON t.id = c.track_id
+        WHERE c.status = ? ORDER BY c.created_at DESC LIMIT ${per} OFFSET ${(page - 1) * per}`, status),
+      all(db, 'SELECT status, COUNT(*) n FROM comments GROUP BY status'),
+      all(db, 'SELECT id, name, email FROM users WHERE banned = 1 ORDER BY id DESC LIMIT 100'),
+    ]);
+    const count = Object.fromEntries(counts.map(r => [r.status, r.n]));
+    return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id }));
   }
 
   // Bảo mật: nhật ký tấn công, chặn IP, đăng xuất mọi thiết bị

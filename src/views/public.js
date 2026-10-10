@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '6';
+export const ASSET_V = '8';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -294,6 +294,11 @@ export function trackPage(ctx, t, related) {
       <span class="part-body"><b>${h(p.title)}</b>${p.duration ? `<small>${fmtTime(p.duration)}</small>` : ''}</span>
       <span class="part-prog"><span></span></span>
     </button>`).join('')}</div></section>` : ''}
+  ${ctx.s.comments_enabled === '1' ? `<section class="comments" id="comments" data-track="${t.id}">
+    <h2 class="h2">Bình luận <span class="c-count"></span></h2>
+    <div class="c-compose"></div>
+    <div class="c-list"><p class="c-note">Đang tải bình luận…</p></div>
+  </section>` : ''}
   ${related.length ? shelf('Có thể bạn sẽ thích', rail(related)) : ''}
 </div>
 <script type="application/json" id="track-data">${jsonScript(data)}</script>

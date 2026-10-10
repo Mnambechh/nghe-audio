@@ -46,6 +46,21 @@ const SCHEMA_V2 = [
   `CREATE INDEX IF NOT EXISTS idx_plays_ip ON plays(ip, day)`,
 ];
 
+// Bản 3: người dùng (đăng nhập Google) và bình luận.
+const SCHEMA_V3 = [
+  `CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, sub TEXT NOT NULL UNIQUE, name TEXT NOT NULL, email TEXT NOT NULL DEFAULT '',
+    avatar TEXT NOT NULL DEFAULT '', banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, last_login INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, track_id INTEGER NOT NULL, user_id INTEGER NOT NULL, parent_id INTEGER NOT NULL DEFAULT 0,
+    body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', likes INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL, ip TEXT NOT NULL DEFAULT '')`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_track ON comments(track_id, status, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(status, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS comment_likes (comment_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (comment_id, user_id))`,
+];
+
 let migrated = false;
 
 async function missing(db, table) {
@@ -61,6 +76,7 @@ export async function migrate(db) {
   if (migrated) return;
   if (await missing(db, 'cache')) await db.batch(SCHEMA.map(s => db.prepare(s)));
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
+  if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
   migrated = true;
 }
 
@@ -78,6 +94,9 @@ export const DEFAULT_SETTINGS = {
   footer_text: 'Nghe audio trực tuyến miễn phí.',
   head_code: '',
   per_page: '15',
+  comments_enabled: '1',
+  comment_moderation: '1',
+  google_client_id: '',
   ad_enabled: '1',
   ad_interval_hours: '6',
   ad_message: 'Bạn xác nhận bấm "Đồng ý mở Shopee và tham khảo sản phẩm" là hoàn toàn tự nguyện. Bạn cũng có thể bấm X ở góc để đóng.',

@@ -31,6 +31,19 @@ Không cần server, không cần cài thư viện. Mỗi lần đẩy code lên
 ### Bước 5: Gắn tên miền (tùy chọn)
 Dự án → **Custom domains → Set up a custom domain** → nhập tên miền. Nếu tên miền đang dùng DNS của Cloudflare thì mọi thứ tự cấu hình.
 
+## Bật bình luận (đăng nhập Google)
+1. Vào [console.cloud.google.com](https://console.cloud.google.com), tạo một project, ví dụ `truyengi`.
+2. **APIs & Services → OAuth consent screen** (Google Auth Platform → Branding): điền tên app, email hỗ trợ.
+   - Audience/User type: **External**. Bấm **Publish app** để ai cũng đăng nhập được.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - Application type: **Web application**
+   - **Authorized JavaScript origins:** thêm `https://truyengi.info` và `https://nghe-audio.pages.dev`
+   - Không cần Redirect URI. Bấm **Create**.
+4. Copy **Client ID** (dạng `123456-abc.apps.googleusercontent.com`) → vào trang quản trị **Cài đặt & SEO → Bình luận & đăng nhập Google** → dán vào → **Lưu**.
+
+Người nghe sẽ thấy nút **"Tiếp tục với Google"** dưới mỗi audio. Bình luận mới mặc định **chờ duyệt** (quản trị → **Bình luận**), muốn hiện ngay thì bỏ tick "Duyệt bình luận trước khi hiện". Bình luận có link luôn phải chờ duyệt.
+Chống spam: mỗi người cách nhau tối thiểu 15 giây, tối đa 50 bình luận/ngày. Admin có thể **Khóa người này** (ẩn mọi bình luận của họ).
+
 ## Audio trên R2
 - Tạo bucket R2, vào **Settings → Public access → Custom domain**, gắn một tên miền phụ như `cdn.tenmien.com`.
 - Upload file `.mp3` hoặc `.m4a` lên bucket, rồi dán link dạng `https://cdn.tenmien.com/ten-file.mp3` vào trang admin. Thời lượng sẽ tự lấy.

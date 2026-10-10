@@ -82,6 +82,7 @@ export const EVENT_LABELS = {
   login_lock: 'Khóa đăng nhập tạm thời',
   csrf: 'Gửi form giả mạo',
   play_spam: 'Bơm lượt nghe',
+  comment_spam: 'Spam bình luận',
 };
 
 // ---------- Header bảo mật ----------
