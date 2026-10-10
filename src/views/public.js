@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '21';
+export const ASSET_V = '22';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -111,7 +111,7 @@ ${body}
     <button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
     <button class="pl-btn pl-play" type="button" data-act="toggle" aria-label="Phát / Tạm dừng"></button>
     <button class="pl-icon wide-only" type="button" data-act="next" aria-label="Tập sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
-    <button class="pl-speed" type="button" data-act="speed" aria-label="Tốc độ nghe"><span class="speed-val">1×</span></button>
+    <button class="pl-speed" type="button" data-act="speed" aria-label="Tốc độ nghe"><span class="speed-val">1.5×</span></button>
     <button class="pl-moon" type="button" data-act="timer-pop" aria-label="Hẹn giờ tắt">${ICON_MOON}</button>
   </div>
   <div class="pl-seek">
@@ -150,7 +150,7 @@ ${body}
       <button class="c-btn" type="button" data-act="next" aria-label="Phần sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
     </div>
     <div class="extras">
-      <button class="chip" type="button" data-act="speed">Tốc độ <b class="speed-val">1×</b></button>
+      <button class="chip" type="button" data-act="speed">Tốc độ <b class="speed-val">1.5×</b></button>
       <button class="chip" type="button" data-act="timer">${ICON_MOON} <span class="timer-val">Hẹn giờ</span></button>
     </div>
     <div class="timer-menu" hidden>

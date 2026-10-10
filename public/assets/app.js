@@ -8,6 +8,7 @@
   const sheet = $('#sheet');
   const body = document.body;
   const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  const DEFAULT_SPEED = 1.5; // tốc độ nghe mặc định khi người nghe chưa tự chọn
 
   // ---------- Lưu trữ cục bộ (an toàn khi bị chặn) ----------
   const store = {
@@ -51,7 +52,8 @@
   let idx = 0;
   let pendingSeek = 0;
   let lastSave = 0, lastPing = 0, lastPos = 0, lastMs = 0;
-  let speed = SPEEDS.includes(store.get('speed')) ? store.get('speed') : 1;
+  let speed = SPEEDS.includes(store.get('speed')) ? store.get('speed') : DEFAULT_SPEED;
+  audio.defaultPlaybackRate = audio.playbackRate = speed;
   let timer = null;        // {end: ms} hoặc {part: true}
   let dragging = false;
   const counted = new Set();
@@ -65,7 +67,7 @@
     const saved = store.get(posKey(cur.id, idx), 0);
     pendingSeek = opts.at != null ? opts.at : (p.duration && saved > p.duration - 8 ? 0 : saved);
     audio.src = p.url;
-    audio.playbackRate = speed;
+    audio.defaultPlaybackRate = audio.playbackRate = speed;
     store.set('last', { track: cur, idx });
     store.set('lastidx_' + cur.id, idx);
     player.hidden = false;
@@ -166,7 +168,7 @@
     const custom = p.title !== 'Phần ' + (idx + 1);
     $('.sheet-sub', sheet).textContent = multi ? (custom ? `${p.title} · ` : '') + `Phần ${idx + 1}/${cur.parts.length}` : (custom ? p.title : '');
     $$('.speed-val').forEach(e => { e.textContent = speed + '×'; });
-    $('.pl-speed', player).classList.toggle('on', speed !== 1);
+    $('.pl-speed', player).classList.toggle('on', speed !== DEFAULT_SPEED);
     renderTime();
     renderTimer();
     renderPage();
@@ -241,7 +243,7 @@
 
   // ---------- Sự kiện audio ----------
   audio.addEventListener('loadedmetadata', () => {
-    audio.playbackRate = speed;
+    audio.defaultPlaybackRate = audio.playbackRate = speed;
     if (pendingSeek > 0 && pendingSeek < audio.duration - 3) audio.currentTime = pendingSeek;
     pendingSeek = 0;
     renderTime();
@@ -471,7 +473,7 @@
       case 'next': go(1); return;
       case 'speed':
         speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-        audio.playbackRate = speed;
+        audio.defaultPlaybackRate = audio.playbackRate = speed;
         store.set('speed', speed);
         renderAll();
         return;
