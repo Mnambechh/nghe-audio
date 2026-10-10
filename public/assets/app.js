@@ -1431,6 +1431,7 @@
     once('heart', () => api('/api/heart', { track_id: +box.dataset.track }).then(r => {
       if (!r || !r.ok) { box.classList.remove('on'); toast((r && r.error) || 'Chưa bắn tim được, thử lại sau'); initHeartReset(box); return; }
       n.textContent = nf(r.count);
+      if (r.added) { showRewards(r.rewards, 'Bạn đã thả tim thành công', '❤️'); fetchMe(); }
     }));
   }
   function initHeartReset(box) { delete box.dataset.loaded; initHeart(); }

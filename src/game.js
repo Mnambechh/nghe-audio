@@ -10,6 +10,9 @@ export const GAME_DEFAULTS = {
   comment_exp: '2',         // EXP khi bình luận được duyệt
   comment_exp_daily: '10',  // số bình luận mỗi ngày được cộng EXP
   rate_daily: '15',         // số truyện được đánh giá mỗi ngày
+  heart_stones: '1',        // Linh Thạch mỗi lần thả tim truyện
+  heart_exp: '1',           // EXP mỗi lần thả tim truyện
+  heart_daily: '50',        // số truyện được thả tim mỗi ngày
   level_base_exp: '100',    // cấp N cần N × số này EXP để lên cấp (tính lại từ 0 mỗi cấp)
 };
 // Thưởng Linh Thạch mỗi lần lên cấp theo khoảng cấp: "đến cấp:Linh Thạch" mỗi dòng.
@@ -155,11 +158,34 @@ export async function handleGameApi(request, db, s, path, me, input) {
     if (heartHits.size > 5000) heartHits.clear();
     if (list.length > 5) return json({ ok: false, error: 'Thao tác quá nhanh, thử lại sau ít giây.' }, 429);
     const trackId = parseInt(input.track_id, 10) || 0;
-    if (!(await first(db, 'SELECT 1 x FROM tracks WHERE id = ? AND published = 1', trackId))) return json({ ok: false }, 404);
+    const tr0 = await first(db, 'SELECT title FROM tracks WHERE id = ? AND published = 1', trackId);
+    if (!tr0) return json({ ok: false }, 404);
+    if (await first(db, 'SELECT 1 x FROM track_hearts WHERE user_id = ? AND track_id = ?', me.id, trackId)) {
+      const tr = await first(db, 'SELECT hearts FROM tracks WHERE id = ?', trackId);
+      return json({ ok: true, added: false, count: tr.hearts, mine: true });
+    }
+    // Giữ 1 lượt trong ngày (nguyên tử): tối đa heart_daily truyện / ngày.
+    const today = vnDay(), max = num(s, 'heart_daily');
+    const slot = await db.prepare(`UPDATE users SET heart_n = CASE WHEN heart_day = ? THEN heart_n + 1 ELSE 1 END, heart_day = ?
+      WHERE id = ? AND (heart_day != ? OR heart_n < ?)`).bind(today, today, me.id, today, max).run();
+    if (!slot.meta.changes) return json({ ok: false, limit: true, error: `Mỗi ngày chỉ thả tim được ${max} truyện, mai quay lại nhé!` }, 429);
     const r = await db.prepare('INSERT OR IGNORE INTO track_hearts (user_id, track_id, created_at) VALUES (?, ?, ?)').bind(me.id, trackId, now()).run();
-    if (r.meta.changes) await db.prepare('UPDATE tracks SET hearts = hearts + 1 WHERE id = ?').bind(trackId).run();
+    let rewards = [];
+    if (r.meta.changes) {
+      await db.prepare('UPDATE tracks SET hearts = hearts + 1 WHERE id = ?').bind(trackId).run();
+      const st = num(s, 'heart_stones'), ex = num(s, 'heart_exp');
+      if (st) {
+        await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(st, me.id).run();
+        await walletLog(db, me.id, 'stones', st, `Thả tim: ${tr0.title}`);
+        rewards.push({ type: 'stones', n: st });
+      }
+      if (ex) rewards.push(...await awardExp(db, s, me.id, ex, `Thả tim: ${tr0.title}`));
+    } else {
+      // Bấm trùng đồng thời: trả lại lượt vừa giữ.
+      await db.prepare('UPDATE users SET heart_n = MAX(0, heart_n - 1) WHERE id = ? AND heart_day = ?').bind(me.id, today).run();
+    }
     const tr = await first(db, 'SELECT hearts FROM tracks WHERE id = ?', trackId);
-    return json({ ok: true, added: !!r.meta.changes, count: tr.hearts, mine: true });
+    return json({ ok: true, added: !!r.meta.changes, count: tr.hearts, mine: true, rewards });
   }
 
   // Cộng thời gian đang mở tab web. Mỗi lần tối đa 20 giây và không quá thời gian thật trôi qua kể từ lần báo trước.

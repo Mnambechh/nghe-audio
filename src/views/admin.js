@@ -296,6 +296,9 @@ export function settingsView(s, origin) {
     <label>EXP mỗi bình luận được duyệt<input name="comment_exp" inputmode="numeric" value="${h(s.comment_exp)}"></label>
     <label>Số bình luận/ngày được cộng EXP<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
     <label>Số truyện được đánh giá mỗi ngày (mỗi lượt +1 EXP)<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
+    <label>Thả tim: Linh Thạch mỗi truyện<input name="heart_stones" inputmode="numeric" value="${h(s.heart_stones)}"></label>
+    <label>Thả tim: EXP mỗi truyện<input name="heart_exp" inputmode="numeric" value="${h(s.heart_exp)}"></label>
+    <label>Số truyện được thả tim mỗi ngày<input name="heart_daily" inputmode="numeric" value="${h(s.heart_daily)}"></label>
   </div>
   <h3>Thưởng Linh Thạch mỗi lần lên cấp</h3>
   <p class="muted">Mỗi dòng: lên tới cấp nào thì mỗi lần lên cấp được thưởng bao nhiêu. Vd. "đến cấp 5: 200" nghĩa là lên cấp 2, 3, 4, 5 mỗi lần +200.</p>

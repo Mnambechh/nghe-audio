@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '52';
+export const ASSET_V = '53';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -457,6 +457,7 @@ export function guidePage(ctx, g) {
     <section class="gd-card">
       <h2>3. Kiếm EXP để lên cấp</h2>
       ${row('💬', 'Bình luận', `Mỗi bình luận được hiện. Tối đa <b>${nf(g.cmtDaily)} bình luận/ngày</b> được cộng EXP.`, xp(g.cmtExp))}
+      ${row('❤️', 'Thả tim truyện', `Bấm <b>Bắn tim</b> ở trang nghe, mỗi truyện 1 lần. Tối đa <b>${nf(g.heartDaily)} truyện/ngày</b>.`, rw(g.heartStones, g.heartExp))}
       ${row('⭐', 'Đánh giá truyện', `Chấm sao cho truyện, mỗi truyện 1 lần. Tối đa <b>${nf(g.rateDaily)} truyện/ngày</b>.`, xp(1))}
       ${g.checkinExp ? row('🎁', 'Điểm danh', 'Mỗi ngày điểm danh.', xp(g.checkinExp)) : ''}
       <p class="gd-note">Cấp <b>N</b> cần <b>N × ${nf(g.base)} EXP</b> để lên cấp kế tiếp (tính lại từ 0 mỗi cấp). Ví dụ: cấp 1 → 2 cần ${nf(g.base)} EXP, cấp 2 → 3 cần ${nf(g.base * 2)} EXP, cấp 10 → 11 cần ${nf(g.base * 10)} EXP.</p>
