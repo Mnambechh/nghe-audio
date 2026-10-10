@@ -1178,3 +1178,8 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .link-btn { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand); cursor: pointer; text-decoration: underline; }
 .login-box { max-height: 92vh; overflow-y: auto; }
 .reset-form { margin-top: 12px; padding: 18px; border-radius: 22px; background: var(--surface); box-shadow: 0 2px 0 var(--line); }
+
+/* Đầu trang: tách chuông và avatar để số thông báo không đè huy hiệu cấp */
+.acct { gap: 28px; }
+.bell-n { right: -6px; }
+@media (max-width: 380px) { .acct { gap: 24px; } }
