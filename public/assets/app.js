@@ -165,35 +165,46 @@
     $('.sheet-title', sheet).textContent = cur.title;
     const custom = p.title !== 'Phần ' + (idx + 1);
     $('.sheet-sub', sheet).textContent = multi ? (custom ? `${p.title} · ` : '') + `Phần ${idx + 1}/${cur.parts.length}` : (custom ? p.title : '');
-    $('.speed-val', sheet).textContent = speed + 'x';
+    $$('.speed-val').forEach(e => { e.textContent = speed + '×'; });
+    $('.pl-speed', player).classList.toggle('on', speed !== 1);
     renderTime();
     renderTimer();
     renderPage();
   }
 
+  function statusText() {
+    const multi = cur.parts.length > 1;
+    const st = body.classList.contains('is-loading') ? 'Đang tải…' : audio.paused ? 'Tạm dừng' : 'Đang phát';
+    let tm = '';
+    if (timer) tm = ' • ' + (timer.part ? 'tắt hết tập' : 'tắt sau ' + fmt((timer.end - Date.now()) / 1000));
+    return (multi ? `Tập ${idx + 1}/${cur.parts.length} • ` : '') + st + tm;
+  }
+
   function renderTime() {
     if (!cur) return;
     const d = audio.duration || part().duration || 0;
-    const t = dragging ? +$('.seek-range').value / 1000 * d : (audio.currentTime || pendingSeek || 0);
+    const t = dragging ? +dragging.value / 1000 * d : (audio.currentTime || pendingSeek || 0);
     const pct = d ? Math.min(100, t / d * 100) : 0;
-    const multi = cur.parts.length > 1;
-    $('.pl-sub', player).textContent = (multi ? `Phần ${idx + 1}/${cur.parts.length} · ` : '') + `${fmt(t)} / ${fmt(d)}`;
-    $('.pl-progress-mini span').style.width = pct + '%';
-    $('.t-cur', sheet).textContent = fmt(t);
-    $('.t-dur', sheet).textContent = fmt(d);
-    const r = $('.seek-range', sheet);
-    if (!dragging) r.value = Math.round(pct * 10);
-    r.style.setProperty('--pct', pct + '%');
+    $('.pl-sub', player).textContent = statusText();
+    $$('.t-cur').forEach(e => { e.textContent = fmt(t); });
+    $$('.t-dur').forEach(e => { e.textContent = fmt(d); });
+    $$('.seek-range').forEach(r => {
+      if (r !== dragging) r.value = Math.round(pct * 10);
+      r.style.setProperty('--pct', pct + '%');
+    });
     // Thanh tiến độ của phần đang phát trên trang
     const el = $(`.part[data-part="${idx}"] .part-prog span`);
     if (el && pageTrack && pageTrack.id === cur.id) el.style.width = pct + '%';
   }
 
   function renderTimer() {
-    const chip = $('[data-act="timer"]', sheet), val = $('.timer-val', sheet);
+    const chip = $('[data-act="timer"]', sheet), val = $('.timer-val', sheet), moon = $('.pl-moon', player);
+    moon.classList.toggle('on', !!timer);
+    $$('[data-timer]').forEach(b => b.classList.toggle('on', !!timer && (timer.part ? b.dataset.timer === 'end' : b.dataset.timer === String(timer.min))));
     if (!timer) { chip.classList.remove('on'); val.textContent = 'Hẹn giờ'; return; }
     chip.classList.add('on');
-    val.textContent = timer.part ? 'Hết phần này' : 'Tắt sau ' + fmt((timer.end - Date.now()) / 1000);
+    val.textContent = timer.part ? 'Hết tập này' : 'Tắt sau ' + fmt((timer.end - Date.now()) / 1000);
+    if (cur) $('.pl-sub', player).textContent = statusText();
   }
 
   function checkTimer() {
@@ -238,12 +249,14 @@
   audio.addEventListener('playing', () => {
     body.classList.add('is-playing');
     body.classList.remove('is-loading');
+    renderTime();
     if (!counted.has(cur.id)) { counted.add(cur.id); api('/api/play', { sid, track_id: cur.id }); }
     ping(true);
   });
-  audio.addEventListener('waiting', () => body.classList.add('is-loading'));
+  audio.addEventListener('waiting', () => { body.classList.add('is-loading'); renderTime(); });
   audio.addEventListener('pause', () => {
     body.classList.remove('is-playing', 'is-loading');
+    renderTime();
     savePos();
     ping(false);
   });
@@ -275,12 +288,15 @@
   }, 1000);
   window.addEventListener('pagehide', () => { savePos(); if (!audio.paused) ping(false); });
 
-  // ---------- Thanh tua ----------
-  const range = $('.seek-range', sheet);
-  range.addEventListener('input', () => { dragging = true; renderTime(); });
-  range.addEventListener('change', () => {
+  // ---------- Thanh tua (cả thanh dưới và trình phát mở rộng) ----------
+  document.addEventListener('input', e => {
+    if (!e.target.classList.contains('seek-range')) return;
+    dragging = e.target; renderTime();
+  });
+  document.addEventListener('change', e => {
+    if (!e.target.classList.contains('seek-range')) return;
     const d = audio.duration || 0;
-    if (d) audio.currentTime = +range.value / 1000 * d;
+    if (d) audio.currentTime = +e.target.value / 1000 * d;
     dragging = false; renderTime();
   });
 
@@ -303,7 +319,7 @@
     const panel = $('.sheet-panel', sheet);
     let y0 = null, dy = 0;
     panel.addEventListener('touchstart', e => {
-      if (panel.scrollTop > 0 || e.target === range) return;
+      if (panel.scrollTop > 0 || e.target.classList.contains('seek-range')) return;
       y0 = e.touches[0].clientY; dy = 0;
     }, { passive: true });
     panel.addEventListener('touchmove', e => {
@@ -385,8 +401,9 @@
     }
     if (t.dataset.timer) {
       const v = t.dataset.timer;
-      timer = v === 'off' ? null : v === 'end' ? { part: true } : { end: Date.now() + v * 60000 };
+      timer = v === 'off' ? null : v === 'end' ? { part: true } : { end: Date.now() + v * 60000, min: +v };
       $('.timer-menu', sheet).hidden = true;
+      $('#timerpop').hidden = true;
       renderTimer();
       toast(v === 'off' ? 'Đã tắt hẹn giờ' : v === 'end' ? 'Sẽ dừng khi hết phần này' : `Sẽ tắt sau ${v} phút`);
       return;
@@ -403,7 +420,7 @@
         if (!cur && pageTrack && pageTrack.parts.length) {
           load(pageTrack, Math.min(store.get('lastidx_' + pageTrack.id, 0) || 0, pageTrack.parts.length - 1));
         }
-        openSheet(true);
+        $('#timerpop').hidden = false;
         return;
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
       case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
@@ -421,7 +438,10 @@
         renderAll();
         return;
       case 'timer': $('.timer-menu', sheet).hidden = !$('.timer-menu', sheet).hidden; return;
+      case 'timer-pop': $('#timerpop').hidden = !$('#timerpop').hidden; return;
       case 'close':
+        closeSheet();
+        $('#timerpop').hidden = true;
         audio.pause();
         audio.removeAttribute('src'); audio.load();
         cur = null; timer = null;
@@ -579,6 +599,8 @@
       inp.value = ''; e.target.closest('.sb-clear').hidden = true; hideSuggest(); inp.focus();
       return;
     }
+    const pop = $('#timerpop');
+    if (pop && !pop.hidden && !e.target.closest('#timerpop, [data-act="timer-pop"], [data-act="timer-open"]')) pop.hidden = true;
     if (e.target.closest('.sg-item, .sg-all')) { hideSuggest(); return; }
     if (!e.target.closest('.searchbox')) hideSuggest();
   });

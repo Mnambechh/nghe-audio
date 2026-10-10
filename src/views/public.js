@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '5';
+export const ASSET_V = '6';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -74,14 +74,32 @@ ${body}
 </main>
 
 <div id="player" class="player" hidden>
-  <div class="pl-progress-mini"><span></span></div>
-  <div class="pl-bar">
+  <div class="pl-row">
     <button class="pl-info" type="button" data-act="expand" aria-label="Mở trình phát">
       <span class="eq"><i></i><i></i><i></i><i></i></span>
       <span class="pl-text"><b class="pl-title"></b><small class="pl-sub"></small></span>
     </button>
+    <button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
     <button class="pl-btn pl-play" type="button" data-act="toggle" aria-label="Phát / Tạm dừng"></button>
-    <button class="pl-btn pl-close" type="button" data-act="close" aria-label="Đóng">${ICON_X}</button>
+    <button class="pl-icon wide-only" type="button" data-act="next" aria-label="Tập sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+    <button class="pl-speed" type="button" data-act="speed" aria-label="Tốc độ nghe"><span class="speed-val">1×</span></button>
+    <button class="pl-moon" type="button" data-act="timer-pop" aria-label="Hẹn giờ tắt">${ICON_MOON}</button>
+  </div>
+  <div class="pl-seek">
+    <span class="t-cur">0:00</span>
+    <input type="range" class="seek-range" min="0" max="1000" value="0" step="1" aria-label="Tua">
+    <span class="t-dur">0:00</span>
+  </div>
+  <div class="timer-pop" id="timerpop" hidden>
+    <p>Hẹn giờ đi ngủ</p>
+    <div class="timer-grid">
+      <button type="button" data-timer="15">15 phút</button>
+      <button type="button" data-timer="30">30 phút</button>
+      <button type="button" data-timer="45">45 phút</button>
+      <button type="button" data-timer="60">60 phút</button>
+      <button type="button" data-timer="end">Hết tập này</button>
+      <button type="button" data-timer="off">Tắt hẹn giờ</button>
+    </div>
   </div>
 </div>
 
@@ -103,7 +121,7 @@ ${body}
       <button class="c-btn" type="button" data-act="next" aria-label="Phần sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
     </div>
     <div class="extras">
-      <button class="chip" type="button" data-act="speed">Tốc độ <b class="speed-val">1x</b></button>
+      <button class="chip" type="button" data-act="speed">Tốc độ <b class="speed-val">1×</b></button>
       <button class="chip" type="button" data-act="timer">${ICON_MOON} <span class="timer-val">Hẹn giờ</span></button>
     </div>
     <div class="timer-menu" hidden>
@@ -114,10 +132,11 @@ ${body}
         <button type="button" data-timer="45">45 phút</button>
         <button type="button" data-timer="60">60 phút</button>
         <button type="button" data-timer="90">90 phút</button>
-        <button type="button" data-timer="end">Hết phần này</button>
+        <button type="button" data-timer="end">Hết tập này</button>
         <button type="button" data-timer="off" class="wide">Tắt hẹn giờ</button>
       </div>
     </div>
+    <button class="sheet-close" type="button" data-act="close">Đóng trình phát</button>
   </div>
 </div>
 
