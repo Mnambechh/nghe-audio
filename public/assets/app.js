@@ -488,6 +488,7 @@
   });
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeTopSearch();
     if (e.key === 'Escape') { ['.acct-card', '.notif-panel', '#timerpop'].forEach(sel => { const el = $(sel); if (el) el.hidden = true; }); }
     if (e.key === 'Escape') { if (!$('#unlockbox').hidden) $('#unlockbox').hidden = true; else if (!sheet.hidden) closeSheet(); }
     if (e.code === 'Space' && cur && !/^(INPUT|TEXTAREA|BUTTON|A|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); toggle(); }
@@ -514,6 +515,7 @@
       });
       if (push) history.pushState({}, '', href);
       window.scrollTo(0, 0);
+      closeTopSearch();
       initPage();
       focusSearchFromHash();
     } catch (err) {
@@ -644,6 +646,32 @@
     if (!e.target.closest('.searchbox')) hideSuggest();
   });
 
+  // Bấm kính lúp: hiện ô tìm kiếm ngay dưới thanh đầu trang (không chuyển trang).
+  function openTopSearch() {
+    const pageBox = $('#main #search');
+    if (pageBox) {
+      pageBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      pageBox.focus({ preventScroll: true });
+      return;
+    }
+    let ov = $('#topsearch');
+    if (ov) { closeTopSearch(); return; }
+    ov = document.createElement('div');
+    ov.id = 'topsearch';
+    ov.className = 'topsearch-ov';
+    ov.innerHTML = `<div class="ts-inner"><form class="searchbox" action="${APP.base}/" method="get" role="search" autocomplete="off">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
+      <input id="search" type="search" name="q" placeholder="Tìm audio..." aria-label="Tìm audio" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="suggest">
+      <button type="button" class="sb-clear" aria-label="Xóa" hidden><svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg></button>
+      <div class="suggest" id="suggest" role="listbox" hidden></div></form></div>`;
+    $('.topbar').after(ov);
+    $('#search', ov).focus();
+  }
+  function closeTopSearch() {
+    const ov = $('#topsearch');
+    if (ov) ov.remove();
+  }
+
   function focusSearchFromHash() {
     if (location.hash !== '#search') return;
     const inp = $('#search');
@@ -723,6 +751,7 @@
     like: n => `<b>${esc(n.actor || 'Ai đó')}</b> đã thả tim bình luận của bạn ❤️`,
     approved: () => 'Bình luận của bạn đã được duyệt',
     levelup: () => '🎉 Đột phá thành công!',
+    admin: () => '🛡️ Quản trị viên',
   };
 
   function renderNotifs() {
@@ -734,7 +763,7 @@
     }
     html += (notifs || []).map(n => {
       const href = n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/tai-khoan`;
-      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${n.type === 'levelup' ? '⚡' : '✅'}</span>`;
+      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎' }[n.type] || '✅'}</span>`;
       return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${href}">${ico}<span class="np-body">
         <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
         <small>${cDate(n.created_at)}${n.title ? ' · ' + esc(n.title) : ''}</small></span></a>`;
@@ -803,8 +832,9 @@
       fresh.forEach((n, i) => {
         shownNotifs.add(n.id);
         if (n.type === 'levelup' && Date.now() - lastLevelToast < 300000) return;
-        const icon = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡' }[n.type] || '🔔';
-        setTimeout(() => rewardToast(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text && n.type !== 'levelup' ? '' : n.text ? `: ${esc(n.text)}` : ''}`, icon, 6000), i * 300);
+        const icon = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎' }[n.type] || '🔔';
+        const withText = n.type === 'levelup' || n.type === 'admin';
+        setTimeout(() => rewardToast(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`, icon, 6000), i * 300);
       });
       store.set('shown_notifs', [...shownNotifs].slice(-200));
     }).catch(() => {});
@@ -1039,6 +1069,12 @@
       me.name = r.name; renderAcct(); loadProfile(); toast('Đã lưu tên mới');
     });
   });
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('.top-search')) { e.preventDefault(); e.stopPropagation(); openTopSearch(); return; }
+    const ov = $('#topsearch');
+    if (ov && !e.target.closest('#topsearch')) closeTopSearch();
+  }, true);
 
   // Bấm "Nghe tiếp" trong lịch sử: đặt sẵn vị trí để trang audio phát tiếp đúng chỗ.
   document.addEventListener('click', e => {

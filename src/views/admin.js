@@ -2,6 +2,7 @@
 import { h, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { ASSET_V } from './public.js';
 import { ADMIN, EVENT_LABELS } from '../security.js';
+import { levelInfo } from '../levels.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 
@@ -19,12 +20,12 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
 export function adminLayout(s, path, flash, content) {
-  const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path;
+  const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path.startsWith('/admin/members') ? '/admin/members' : path;
   return shell(`Quản trị - ${s.site_name}`, `<body>
 <header class="qt-top">
   <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>admin</small></a>
@@ -390,4 +391,120 @@ ${clientId ? '' : `<div class="flash err">Chưa nhập Google Client ID nên ng�
 ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="?status=${status}&page=${i}">${i}</a>`).join('')}</nav>` : ''}
 ${banned.length ? `<h2>Người dùng bị khóa (${banned.length})</h2><div class="table">${banned.map(u => `<div class="trow"><span class="tmain"><b>${h(u.name)}</b><small>${h(u.email)}</small></span>
   <span class="tact"><form method="post"><input type="hidden" name="action" value="unban"><input type="hidden" name="user_id" value="${u.id}"><button class="ok-txt">Mở khóa</button></form></span></div>`).join('')}</div>` : ''}`;
+}
+
+// ---------- Thành viên ----------
+
+const memberAv = (u, size = 40) => u.avatar
+  ? `<img class="m-av" src="${h(u.avatar)}" alt="" referrerpolicy="no-referrer" style="width:${size}px;height:${size}px">`
+  : `<span class="m-av" style="width:${size}px;height:${size}px">${h(Array.from(u.name || '?')[0].toUpperCase())}</span>`;
+const realmTag = exp => { const L = levelInfo(exp); return `<span class="m-realm t${L.tier}">Cấp ${L.lvl} · ${h(L.realm)}</span>`; };
+const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP', ban: 'Khóa bình luận', unban: 'Mở khóa bình luận', lock: 'Khóa tài khoản',
+  unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP' };
+
+export function membersView({ rows, total, stats, q, sort, filter, page, per }) {
+  const pages = Math.max(1, Math.ceil(total / per));
+  const qs = (o = {}) => '?' + new URLSearchParams({ q, sort, f: filter, ...o }).toString();
+  return `
+<h1>Thành viên</h1>
+<div class="stats">
+  <div><b>${fmtInt(stats.total)}</b><span>thành viên</span></div>
+  <div><b>${fmtInt(stats.today || 0)}</b><span>đăng ký 24 giờ qua</span></div>
+  <div><b>${fmtInt(stats.active || 0)}</b><span>hoạt động 7 ngày</span></div>
+  <div><b>${fmtInt(stats.stones)}</b><span>tổng Linh Thạch</span></div>
+</div>
+<form method="get" class="bar">
+  <input class="search" type="search" name="q" value="${h(q)}" placeholder="Tìm tên, email, ID hoặc IP...">
+  <select name="sort" class="sel">${[['new', 'Mới đăng ký'], ['exp', 'EXP cao nhất'], ['stones', 'Nhiều Linh Thạch'], ['login', 'Đăng nhập gần đây']].map(([k, l]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${l}</option>`).join('')}</select>
+  <select name="f" class="sel">${[['all', 'Tất cả'], ['banned', 'Bị khóa bình luận'], ['locked', 'Bị khóa tài khoản']].map(([k, l]) => `<option value="${k}"${k === filter ? ' selected' : ''}>${l}</option>`).join('')}</select>
+  <button class="btn ghost" type="submit">Lọc</button>
+</form>
+<div class="table">
+  ${rows.map(u => `<a class="trow mrow" href="${ADMIN}/members/${u.id}">
+    ${memberAv(u)}
+    <span class="tmain"><b>${h(u.name)} <small>#${u.id}</small>${u.locked ? ' <em class="pill bad">Khóa TK</em>' : ''}${u.banned ? ' <em class="pill">Khóa BL</em>' : ''}</b>
+      <small>${h(u.email)} · ${realmTag(u.exp)}</small>
+      <small>Đăng ký ${vnDate(u.created_at)} · IP ${h(u.reg_ip || '—')}${u.country ? ' (' + h(u.country) + ')' : ''} · vào lần cuối ${u.last_login ? vnDate(u.last_login, true) : '—'}</small></span>
+    <span class="tnum">${fmtInt(u.stones)}<small>Linh Thạch</small></span>
+    <span class="tnum">${fmtInt(u.exp)}<small>EXP</small></span>
+  </a>`).join('') || '<p class="muted pad">Không có thành viên nào.</p>'}
+</div>
+${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="${qs({ page: i })}">${i}</a>`).join('')}</nav>` : ''}`;
+}
+
+export function memberView({ u, comments, logs, counts, myIp }) {
+  const L = levelInfo(u.exp);
+  const act = (a, label, cls = 'btn ghost', confirm = '') => `<form method="post"${confirm ? ` data-confirm="${h(confirm)}"` : ''}><input type="hidden" name="action" value="${a}"><button class="${cls}">${label}</button></form>`;
+  const ipRow = (label, ip) => `<dt>${label}</dt><dd>${ip ? `${h(ip)}${ip !== myIp ? ` <form method="post" class="inline-form" data-confirm="Chặn IP ${h(ip)}?"><input type="hidden" name="action" value="block_ip"><input type="hidden" name="ip" value="${h(ip)}"><button class="link-danger">Chặn IP</button></form>` : ' <small class="muted">(IP của bạn)</small>'}` : '—'}</dd>`;
+  return `
+<p><a href="${ADMIN}/members">← Danh sách thành viên</a></p>
+<div class="card mhead">
+  ${memberAv(u, 72)}
+  <div><h1>${h(u.name)} <small class="muted">#${u.id}</small></h1>
+    <p>${realmTag(u.exp)} ${u.locked ? '<em class="pill bad">Tài khoản bị khóa</em>' : ''} ${u.banned ? '<em class="pill">Khóa bình luận</em>' : ''}</p>
+    <p class="muted">${h(u.email)} · đăng nhập bằng Google</p></div>
+</div>
+<div class="stats">
+  <div><b>${fmtInt(u.stones)}</b><span>Linh Thạch</span></div>
+  <div><b>${fmtInt(u.exp)}</b><span>EXP · ${fmtInt(L.cur)}/${fmtInt(L.need)} lên cấp ${L.lvl + 1}</span></div>
+  <div><b>${fmtInt(u.comments_n)}</b><span>bình luận được duyệt (${fmtInt(counts.comments_all)} tổng)</span></div>
+  <div><b>${fmtInt(counts.ratings)}</b><span>đánh giá · ${fmtInt(counts.history)} truyện đã nghe</span></div>
+</div>
+
+<div class="grid2">
+  <form method="post" class="form card"><input type="hidden" name="action" value="stones">
+    <h2>Cộng / trừ Linh Thạch</h2>
+    <label>Số lượng (số âm để trừ)<input name="amount" inputmode="numeric" placeholder="100 hoặc -50" required></label>
+    <label>Lý do (thành viên sẽ thấy trong thông báo)<input name="reason" placeholder="Thưởng sự kiện..."></label>
+    <button class="btn">Cập nhật Linh Thạch</button>
+  </form>
+  <form method="post" class="form card"><input type="hidden" name="action" value="exp">
+    <h2>Cộng / trừ EXP</h2>
+    <label>Số lượng (số âm để trừ)<input name="amount" inputmode="numeric" placeholder="500 hoặc -100" required></label>
+    <label>Lý do<input name="reason" placeholder="Bù EXP do lỗi..."></label>
+    <button class="btn">Cập nhật EXP</button>
+  </form>
+</div>
+
+<form method="post" class="form card"><input type="hidden" name="action" value="save">
+  <h2>Thông tin</h2>
+  <label>Tên hiển thị<input name="name" value="${h(u.name)}" maxlength="40" required></label>
+  <label>Ghi chú nội bộ (chỉ admin thấy)<textarea name="note" rows="2">${h(u.note || '')}</textarea></label>
+  <dl class="minfo">
+    <dt>Đăng ký</dt><dd>${vnDate(u.created_at, true)}</dd>
+    <dt>Đăng nhập gần nhất</dt><dd>${u.last_login ? vnDate(u.last_login, true) : '—'}</dd>
+    ${ipRow('IP đăng ký', u.reg_ip)}
+    ${ipRow('IP gần nhất', u.last_ip)}
+    <dt>Quốc gia</dt><dd>${h(u.country || '—')}</dd>
+    <dt>Cùng IP</dt><dd>${counts.same_ip ? `<a href="${ADMIN}/members?q=${encodeURIComponent(u.reg_ip || u.last_ip)}">${counts.same_ip} tài khoản khác</a> <small class="muted">(có thể là clone, hoặc chung mạng di động)</small>` : 'Không có'}</dd>
+  </dl>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>
+
+<div class="card">
+  <h2>Mật khẩu & đăng nhập</h2>
+  <p class="muted">Thành viên đăng nhập bằng Google nên web không lưu mật khẩu; mật khẩu do Google quản lý. Bạn có thể buộc đăng xuất hoặc khóa tài khoản:</p>
+  <div class="row-actions">
+    ${act('logout', 'Đăng xuất mọi thiết bị', 'btn ghost', 'Đăng xuất thành viên này khỏi mọi thiết bị?')}
+    ${u.locked ? act('unlock', 'Mở khóa tài khoản', 'btn') : act('lock', 'Khóa tài khoản', 'btn ghost danger-txt', 'Khóa tài khoản này? Thành viên sẽ không đăng nhập được.')}
+    ${u.banned ? act('unban', 'Mở khóa bình luận', 'btn ghost') : act('ban', 'Khóa bình luận', 'btn ghost danger-txt', 'Khóa bình luận và ẩn mọi bình luận của thành viên này?')}
+    ${u.avatar ? act('avatar_reset', 'Bỏ ảnh đại diện', 'btn ghost', 'Bỏ ảnh đại diện của thành viên này?') : ''}
+  </div>
+</div>
+
+<h2>Nhật ký thay đổi</h2>
+<div class="table">${logs.map(l => `<div class="trow"><span class="tmain"><b>${h(ACTION_LABELS[l.action] || l.action)}${l.amount ? ` ${l.amount > 0 ? '+' : ''}${fmtInt(l.amount)}`.replace('+-', '-') : ''}</b>
+  <small>${vnDate(l.created_at, true)}${l.note ? ' · ' + h(l.note) : ''}</small></span></div>`).join('') || '<p class="muted pad">Chưa có thay đổi nào.</p>'}</div>
+
+<h2>Bình luận gần đây</h2>
+<div class="table">${comments.map(c => `<div class="trow crow"><span class="tmain"><span class="cbody">${h(c.body)}</span>
+  <small>${vnDate(c.created_at, true)} · ${{ approved: 'Đã hiện', pending: 'Chờ duyệt', hidden: 'Đã ẩn' }[c.status] || c.status} · ${c.likes} thích · ${c.slug ? `<a href="/track/${h(c.slug)}#comments" target="_blank">${h(c.title)}</a>` : 'audio đã xóa'}</small></span></div>`).join('') || '<p class="muted pad">Chưa bình luận.</p>'}</div>
+
+<form method="post" class="form card danger-zone" data-confirm="Xóa vĩnh viễn tài khoản này cùng toàn bộ bình luận, đánh giá, lịch sử?">
+  <input type="hidden" name="action" value="delete">
+  <h2>Xóa tài khoản</h2>
+  <p class="muted">Xóa vĩnh viễn thành viên cùng bình luận, lượt thích, đánh giá, lịch sử nghe. Không thể hoàn tác.</p>
+  <label>Gõ <b>XOA</b> để xác nhận<input name="confirm" autocomplete="off"></label>
+  <div class="row-actions"><button class="btn danger-btn">Xóa tài khoản</button></div>
+</form>`;
 }

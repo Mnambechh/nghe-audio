@@ -124,6 +124,23 @@ export async function migrate(db) {
       'ALTER TABLE users ADD COLUMN name_changed_at INTEGER NOT NULL DEFAULT 0',
     ].map(q => db.prepare(q)));
   }
+  // Bản 7: quản lý thành viên (IP đăng ký, khóa tài khoản, đăng xuất mọi thiết bị, nhật ký admin).
+  try {
+    await db.prepare('SELECT session_ver FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN reg_ip TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN last_ip TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN country TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN session_ver INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN note TEXT NOT NULL DEFAULT ''`,
+      `CREATE TABLE IF NOT EXISTS member_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL,
+        amount INTEGER NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_member_log ON member_log(user_id, created_at DESC)`,
+    ].map(q => db.prepare(q)));
+  }
   migrated = true;
 }
 

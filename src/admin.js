@@ -6,7 +6,7 @@ import {
 } from './util.js';
 import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
-import { onCommentApproved, notify, GAME_DEFAULTS } from './game.js';
+import { onCommentApproved, notify, awardExp, GAME_DEFAULTS } from './game.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -412,6 +412,118 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     ]);
     const count = Object.fromEntries(counts.map(r => [r.status, r.n]));
     return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id }));
+  }
+
+  // Thành viên: danh sách
+  if (path === '/admin/members') {
+    const q = (url.searchParams.get('q') || '').trim();
+    const sort = ['new', 'exp', 'stones', 'login'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
+    const filter = ['all', 'banned', 'locked'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
+    const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
+    const per = 30;
+    const where = [], args = [];
+    if (q) {
+      if (/^\d+$/.test(q)) { where.push('(id = ? OR reg_ip = ? OR last_ip = ?)'); args.push(+q, q, q); }
+      else { where.push('(name LIKE ? OR email LIKE ? OR reg_ip = ? OR last_ip = ?)'); args.push(`%${q}%`, `%${q}%`, q, q); }
+    }
+    if (filter === 'banned') where.push('banned = 1');
+    if (filter === 'locked') where.push('locked = 1');
+    const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const order = { new: 'id DESC', exp: 'exp DESC', stones: 'stones DESC', login: 'last_login DESC' }[sort];
+    const [rows, total, stats] = await Promise.all([
+      all(db, `SELECT id, name, email, avatar, exp, stones, comments_n, created_at, last_login, reg_ip, last_ip, country, banned, locked
+        FROM users ${w} ORDER BY ${order} LIMIT ${per} OFFSET ${(page - 1) * per}`, ...args),
+      first(db, `SELECT COUNT(*) c FROM users ${w}`, ...args),
+      first(db, `SELECT COUNT(*) total, SUM(CASE WHEN created_at > ? THEN 1 ELSE 0 END) today, SUM(CASE WHEN last_login > ? THEN 1 ELSE 0 END) active,
+        COALESCE(SUM(stones), 0) stones FROM users`, now() - 86400, now() - 7 * 86400),
+    ]);
+    return view(V.membersView({ rows, total: total.c, stats, q, sort, filter, page, per }));
+  }
+
+  // Thành viên: chi tiết + thao tác
+  m = path.match(/^\/admin\/members\/(\d+)$/);
+  if (m) {
+    const uid = parseInt(m[1], 10);
+    const u = await first(db, 'SELECT * FROM users WHERE id = ?', uid);
+    if (!u) return go(ADMIN + '/members', ['err', 'Không tìm thấy thành viên.']);
+    const back = `${ADMIN}/members/${uid}`;
+    const log = (action, amount, note) => db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(uid, action, amount, String(note || '').slice(0, 200), now()).run();
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.get('action');
+      const reason = str(f, 'reason');
+      if (act === 'save') {
+        const name = str(f, 'name').replace(/\s+/g, ' ');
+        if ([...name].length < 2 || [...name].length > 40) return go(back, ['err', 'Tên cần từ 2 đến 40 ký tự.']);
+        await db.prepare('UPDATE users SET name = ?, name_locked = 1, note = ? WHERE id = ?').bind(name, str(f, 'note').slice(0, 500), uid).run();
+        if (name !== u.name) await log('rename', 0, `${u.name} → ${name}`);
+        await clearCache(db);
+        return go(back, ['ok', 'Đã lưu thông tin.']);
+      }
+      if (act === 'stones' || act === 'exp') {
+        const amt = Math.trunc(parseFloat(str(f, 'amount').replace(/[.,\s]/g, '')) || 0);
+        if (!amt) return go(back, ['err', 'Nhập số cần cộng (số dương) hoặc trừ (số âm).']);
+        const label = act === 'stones' ? 'Linh Thạch' : 'EXP';
+        if (act === 'stones') await db.prepare('UPDATE users SET stones = MAX(0, stones + ?) WHERE id = ?').bind(amt, uid).run();
+        else if (amt > 0) await awardExp(db, s, uid, amt);
+        else await db.prepare('UPDATE users SET exp = MAX(0, exp + ?) WHERE id = ?').bind(amt, uid).run();
+        await log(act, amt, reason);
+        await notify(db, uid, 'admin', { text: `${amt > 0 ? 'Cộng' : 'Trừ'} ${Math.abs(amt).toLocaleString('vi-VN')} ${label}${reason ? ' · ' + reason : ''}` });
+        await clearCache(db);
+        return go(back, ['ok', `Đã ${amt > 0 ? 'cộng' : 'trừ'} ${Math.abs(amt)} ${label}.`]);
+      }
+      const simple = {
+        ban: ['UPDATE users SET banned = 1 WHERE id = ?', 'Đã khóa bình luận.'],
+        unban: ['UPDATE users SET banned = 0 WHERE id = ?', 'Đã mở khóa bình luận.'],
+        lock: ['UPDATE users SET locked = 1, session_ver = session_ver + 1 WHERE id = ?', 'Đã khóa tài khoản và đăng xuất mọi thiết bị.'],
+        unlock: ['UPDATE users SET locked = 0 WHERE id = ?', 'Đã mở khóa tài khoản.'],
+        logout: ['UPDATE users SET session_ver = session_ver + 1 WHERE id = ?', 'Đã đăng xuất thành viên khỏi mọi thiết bị.'],
+        avatar_reset: ["UPDATE users SET avatar = '', avatar_locked = 0 WHERE id = ?", 'Đã bỏ ảnh đại diện.'],
+      };
+      if (simple[act]) {
+        if (act === 'avatar_reset' && u.avatar_locked) await deleteMedia(db, u.avatar);
+        await db.prepare(simple[act][0]).bind(uid).run();
+        await log(act, 0, reason);
+        if (act === 'ban') await db.prepare("UPDATE comments SET status = 'hidden' WHERE user_id = ? AND status != 'hidden'").bind(uid).run();
+        await clearCache(db);
+        return go(back, ['ok', simple[act][1]]);
+      }
+      if (act === 'block_ip') {
+        const ip = str(f, 'ip');
+        if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) return go(back, ['err', 'IP không hợp lệ.']);
+        if (ip === info.ip) return go(back, ['err', 'Đây là IP của chính bạn.']);
+        await blockIp(db, ip, `Thành viên #${uid} ${u.name}${reason ? ': ' + reason : ''}`, 0);
+        await log('block_ip', 0, ip);
+        return go(back, ['ok', `Đã chặn IP ${ip}.`]);
+      }
+      if (act === 'delete') {
+        if (str(f, 'confirm') !== 'XOA') return go(back, ['err', 'Gõ XOA để xác nhận xóa tài khoản.']);
+        if (u.avatar_locked) await deleteMedia(db, u.avatar);
+        await db.batch([
+          db.prepare('UPDATE tracks SET rating_sum = rating_sum - (SELECT stars FROM ratings r WHERE r.user_id = ? AND r.track_id = tracks.id), rating_count = rating_count - 1 WHERE id IN (SELECT track_id FROM ratings WHERE user_id = ?)').bind(uid, uid),
+          db.prepare('DELETE FROM ratings WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM comment_likes WHERE user_id = ? OR comment_id IN (SELECT id FROM comments WHERE user_id = ?)').bind(uid, uid),
+          db.prepare('DELETE FROM comments WHERE user_id = ? OR parent_id IN (SELECT id FROM comments WHERE user_id = ?)').bind(uid, uid),
+          db.prepare('DELETE FROM history WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(uid, uid),
+          db.prepare('DELETE FROM member_log WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM users WHERE id = ?').bind(uid),
+        ]);
+        await clearCache(db);
+        return go(ADMIN + '/members', ['ok', `Đã xóa tài khoản ${u.name}.`]);
+      }
+      return go(back);
+    }
+    const [comments, logs, counts] = await Promise.all([
+      all(db, `SELECT c.id, c.body, c.status, c.likes, c.created_at, t.title, t.slug FROM comments c LEFT JOIN tracks t ON t.id = c.track_id
+        WHERE c.user_id = ? ORDER BY c.created_at DESC LIMIT 20`, uid),
+      all(db, 'SELECT * FROM member_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', uid),
+      first(db, `SELECT (SELECT COUNT(*) FROM ratings WHERE user_id = ?) ratings, (SELECT COUNT(*) FROM history WHERE user_id = ?) history,
+        (SELECT COUNT(*) FROM comments WHERE user_id = ?) comments_all, (SELECT COUNT(*) FROM users WHERE id != ? AND (reg_ip = ? OR last_ip = ?) AND ? != '') same_ip`,
+        uid, uid, uid, uid, u.reg_ip || '-', u.last_ip || '-', u.reg_ip || u.last_ip || ''),
+    ]);
+    return view(V.memberView({ u, comments, logs, counts, myIp: info.ip }));
   }
 
   // Bảo mật: nhật ký tấn công, chặn IP, đăng xuất mọi thiết bị

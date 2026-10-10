@@ -31,8 +31,11 @@ export async function currentUser(request, db) {
   if (!tok) return null;
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
-  return first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n FROM users WHERE id = ?`, p.uid);
+  const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
+    checkin_day, seen_day, seen_at, rate_day, rate_n, locked, session_ver FROM users WHERE id = ?`, p.uid);
+  // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
+  if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
+  return u;
 }
 
 const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
@@ -143,13 +146,14 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       return json({ ok: false, error: 'Đăng nhập Google không thành công, vui lòng thử lại.' }, 401);
     }
     const t = now();
-    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login,
+    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login, last_ip = excluded.last_ip, country = excluded.country,
         name = CASE WHEN users.name_locked = 1 THEN users.name ELSE excluded.name END,
         avatar = CASE WHEN users.avatar_locked = 1 THEN users.avatar ELSE excluded.avatar END`)
-      .bind(g.sub, g.name, g.email, g.avatar, t, t).run();
-    const u = await first(db, 'SELECT id, name, avatar, banned FROM users WHERE sub = ?', g.sub);
-    const token = await signToken(await userSecret(db), { uid: u.id, exp: t + USER_DAYS * 86400 });
+      .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country).run();
+    const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE sub = ?', g.sub);
+    if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
+    const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: t + USER_DAYS * 86400 });
     return withCookie(json({ ok: true, me: publicUser(u) }), setCookie(USER_COOKIE, token, { maxAge: USER_DAYS * 86400 }));
   }
 
