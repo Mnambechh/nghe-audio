@@ -1239,3 +1239,14 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .sh-chip-fr > span:last-child { display: flex; flex-direction: column; gap: 1px; }
 .sh-chip-fr .sh-fav { padding: 8px; }
 .sh-chip-fr .sh-fav .c-av { width: 30px; height: 30px; }
+/* Hộp hỏi xác nhận (thay confirm() của trình duyệt) */
+.ask-modal { z-index: 80; }
+.ask-box { max-width: 340px; padding: 22px 18px 16px; }
+.ask-ico { font-size: 34px; line-height: 1; }
+.ask-msg { margin: 10px 4px 16px; font-size: 15.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.ask-msg .sh-fav { padding: 12px; }
+.ask-fx { display: inline-block; margin-bottom: 6px; font-size: 22px; }
+.ask-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ask-btns button { min-height: 46px; border-radius: 14px; font-weight: 750; font-size: 15px; }
+.ask-no { background: var(--surface2); border: 1px solid var(--line); color: var(--text); }
+.ask-ok { background: var(--brand); color: #fff; }

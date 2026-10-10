@@ -70,6 +70,29 @@
     if (!(navigator.sendBeacon && navigator.sendBeacon(APP.base + path, blob))) api(path, data);
   };
 
+  // Hộp hỏi xác nhận đẹp ngay trên trang (thay cho hộp confirm() xám của trình duyệt). Trả về Promise<true|false>.
+  function askConfirm(html, ok = 'Đồng ý', icon = '❓') {
+    return new Promise(done => {
+      const old = document.querySelector('.ask-modal');
+      if (old) old.remove();
+      const m = document.createElement('div');
+      m.className = 'modal ask-modal';
+      m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+      m.innerHTML = `<div class="modal-box ask-box"><div class="ask-ico">${icon}</div><p class="ask-msg">${html}</p>
+        <div class="ask-btns"><button type="button" class="ask-no">Hủy</button><button type="button" class="ask-ok">${ok}</button></div></div>`;
+      let closed = false;
+      const key = e => { if (e.key === 'Escape') close(false); };
+      const close = v => { if (closed) return; closed = true; m.remove(); document.removeEventListener('keydown', key); done(v); };
+      m.addEventListener('click', e => {
+        if (e.target === m || e.target.closest('.ask-no')) close(false);
+        else if (e.target.closest('.ask-ok')) close(true);
+      });
+      document.addEventListener('keydown', key);
+      document.body.appendChild(m);
+      m.querySelector('.ask-ok').focus();
+    });
+  }
+
   let toastTimer;
   function toast(msg) {
     const t = $('#toast');
@@ -530,8 +553,9 @@
         });
         return;
       case 'hist-clear':
-        if (!confirm('Xóa toàn bộ lịch sử nghe?')) return;
-        api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); });
+        askConfirm('Xóa toàn bộ lịch sử nghe?', 'Xóa', '🗑️').then(y => {
+          if (y) api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); });
+        });
         return;
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
       case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
@@ -926,9 +950,9 @@
       return;
     }
     const d = e.target.closest('[data-act="wd-del"]');
-    if (d && confirm('Xóa tài khoản nhận tiền này?')) {
-      api('/api/withdraw/account/delete', { id: +d.dataset.id }).then(() => loadWithdraw());
-    }
+    if (d) askConfirm('Xóa tài khoản nhận tiền này?', 'Xóa', '🗑️').then(y => {
+      if (y) api('/api/withdraw/account/delete', { id: +d.dataset.id }).then(() => loadWithdraw());
+    });
   });
   document.addEventListener('submit', e => {
     const f = e.target;
@@ -944,12 +968,11 @@
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
       const amount = parseInt(String(d.amount).replace(/\D/g, ''), 10) || 0;
-      if (!confirm(`Rút ${nf(amount)} Linh Thạch?`)) return;
-      once('withdraw', () => api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
+      askConfirm(`Rút <b>${nf(amount)} 💎</b> Linh Thạch?`, 'Rút', '💸').then(y => y && once('withdraw', () => api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
         rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)} 💎</b>`, '💸', 5000);
         loadWithdraw(); fetchMe();
-      }));
+      })));
     }
   });
 
@@ -1005,13 +1028,14 @@
       const it = shop && shop.items.find(x => x.id === +b.dataset.buy);
       if (!it) return;
       if (shop.stones < it.price) { toast('Bạn không đủ Linh Thạch'); return; }
-      if (!confirm(`Mua "${it.name}" (${it.days ? it.days + ' ngày' : 'vĩnh viễn'}) giá ${nf(it.price)} Linh Thạch?`)) return;
-      once('shop', () => api('/api/shop/buy', { id: it.id }).then(r => {
-        if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa mua được'); return; }
-        rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
-        if (r.kind !== 'frame') me.fx = r.fx;
-        loadShop(); fetchMe();
-      }));
+      const prev = it.kind === 'frame' ? `<span class="sh-fav">${lvAv(me.name, me.avatar, null, 'c-av', { frame: it.img, fs: it.scale })}</span>` : `<span class="ask-fx nfx nfx-${esc(it.fx)}">${esc(me.name)}</span>`;
+      askConfirm(`${prev}<br>Mua <b>${esc(it.name)}</b> (${it.days ? it.days + ' ngày' : 'vĩnh viễn'})<br>giá <b>${nf(it.price)} 💎</b> Linh Thạch?`, 'Mua', '🛍️')
+        .then(y => y && once('shop', () => api('/api/shop/buy', { id: it.id }).then(r => {
+          if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa mua được'); return; }
+          rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
+          if (r.kind !== 'frame') me.fx = r.fx;
+          loadShop(); fetchMe();
+        })));
     } else if (u) {
       once('shop', () => api('/api/shop/use', { fx: u.dataset.fxUse }).then(r => {
         if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
@@ -2010,8 +2034,9 @@
         return;
       }
       case 'del':
-        if (!confirm('Xóa bình luận này?')) return;
-        api('/api/comments/delete', { id }).then(r => { if (r && r.ok) { toast('Đã xóa'); loadComments(); } });
+        askConfirm('Xóa bình luận này?', 'Xóa', '🗑️').then(y => {
+          if (y) api('/api/comments/delete', { id }).then(r => { if (r && r.ok) { toast('Đã xóa'); loadComments(); } });
+        });
     }
   });
 
