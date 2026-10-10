@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '19';
+export const ASSET_V = '20';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -53,7 +53,7 @@ export function layout(ctx, meta, body) {
 ${s.seo_keywords ? `<meta name="keywords" content="${h(s.seo_keywords)}">` : ''}
 <link rel="canonical" href="${h(canonical)}">
 ${meta.noindex ? '<meta name="robots" content="noindex">' : ''}
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#FFF6F0">
 <meta property="og:type" content="${meta.ogType || 'website'}">
 <meta property="og:site_name" content="${h(s.site_name)}">
 <meta property="og:title" content="${h(title)}">
@@ -61,6 +61,9 @@ ${meta.noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta property="og:url" content="${h(canonical)}">
 ${s.logo ? `<meta property="og:image" content="${h(abs(ctx.origin, s.logo))}">` : ''}
 ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="${asset('app.css')}">
 <style>:root{--brand:${h(s.theme_color)}}</style>
 ${safeHeadCode(s.head_code)}
