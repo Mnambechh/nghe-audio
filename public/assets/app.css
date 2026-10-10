@@ -348,7 +348,7 @@ svg { width: 1em; height: 1em; fill: currentColor; flex: none; }
 
 /* ===== Thông báo nhận thưởng góc dưới trái ===== */
 .rewards { position: fixed; left: 14px; bottom: calc(16px + var(--safe-b)); z-index: 55; display: flex; flex-direction: column; gap: 10px;
-  width: 320px; max-width: calc(100vw - 28px); width: min(320px, calc(100vw - 28px)); pointer-events: none; }
+  align-items: flex-start; max-width: calc(100vw - 28px); pointer-events: none; }
 body.has-player .rewards { bottom: calc(130px + var(--safe-b)); }
 .rw { pointer-events: auto; position: relative; display: flex; align-items: center; gap: 12px; padding: 14px 36px 14px 14px;
   background: var(--surface); border-left: 4px solid #ec407a; border-radius: 10px; box-shadow: 0 10px 30px rgba(16, 24, 40, .18);
@@ -1271,3 +1271,10 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 @-webkit-keyframes clYum { 50% { -webkit-transform: translateY(-55%) rotate(-30deg) scale(1.4); transform: translateY(-55%) rotate(-30deg) scale(1.4); } }
 @keyframes clYum { 50% { -webkit-transform: translateY(-55%) rotate(-30deg) scale(1.4); transform: translateY(-55%) rotate(-30deg) scale(1.4); } }
 @media (prefers-reduced-motion: reduce) { .pc-bunny i { -webkit-animation: none; animation: none; } }
+
+/* Thông báo góc màn hình: ô tự giãn theo chữ (thông báo ngắn nằm gọn 1 hàng), gọn hơn để dễ nhìn. */
+.rw { width: -webkit-max-content; width: max-content; max-width: 100%; gap: 8px; padding: 9px 32px 9px 11px; font-size: 14px; line-height: 1.35; }
+.rw-ico { width: 26px; height: 26px; font-size: 19px; }
+.rw-x { top: 50%; margin-top: -12px; right: 6px; }
+@media (min-width: 720px) { .rewards { max-width: 560px; } }
+@media (max-width: 360px) { .rw { font-size: 12.5px; gap: 6px; padding: 8px 26px 8px 9px; } .rw-ico { width: 20px; font-size: 16px; } .rw-x { right: 3px; } }

@@ -2,7 +2,7 @@
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
 
-export const ASSET_V = '81';
+export const ASSET_V = '82';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 

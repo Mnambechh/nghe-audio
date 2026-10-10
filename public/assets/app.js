@@ -1442,6 +1442,9 @@
         if (n.type === 'levelup' && Date.now() - lastLevelToast < 300000) return;
         const withText = ['levelup', 'admin', 'withdraw', 'ref_join', 'ref_pay'].includes(n.type);
         icon = ICON[n.type] || '🔔';
+        // Hoa hồng giới thiệu: ô góc chỉ hiện ngắn gọn 1 hàng (chi tiết xem trong trang Thông báo / Mời bạn).
+        const pay = n.type === 'ref_pay' && /\+([\d.,]+) Linh Thạch/.exec(n.text || '');
+        if (n.type === 'ref_pay') { lines.push(`Hoa hồng giới thiệu${pay ? ` · <b>+${pay[1]} 💎</b>` : ''}`); return; }
         lines.push(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`);
       });
       // Nhiều thông báo cùng lúc vẫn gộp trong một ô.
