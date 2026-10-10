@@ -1161,7 +1161,10 @@
       $('.stars', box).style.setProperty('--pct', pct + '%');
       $('.rate-text', box).textContent = `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${r.count} đánh giá`;
       showMine(box, r.mine);
-      showRewards(r.rewards, `Cảm ơn bạn đã đánh giá ${r.mine}★`);
+      // Gộp thành một thông báo: đánh giá + EXP nhận được; lên cấp / Linh Thạch (nếu có) vẫn báo riêng.
+      const exp = (r.rewards || []).filter(x => x.type === 'exp').reduce((n, x) => n + x.n, 0);
+      rewardToast(`Chúc mừng bạn đã đánh giá <b>${r.mine}★</b>${exp ? ` và nhận <b>+${nf(exp)}</b> kinh nghiệm` : ''}!`, '🎉', 5000);
+      showRewards((r.rewards || []).filter(x => x.type !== 'exp'));
       fetchMe();
     });
   });
