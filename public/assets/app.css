@@ -1303,3 +1303,15 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .acct-ph .ph-av { width: 41px; height: 41px; background: var(--surface2); }
 @-webkit-keyframes phPulse { 50% { opacity: .55; } }
 @keyframes phPulse { 50% { opacity: .55; } }
+/* Popup gợi ý mở bằng trình duyệt ngoài (khi vào từ Facebook, TikTok, Zalo…) */
+.inapp-modal { z-index: 90; }
+.inapp-box { max-width: 360px; padding: 22px 18px 14px; }
+.inapp-ico { font-size: 40px; line-height: 1; margin-top: 4px; }
+.inapp-msg { margin: 10px 4px 0; font-size: 15px; line-height: 1.5; }
+.inapp-link { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; margin-top: 14px; padding: 12px; border-radius: 14px;
+  border: 2px dashed var(--brand); background: var(--surface2); color: var(--brand); font-weight: 750; font-size: 16px; overflow-wrap: anywhere; }
+.inapp-link em { font-style: normal; font-size: 13px; font-weight: 700; padding: 3px 12px; border-radius: 999px; background: var(--brand); color: #fff; }
+.inapp-link.ok { border-style: solid; }
+.inapp-link.ok em { background: #16a34a; }
+.inapp-chrome { display: flex; align-items: center; justify-content: center; min-height: 46px; margin-top: 10px; border-radius: 14px; background: var(--brand); color: #fff; font-weight: 750; }
+.inapp-later { margin-top: 8px; padding: 8px 16px; font-size: 14px; color: var(--muted); }
