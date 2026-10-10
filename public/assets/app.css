@@ -1250,3 +1250,24 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .ask-btns button { min-height: 46px; border-radius: 14px; font-weight: 750; font-size: 15px; }
 .ask-no { background: var(--surface2); border: 1px solid var(--line); color: var(--text); }
 .ask-ok { background: var(--brand); color: #fff; }
+/* Chờ 3 giây sau khi bấm quảng cáo: thỏ chạy đến củ cà rốt */
+.carrot-load { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .35); animation: fade .2s; }
+.cl-box { width: 100%; max-width: 340px; background: var(--surface); border-radius: 22px; padding: 18px 18px 14px; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); animation: pop .25s cubic-bezier(.2, .9, .3, 1.2); }
+.cl-box p { margin: 0; font-weight: 700; font-size: 15.5px; }
+.cl-box small { color: var(--muted); font-size: 12.5px; }
+.cl-track { position: relative; height: 12px; margin: 40px 34px 14px 14px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--line); }
+.cl-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ffcc80, #ff8a65); -webkit-animation: clFill var(--d, 3s) linear forwards; animation: clFill var(--d, 3s) linear forwards; }
+.cl-bunny { position: absolute; left: 0; bottom: 4px; font-size: 30px; line-height: 1; -webkit-transform: translateX(-50%) scaleX(-1); transform: translateX(-50%) scaleX(-1); -webkit-animation: clRun var(--d, 3s) linear forwards; animation: clRun var(--d, 3s) linear forwards; }
+.cl-bunny i { display: inline-block; font-style: normal; -webkit-animation: clHop .36s ease-in-out infinite; animation: clHop .36s ease-in-out infinite; }
+.cl-carrot { position: absolute; right: -30px; bottom: -6px; font-size: 28px; line-height: 1; -webkit-transform: rotate(-30deg); transform: rotate(-30deg); }
+.cl-done .cl-carrot { -webkit-animation: clYum .4s ease-out; animation: clYum .4s ease-out; }
+.cl-done .cl-bunny i { -webkit-animation: none; animation: none; }
+@-webkit-keyframes clFill { to { width: 100%; } }
+@keyframes clFill { to { width: 100%; } }
+@-webkit-keyframes clRun { to { left: 100%; } }
+@keyframes clRun { to { left: 100%; } }
+@-webkit-keyframes clHop { 50% { -webkit-transform: translateY(-9px); transform: translateY(-9px); } }
+@keyframes clHop { 50% { -webkit-transform: translateY(-9px); transform: translateY(-9px); } }
+@-webkit-keyframes clYum { 50% { -webkit-transform: rotate(-30deg) scale(1.35); transform: rotate(-30deg) scale(1.35); } }
+@keyframes clYum { 50% { -webkit-transform: rotate(-30deg) scale(1.35); transform: rotate(-30deg) scale(1.35); } }
+@media (prefers-reduced-motion: reduce) { .cl-bunny i { -webkit-animation: none; animation: none; } }

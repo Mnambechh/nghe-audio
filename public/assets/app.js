@@ -115,12 +115,28 @@
   const posKey = (id, i) => `pos_${id}_${i}`;
   const part = () => cur && cur.parts[idx];
 
+  // Định dạng audio theo đuôi file. MIME thật do máy chủ (R2) gửi trong Content-Type quyết định cách giải mã;
+  // ở đây chỉ dùng để kiểm tra trước máy có hỗ trợ không và báo lỗi đúng nguyên nhân.
+  const AUDIO_TYPES = { m4a: ['audio/mp4', 'audio/x-m4a', 'audio/aac'], mp4: ['audio/mp4'], aac: ['audio/aac', 'audio/mp4'], mp3: ['audio/mpeg', 'audio/mp3'],
+    ogg: ['audio/ogg'], oga: ['audio/ogg'], opus: ['audio/ogg; codecs=opus', 'audio/opus'], wav: ['audio/wav', 'audio/wave'], flac: ['audio/flac'] };
+  const extOf = url => { const m = String(url || '').split(/[?#]/)[0].match(/\.([a-z0-9]{2,4})$/i); return m ? m[1].toLowerCase() : ''; };
+  let srcType = '', srcMaybeUnsupported = false, lastT = 0;
+  function setSource(url) {
+    const types = AUDIO_TYPES[extOf(url)] || [];
+    srcType = types[0] || '';
+    // canPlayType trả '' = chắc chắn không hỗ trợ; 'maybe'/'probably' = phát được. Một số máy cũ trả sai nên vẫn thử phát.
+    srcMaybeUnsupported = !!types.length && !!audio.canPlayType && types.every(t => !audio.canPlayType(t));
+    audio.setAttribute('data-type', srcType);
+    audio.src = url;
+    lastT = 0;
+  }
+
   function load(track, i, opts = {}) {
     cur = track; idx = Math.min(Math.max(0, i), track.parts.length - 1);
     const p = part();
     const saved = store.get(posKey(cur.id, idx), 0);
     pendingSeek = opts.at != null ? opts.at : (p.duration && saved > p.duration - 8 ? 0 : saved);
-    audio.src = p.url;
+    setSource(p.url);
     audio.defaultPlaybackRate = audio.playbackRate = speed;
     store.set('last', { track: cur, idx });
     store.set('lastidx_' + cur.id, idx);
@@ -133,11 +149,23 @@
 
   function start() {
     if (!cur) return;
+    // Lần trước tải hỏng (mất mạng / link lỗi): nạp lại nguồn, nghe tiếp đúng chỗ đã dừng.
+    if (audio.error || audio.networkState === 3) {
+      pendingSeek = lastT || store.get(posKey(cur.id, idx), 0) || 0;
+      setSource(part().url);
+    }
+    if (adHold > Date.now()) { primeAudio(); return; } // đang trong 3 giây chờ sau khi bấm quảng cáo
     body.classList.add('is-loading');
-    const pr = audio.play();
+    watchStall();
+    let pr;
+    try { pr = audio.play(); } catch (e) { pr = null; body.classList.remove('is-loading'); }
     if (pr && pr.catch) pr.catch(err => {
       body.classList.remove('is-loading');
-      if (err && err.name !== 'AbortError') toast('Bấm Phát để bắt đầu nghe');
+      const name = err && err.name;
+      // Trình duyệt di động chặn tự phát khi chưa có thao tác bấm/chạm: chỉ phát lại khi người dùng bấm ▶.
+      if (name === 'NotAllowedError') toast('Bấm ▶ để bắt đầu nghe');
+      else if (name === 'NotSupportedError' && srcMaybeUnsupported) toast('Máy này chưa hỗ trợ định dạng audio này');
+      // AbortError (đổi bài giữa chừng) bỏ qua; lỗi tải do sự kiện "error" bên dưới xử lý.
     });
   }
 
@@ -177,7 +205,44 @@
     beacon('/api/stat', { id: adShown.id, ev: 'click' });
     $('#unlockbox').hidden = true;
     const fn = adAction; adAction = null;
-    if (fn) fn();  // vẫn trong cùng thao tác bấm nên trình duyệt cho phép phát
+    if (!fn) return;
+    // Bấm quảng cáo: chờ 3 giây (thanh thỏ chạy đến củ cà rốt) rồi mới phát; trong lúc chờ vẫn tải trước audio.
+    adHold = Date.now() + AD_WAIT;
+    fn(); // vẫn trong cùng thao tác bấm: nạp link + "mở khóa" phát trên di động (tắt tiếng, chưa phát thật)
+    carrotLoader(AD_WAIT, () => { adHold = 0; start(); });
+  }
+
+  const AD_WAIT = 3000;
+  let adHold = 0;
+  // iOS / Android chỉ cho phát khi có thao tác bấm: phát tắt tiếng rồi dừng ngay trong lúc bấm để "mở khóa" thẻ audio
+  // và bắt trình duyệt tải trước dữ liệu; 3 giây sau gọi phát thật (không còn bị chặn tự phát).
+  function primeAudio() {
+    audio.preload = 'auto';
+    audio.muted = true;
+    let pr = null;
+    try { pr = audio.play(); } catch (e) { /* bỏ qua */ }
+    const done = () => { if (adHold) audio.pause(); audio.muted = false; };
+    if (pr && pr.then) pr.then(done, () => { audio.muted = false; }); else done();
+  }
+  function carrotLoader(ms, done) {
+    const old = $('#carrotLoad');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'carrotLoad'; el.className = 'carrot-load';
+    el.setAttribute('role', 'status');
+    el.style.setProperty('--d', ms + 'ms');
+    el.innerHTML = `<div class="cl-box"><p>Đang chuẩn bị audio… <b class="cl-sec">${Math.ceil(ms / 1000)}</b>s</p>
+      <div class="cl-track"><span class="cl-fill"></span><span class="cl-bunny"><i>🐇</i></span><span class="cl-carrot">🥕</span></div>
+      <small>Cảm ơn bạn đã ủng hộ!</small></div>`;
+    document.body.appendChild(el);
+    const end = Date.now() + ms, sec = $('.cl-sec', el);
+    const tick = setInterval(() => { sec.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)); }, 250);
+    setTimeout(() => {
+      clearInterval(tick);
+      el.classList.add('cl-done');
+      setTimeout(() => el.remove(), 450);
+      done();
+    }, ms);
   }
 
   function toggle() {
@@ -319,7 +384,8 @@
     if (!counted.has(cur.id)) { counted.add(cur.id); api('/api/play', { sid, track_id: cur.id }); }
     ping(true);
   });
-  audio.addEventListener('waiting', () => { body.classList.add('is-loading'); renderTime(); });
+  audio.addEventListener('waiting', () => { body.classList.add('is-loading'); renderTime(); watchStall(); });
+  audio.addEventListener('stalled', () => { if (!audio.paused) watchStall(); });
   audio.addEventListener('pause', () => {
     body.classList.remove('is-playing', 'is-loading');
     renderTime();
@@ -329,6 +395,8 @@
   });
   audio.addEventListener('timeupdate', () => {
     const now = Date.now();
+    if (audio.currentTime > 0) lastT = audio.currentTime;
+    if (stallTimer && !audio.paused && audio.readyState >= 3) clearStall();
     if (now - lastPos > 250) { lastPos = now; renderTime(); }
     if (now - lastSave > 5000) { lastSave = now; savePos(); }
     if (!audio.paused && now - lastPing > 60000) ping(true);
@@ -345,24 +413,56 @@
     if (idx < cur.parts.length - 1) load(cur, idx + 1, { autoplay: true, at: 0 });
     else toast('Đã nghe hết ' + cur.title);
   });
-  // Mạng chập chờn / máy yếu: tự tải lại tối đa 2 lần, nghe tiếp đúng chỗ đang dừng.
-  let errRetry = 0, errAt = 0;
-  audio.addEventListener('error', () => {
-    if (!audio.getAttribute('src') || !cur) return;
+  // Mạng chập chờn / link R2 lỗi / máy yếu: tự tải lại tối đa 2 lần, nghe tiếp đúng chỗ đang dừng.
+  // Hết lượt thử thì dừng hẳn trạng thái "đang tải" để thanh thời gian không bị treo; bấm ▶ lần sau sẽ nạp lại.
+  let errRetry = 0, errAt = 0, stallTimer = 0, netLostWhilePlaying = false;
+  function clearStall() { clearTimeout(stallTimer); stallTimer = 0; }
+  // Đang phát mà kẹt "đang tải" quá 15 giây (mạng rớt nhưng trình duyệt không báo lỗi) → coi như lỗi và tải lại.
+  function watchStall() {
+    clearStall();
+    stallTimer = setTimeout(() => {
+      stallTimer = 0;
+      if (cur && !audio.paused && audio.readyState < 3) recover('stall');
+    }, 15000);
+  }
+  function recover(reason) {
+    if (!cur || !audio.getAttribute('src')) return;
+    clearStall();
+    const err = audio.error, at = lastT || audio.currentTime || store.get(posKey(cur.id, idx), 0) || 0;
+    const wasPlaying = reason === 'stall' || reason === 'online' || body.classList.contains('is-playing') || body.classList.contains('is-loading');
+    // Định dạng không giải mã được (MEDIA_ERR_SRC_NOT_SUPPORTED = 4, MEDIA_ERR_DECODE = 3) thì thử lại cũng vô ích, trừ khi do mạng cắt ngang.
+    const fatal = err && (err.code === 4 || err.code === 3) && navigator.onLine !== false && srcMaybeUnsupported;
     if (Date.now() - errAt > 60000) errRetry = 0;
-    if (errRetry < 2) {
+    if (!fatal && errRetry < 2 && navigator.onLine !== false) {
       errRetry++; errAt = Date.now();
-      const at = audio.currentTime || store.get(posKey(cur.id, idx), 0) || 0, wasPlaying = body.classList.contains('is-playing') || body.classList.contains('is-loading');
+      body.classList.add('is-loading');
       setTimeout(() => {
+        if (!cur) return;
         pendingSeek = at;
-        audio.src = part().url;
+        setSource(part().url);
         audio.load();
-        if (wasPlaying) start();
+        if (wasPlaying) start(); else body.classList.remove('is-loading');
       }, 1500 * errRetry);
       return;
     }
+    try { audio.pause(); } catch (e) { /* bỏ qua */ }
     body.classList.remove('is-loading', 'is-playing');
-    toast('Không tải được audio, vui lòng thử lại sau');
+    if (at) store.set(posKey(cur.id, idx), Math.floor(at));
+    renderTime();
+    if (navigator.onLine === false) { if (wasPlaying) netLostWhilePlaying = true; toast('Mất kết nối mạng — có mạng lại sẽ tự nghe tiếp'); }
+    else toast(fatal ? 'Máy này chưa hỗ trợ định dạng audio này' : 'Không tải được audio, vui lòng thử lại sau');
+  }
+  audio.addEventListener('error', () => recover('error'));
+  audio.addEventListener('playing', clearStall);
+  audio.addEventListener('pause', clearStall);
+  // Có mạng lại: nếu đang nghe dở mà bị ngắt thì tự nạp lại và nghe tiếp (vẫn trong phiên đã được người dùng bấm phát).
+  window.addEventListener('offline', () => {
+    if (cur && (!audio.paused || body.classList.contains('is-loading'))) { netLostWhilePlaying = true; toast('Mất kết nối mạng'); }
+  });
+  window.addEventListener('online', () => {
+    if (!netLostWhilePlaying || !cur) return;
+    netLostWhilePlaying = false; errRetry = 0;
+    if (audio.paused || audio.readyState < 3) recover('online');
   });
   setInterval(() => {
     if (timer) checkTimer();
