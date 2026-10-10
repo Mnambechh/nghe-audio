@@ -116,3 +116,9 @@ document.addEventListener('submit', e => {
     if (r.querySelector('.purl').value && !r.querySelector('.pdur').value) detect(r);
   });
 })();
+
+// Danh sách thành viên: chọn tất cả.
+document.addEventListener('change', e => {
+  if (e.target.id !== 'checkAll') return;
+  document.querySelectorAll('input[name=ids]').forEach(c => { c.checked = e.target.checked; });
+});

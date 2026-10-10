@@ -2,7 +2,7 @@
 import { all, first, loadSettings, saveSettings } from './db.js';
 import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
-import { logEvent } from './security.js';
+import { deviceOf, logEvent } from './security.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
 import { badge } from './levels.js';
@@ -35,7 +35,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   return u;
@@ -89,6 +89,11 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   // Thông tin người đang đăng nhập (cho thanh đầu trang).
   if (path === '/api/me') {
     const me = await currentUser(request, db);
+    // Ghi thời điểm hoạt động, IP, thiết bị (tối đa 1 lần / 5 phút để đỡ ghi D1).
+    if (me && now() - (me.last_seen || 0) > 300) {
+      const job = db.prepare('UPDATE users SET last_seen = ?, last_ip = ?, device = ? WHERE id = ?').bind(now(), info.ip, deviceOf(info.ua), me.id).run();
+      if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
+    }
     return json({ ok: true, me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
@@ -154,11 +159,12 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       return json({ ok: false, error: 'Đăng nhập Google không thành công, vui lòng thử lại.' }, 401);
     }
     const t = now();
-    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login, last_ip = excluded.last_ip, country = excluded.country,
+        device = excluded.device, last_seen = excluded.last_seen,
         name = CASE WHEN users.name_locked = 1 THEN users.name ELSE excluded.name END,
         avatar = CASE WHEN users.avatar_locked = 1 THEN users.avatar ELSE excluded.avatar END`)
-      .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country).run();
+      .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t).run();
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE sub = ?', g.sub);
     if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
     const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: t + USER_DAYS * 86400 });

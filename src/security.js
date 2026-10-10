@@ -17,6 +17,23 @@ export function isProbe(path) {
   return PROBE_RE.test(path);
 }
 
+// Rút gọn User-Agent thành "Hệ điều hành · Trình duyệt" để admin dễ đọc (vd. "iOS 16.5 · Safari", "Android 10 · Zalo").
+export function deviceOf(ua) {
+  ua = String(ua || '');
+  let os = 'Không rõ', m;
+  if ((m = ua.match(/(?:iPhone|iPad|iPod).*? OS (\d+)[_.](\d+)/))) os = `iOS ${m[1]}.${m[2]}`;
+  else if ((m = ua.match(/Android (\d+(?:\.\d+)?)/))) os = `Android ${m[1]}`;
+  else if (/Windows NT 10/.test(ua)) os = 'Windows 10/11';
+  else if ((m = ua.match(/Windows NT (\d+\.\d+)/))) os = `Windows ${{ '6.1': '7', '6.2': '8', '6.3': '8.1' }[m[1]] || m[1]}`;
+  else if ((m = ua.match(/Mac OS X (\d+)[_.](\d+)/))) os = `macOS ${m[1]}.${m[2]}`;
+  else if (/CrOS/.test(ua)) os = 'ChromeOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  const br = /Zalo/i.test(ua) ? 'Zalo' : /FBAN|FBAV|FB_IAB/.test(ua) ? 'Facebook' : /Instagram/.test(ua) ? 'Instagram' : /TikTok|musical_ly/i.test(ua) ? 'TikTok'
+    : /CocCoc|coc_coc/i.test(ua) ? 'Cốc Cốc' : /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung'
+    : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? `${os} · ${br}` : os;
+}
+
 export function clientInfo(request) {
   return {
     ip: request.headers.get('CF-Connecting-IP') || '0.0.0.0',

@@ -545,9 +545,34 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
 
   // Thành viên: danh sách
   if (path === '/admin/members') {
+    // Thao tác hàng loạt trên các thành viên được chọn.
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.get('action');
+      const ids = f.getAll('ids').map(x => parseInt(x, 10)).filter(x => x > 0).slice(0, 200);
+      const back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
+      const BULK = {
+        lock: ['UPDATE users SET locked = 1, session_ver = session_ver + 1 WHERE id = ?', 'Đã khóa tài khoản'],
+        unlock: ['UPDATE users SET locked = 0 WHERE id = ?', 'Đã mở khóa tài khoản'],
+        ban: ['UPDATE users SET banned = 1 WHERE id = ?', 'Đã khóa bình luận'],
+        unban: ['UPDATE users SET banned = 0 WHERE id = ?', 'Đã mở khóa bình luận'],
+        logout: ['UPDATE users SET session_ver = session_ver + 1 WHERE id = ?', 'Đã đăng xuất mọi thiết bị cho'],
+      };
+      if (!BULK[act] || !ids.length) return go(back, ['err', 'Chọn thành viên và thao tác.']);
+      const t = now();
+      const stmts = [];
+      for (const id of ids) {
+        stmts.push(db.prepare(BULK[act][0]).bind(id));
+        stmts.push(db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, 0, ?, ?)').bind(id, act, 'Thao tác hàng loạt', t));
+        if (act === 'ban') stmts.push(db.prepare("UPDATE comments SET status = 'hidden' WHERE user_id = ? AND status != 'hidden'").bind(id));
+      }
+      await db.batch(stmts);
+      await clearCache(db);
+      return go(back, ['ok', `${BULK[act][1]} ${ids.length} thành viên.`]);
+    }
     const q = (url.searchParams.get('q') || '').trim();
-    const sort = ['new', 'exp', 'stones', 'login'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
-    const filter = ['all', 'banned', 'locked'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
+    const sort = ['new', 'exp', 'stones', 'login', 'seen'].includes(url.searchParams.get('sort')) ? url.searchParams.get('sort') : 'new';
+    const filter = ['all', 'banned', 'locked', 'online', 'today'].includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all';
     const page = Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1);
     const per = 30;
     const where = [], args = [];
@@ -557,14 +582,22 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     }
     if (filter === 'banned') where.push('banned = 1');
     if (filter === 'locked') where.push('locked = 1');
+    if (filter === 'online') { where.push('last_seen > ?'); args.push(now() - 600); }
+    if (filter === 'today') { where.push('created_at >= ?'); args.push(Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000)); }
     const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
-    const order = { new: 'id DESC', exp: 'exp DESC', stones: 'stones DESC', login: 'last_login DESC' }[sort];
+    const order = { new: 'id DESC', exp: 'exp DESC', stones: 'stones DESC', login: 'last_login DESC', seen: 'last_seen DESC' }[sort];
     const [rows, total, stats] = await Promise.all([
-      all(db, `SELECT id, name, email, avatar, exp, stones, comments_n, created_at, last_login, reg_ip, last_ip, country, banned, locked
-        FROM users ${w} ORDER BY ${order} LIMIT ${per} OFFSET ${(page - 1) * per}`, ...args),
+      all(db, `SELECT u.id, u.name, u.email, u.avatar, u.exp, u.stones, u.comments_n, u.created_at, u.last_login, u.last_seen, u.reg_ip, u.last_ip,
+          u.country, u.device, u.note, u.banned, u.locked,
+          (SELECT COUNT(*) FROM users x WHERE x.id != u.id AND u.reg_ip != '' AND (x.reg_ip = u.reg_ip OR x.last_ip = u.reg_ip)) same_ip,
+          (SELECT COALESCE(SUM(vnd), 0) FROM withdrawals wd WHERE wd.user_id = u.id AND wd.status = 'paid') paid,
+          (SELECT COUNT(*) FROM withdrawals wd WHERE wd.user_id = u.id AND wd.status = 'pending') wd_pending
+        FROM users u ${w.replace(/\b(id|name|email|reg_ip|last_ip|banned|locked|last_seen|created_at)\b/g, 'u.$1')} ORDER BY ${order.replace(/^(\w+)/, 'u.$1')}
+        LIMIT ${per} OFFSET ${(page - 1) * per}`, ...args),
       first(db, `SELECT COUNT(*) c FROM users ${w}`, ...args),
-      first(db, `SELECT COUNT(*) total, SUM(CASE WHEN created_at > ? THEN 1 ELSE 0 END) today, SUM(CASE WHEN last_login > ? THEN 1 ELSE 0 END) active,
-        COALESCE(SUM(stones), 0) stones FROM users`, now() - 86400, now() - 7 * 86400),
+      first(db, `SELECT COUNT(*) total, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) today, SUM(CASE WHEN last_seen > ? THEN 1 ELSE 0 END) online,
+        SUM(CASE WHEN last_login > ? OR last_seen > ? THEN 1 ELSE 0 END) active, COALESCE(SUM(stones), 0) stones, SUM(locked) locked FROM users`,
+        Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000), now() - 600, now() - 7 * 86400, now() - 7 * 86400),
     ]);
     return view(V.membersView({ rows, total: total.c, stats, q, sort, filter, page, per }));
   }
@@ -575,13 +608,15 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     const uid = parseInt(m[1], 10);
     const u = await first(db, 'SELECT * FROM users WHERE id = ?', uid);
     if (!u) return go(ADMIN + '/members', ['err', 'Không tìm thấy thành viên.']);
-    const back = `${ADMIN}/members/${uid}`;
+    let back = `${ADMIN}/members/${uid}`;
     const log = (action, amount, note) => db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
       .bind(uid, action, amount, String(note || '').slice(0, 200), now()).run();
     if (isPost) {
       const f = await request.formData();
       const act = f.get('action');
       const reason = str(f, 'reason');
+      // Bấm từ danh sách: quay lại danh sách (giữ bộ lọc).
+      if (f.get('from') === 'list') back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
       if (act === 'save') {
         const name = str(f, 'name').replace(/\s+/g, ' ');
         if ([...name].length < 2 || [...name].length > 40) return go(back, ['err', 'Tên cần từ 2 đến 40 ký tự.']);

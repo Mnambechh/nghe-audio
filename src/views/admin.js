@@ -37,7 +37,7 @@ export function adminLayout(s, path, flash, content) {
     <form method="post" action="${ADMIN}/logout"><button type="submit">Thoát</button></form>
   </div>
 </header>
-<main class="qt-main">
+<main class="qt-main${path === '/admin/members' || path === '/admin/overview' ? ' wide' : ''}">
   ${flash ? `<div class="flash ${h(flash[0])}">${h(flash[1])}</div>` : ''}
   ${content}
 </main>
@@ -423,32 +423,82 @@ const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP
   unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP',
   withdraw: 'Yêu cầu rút Linh Thạch', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
 
+const MI = {
+  view: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
+};
+const micon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${MI[k]}</svg>`;
+const ago = t => {
+  if (!t) return '—';
+  const d = Math.floor(Date.now() / 1000) - t;
+  if (d < 600) return '<b class="m-on">● Đang online</b>';
+  if (d < 3600) return Math.floor(d / 60) + ' phút trước';
+  if (d < 86400) return Math.floor(d / 3600) + ' giờ trước';
+  if (d < 30 * 86400) return Math.floor(d / 86400) + ' ngày trước';
+  return vnDate(t);
+};
+
 export function membersView({ rows, total, stats, q, sort, filter, page, per }) {
   const pages = Math.max(1, Math.ceil(total / per));
-  const qs = (o = {}) => '?' + new URLSearchParams({ q, sort, f: filter, ...o }).toString();
+  const params = { q, sort, f: filter, page };
+  const qs = (o = {}) => '?' + new URLSearchParams({ ...params, ...o }).toString();
+  const curQs = new URLSearchParams(params).toString();
+  const rowAct = (u, a, icon, title, cls = '', confirm = '') => `<form method="post" action="${ADMIN}/members/${u.id}"${confirm ? ` data-confirm="${h(confirm)}"` : ''}>
+    <input type="hidden" name="action" value="${a}"><input type="hidden" name="from" value="list"><input type="hidden" name="qs" value="${h(curQs)}">
+    <button class="mi ${cls}" title="${title}" aria-label="${title}">${micon(icon)}</button></form>`;
+  const status = u => u.locked ? '<span class="st st-bad">Khóa tài khoản</span>' : u.banned ? '<span class="st st-warn">Khóa bình luận</span>' : '<span class="st st-ok">Hoạt động</span>';
   return `
 <h1>Thành viên</h1>
 <div class="stats">
-  <div><b>${fmtInt(stats.total)}</b><span>thành viên</span></div>
-  <div><b>${fmtInt(stats.today || 0)}</b><span>đăng ký 24 giờ qua</span></div>
+  <div><b>${fmtInt(stats.total)}</b><span>thành viên · mới hôm nay <strong>${fmtInt(stats.today || 0)}</strong></span></div>
+  <div><b class="m-on">${fmtInt(stats.online || 0)}</b><span>đang online (10 phút)</span></div>
   <div><b>${fmtInt(stats.active || 0)}</b><span>hoạt động 7 ngày</span></div>
-  <div><b>${fmtInt(stats.stones)}</b><span>tổng Linh Thạch</span></div>
+  <div><b>${fmtInt(stats.stones)}</b><span>tổng Linh Thạch · ${fmtInt(stats.locked || 0)} bị khóa</span></div>
 </div>
 <form method="get" class="bar">
   <input class="search" type="search" name="q" value="${h(q)}" placeholder="Tìm tên, email, ID hoặc IP...">
-  <select name="sort" class="sel">${[['new', 'Mới đăng ký'], ['exp', 'EXP cao nhất'], ['stones', 'Nhiều Linh Thạch'], ['login', 'Đăng nhập gần đây']].map(([k, l]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${l}</option>`).join('')}</select>
-  <select name="f" class="sel">${[['all', 'Tất cả'], ['banned', 'Bị khóa bình luận'], ['locked', 'Bị khóa tài khoản']].map(([k, l]) => `<option value="${k}"${k === filter ? ' selected' : ''}>${l}</option>`).join('')}</select>
+  <select name="sort" class="sel">${[['new', 'Mới đăng ký'], ['seen', 'Hoạt động gần đây'], ['exp', 'EXP cao nhất'], ['stones', 'Nhiều Linh Thạch'], ['login', 'Đăng nhập gần đây']].map(([k, l]) => `<option value="${k}"${k === sort ? ' selected' : ''}>${l}</option>`).join('')}</select>
+  <select name="f" class="sel">${[['all', 'Tất cả'], ['online', 'Đang online'], ['today', 'Đăng ký hôm nay'], ['banned', 'Bị khóa bình luận'], ['locked', 'Bị khóa tài khoản']].map(([k, l]) => `<option value="${k}"${k === filter ? ' selected' : ''}>${l}</option>`).join('')}</select>
   <button class="btn ghost" type="submit">Lọc</button>
 </form>
-<div class="table">
-  ${rows.map(u => `<a class="trow mrow" href="${ADMIN}/members/${u.id}">
-    ${memberAv(u)}
-    <span class="tmain"><b>${h(u.name)} <small>#${u.id}</small>${u.locked ? ' <em class="pill bad">Khóa TK</em>' : ''}${u.banned ? ' <em class="pill">Khóa BL</em>' : ''}</b>
-      <small>${h(u.email)} · ${realmTag(u.exp)}</small>
-      <small>Đăng ký ${vnDate(u.created_at)} · IP ${h(u.reg_ip || '—')}${u.country ? ' (' + h(u.country) + ')' : ''} · vào lần cuối ${u.last_login ? vnDate(u.last_login, true) : '—'}</small></span>
-    <span class="tnum">${fmtInt(u.stones)}<small>Linh Thạch</small></span>
-    <span class="tnum">${fmtInt(u.exp)}<small>EXP</small></span>
-  </a>`).join('') || '<p class="muted pad">Không có thành viên nào.</p>'}
+
+<form method="post" id="bulkForm" class="bulk-bar">
+  <input type="hidden" name="qs" value="${h(curQs)}">
+    <label class="check"><input type="checkbox" id="checkAll"> Chọn tất cả</label>
+    <select name="action" class="sel">
+      <option value="">— Thao tác với mục đã chọn —</option>
+      <option value="lock">Khóa tài khoản</option><option value="unlock">Mở khóa tài khoản</option>
+      <option value="ban">Khóa bình luận</option><option value="unban">Mở khóa bình luận</option>
+      <option value="logout">Đăng xuất mọi thiết bị</option>
+    </select>
+    <button class="btn ghost" data-confirm="Áp dụng thao tác cho các thành viên đã chọn?">Áp dụng</button>
+    <small class="muted">${fmtInt(total)} kết quả</small>
+</form>
+<div class="mtable-wrap">
+  <div class="mtable">
+    <div class="mt-head"><span></span><span>Thành viên</span><span>Ghi chú</span><span>Cấp độ</span><span>Linh Thạch</span><span>Đã rút</span><span>Trạng thái</span><span>IP · Thiết bị</span><span>Hoạt động</span><span>Thao tác</span></div>
+    ${rows.map(u => `<div class="mt-row${u.locked ? ' is-locked' : ''}">
+      <span class="mt-cb"><input type="checkbox" name="ids" value="${u.id}" form="bulkForm" aria-label="Chọn ${h(u.name)}"></span>
+      <a class="mt-user" href="${ADMIN}/members/${u.id}">${memberAv(u, 36)}<span><b>${h(u.name)} <small>#${u.id}</small></b><small>${h(u.email)}</small></span></a>
+      <span class="mt-note" data-l="Ghi chú">${u.note ? h(u.note.length > 40 ? u.note.slice(0, 40) + '…' : u.note) : '<i>Không có</i>'}</span>
+      <span data-l="Cấp độ">${realmTag(u.exp)}</span>
+      <span class="mt-num" data-l="Linh Thạch"><b>${fmtInt(u.stones)}</b><small>${fmtInt(u.exp)} EXP</small></span>
+      <span class="mt-num" data-l="Đã rút"><b class="mt-paid">${fmtInt(u.paid)}đ</b>${u.wd_pending ? '<small class="st-warn-t">1 yêu cầu chờ</small>' : ''}</span>
+      <span data-l="Trạng thái">${status(u)}</span>
+      <span class="mt-ip" data-l="IP · Thiết bị"><code>${h(u.last_ip || u.reg_ip || '—')}</code>${u.same_ip ? `<a class="st st-warn" href="${ADMIN}/members?q=${encodeURIComponent(u.reg_ip)}" title="Cùng IP đăng ký">+${u.same_ip} cùng IP</a>` : ''}<small>${h(u.device || 'Chưa rõ thiết bị')}${u.country ? ' · ' + h(u.country) : ''}</small></span>
+      <span class="mt-time" data-l="Hoạt động"><span>${ago(u.last_seen || u.last_login)}</span><small>ĐK ${vnDate(u.created_at)}</small></span>
+      <span class="mt-act">
+        <a class="mi" href="${ADMIN}/members/${u.id}" title="Xem / sửa" aria-label="Xem / sửa">${micon('edit')}</a>
+        ${rowAct(u, 'logout', 'logout', 'Đăng xuất mọi thiết bị', 'mi-orange', `Đăng xuất ${u.name} khỏi mọi thiết bị?`)}
+        ${u.locked ? rowAct(u, 'unlock', 'unlock', 'Mở khóa tài khoản', 'mi-green') : rowAct(u, 'lock', 'lock', 'Khóa tài khoản', 'mi-red', `Khóa tài khoản ${u.name}?`)}
+        <a class="mi mi-red" href="${ADMIN}/members/${u.id}#delete" title="Xóa tài khoản" aria-label="Xóa tài khoản">${micon('trash')}</a>
+      </span>
+    </div>`).join('') || '<p class="muted pad">Không có thành viên nào.</p>'}
+  </div>
 </div>
 ${pages > 1 ? `<nav class="pager">${Array.from({ length: pages }, (_, i) => i + 1).map(i => `<a class="${i === page ? 'on' : ''}" href="${qs({ page: i })}">${i}</a>`).join('')}</nav>` : ''}`;
 }
@@ -544,7 +594,7 @@ ${walletSection(u, wallet)}
 <div class="table">${comments.map(c => `<div class="trow crow"><span class="tmain"><span class="cbody">${h(c.body)}</span>
   <small>${vnDate(c.created_at, true)} · ${{ approved: 'Đã hiện', pending: 'Chờ duyệt', hidden: 'Đã ẩn' }[c.status] || c.status} · ${c.likes} thích · ${c.slug ? `<a href="/track/${h(c.slug)}#comments" target="_blank">${h(c.title)}</a>` : 'audio đã xóa'}</small></span></div>`).join('') || '<p class="muted pad">Chưa bình luận.</p>'}</div>
 
-<form method="post" class="form card danger-zone" data-confirm="Xóa vĩnh viễn tài khoản này cùng toàn bộ bình luận, đánh giá, lịch sử?">
+<form method="post" class="form card danger-zone" id="delete" data-confirm="Xóa vĩnh viễn tài khoản này cùng toàn bộ bình luận, đánh giá, lịch sử?">
   <input type="hidden" name="action" value="delete">
   <h2>Xóa tài khoản</h2>
   <p class="muted">Xóa vĩnh viễn thành viên cùng bình luận, lượt thích, đánh giá, lịch sử nghe. Không thể hoàn tác.</p>
