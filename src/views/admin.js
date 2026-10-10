@@ -3,6 +3,7 @@ import { h, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { ASSET_V } from './public.js';
 import { ADMIN, EVENT_LABELS } from '../security.js';
 import { levelInfo } from '../levels.js';
+import { matchWords } from '../wordfilter.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 
@@ -245,7 +246,10 @@ export function settingsView(s, origin) {
 
   <h2>Bình luận & đăng nhập Google</h2>
   <label class="check"><input type="checkbox" name="comments_enabled" value="1"${s.comments_enabled === '1' ? ' checked' : ''}> Bật bình luận</label>
-  <label class="check"><input type="checkbox" name="comment_moderation" value="1"${s.comment_moderation === '1' ? ' checked' : ''}> Duyệt bình luận trước khi hiện (bình luận có link luôn phải duyệt)</label>
+  <label class="check"><input type="checkbox" name="comment_moderation" value="1"${s.comment_moderation === '1' ? ' checked' : ''}> Duyệt <b>tất cả</b> bình luận trước khi hiện</label>
+  <label>Bộ lọc từ (mỗi dòng một từ hoặc cụm từ)<textarea name="comment_words" rows="8" spellcheck="false">${h(s.comment_words)}</textarea>
+    <small class="muted">Khi tắt "Duyệt tất cả": bình luận hiện ngay, trừ bình luận chứa từ trong danh sách này hoặc có link sẽ phải chờ bạn duyệt.
+    Không phân biệt hoa thường, bắt cả khi chèn dấu chấm/cách (đ.m, l o n). Từ viết <b>không dấu</b> bắt mọi cách viết (dm bắt cả đm, Đ.M); từ <b>có dấu</b> chỉ bắt đúng dấu đó.</small></label>
   <label>Dung lượng tối đa ảnh đại diện người dùng tải lên (MB)<input name="avatar_max_mb" inputmode="decimal" value="${h(s.avatar_max_mb)}">
     <small class="muted">Ảnh được tự cắt vuông và nén còn khoảng 20–50KB trước khi lưu.</small></label>
   <label>Google Client ID<input name="google_client_id" value="${h(s.google_client_id)}" placeholder="123456789-xxxx.apps.googleusercontent.com">
@@ -372,7 +376,7 @@ export function securityView({ stats, logs, blocked, myIp }) {
 
 // ---------- Bình luận ----------
 
-export function commentsView({ rows, count, status, page, per, banned, moderation, clientId }) {
+export function commentsView({ rows, count, status, page, per, banned, moderation, clientId, words }) {
   const tabs = [['pending', 'Chờ duyệt'], ['approved', 'Đã hiện'], ['hidden', 'Đã ẩn']];
   const total = count[status] || 0;
   const pages = Math.max(1, Math.ceil(total / per));
@@ -382,12 +386,13 @@ export function commentsView({ rows, count, status, page, per, banned, moderatio
   ${status === 'pending' && total ? `<form method="post" data-confirm="Duyệt tất cả ${total} bình luận đang chờ?"><input type="hidden" name="action" value="approve_all"><button class="btn">Duyệt tất cả</button></form>` : ''}
 </div>
 ${clientId ? '' : `<div class="flash err">Chưa nhập Google Client ID nên người nghe chưa đăng nhập được. Vào <a href="${ADMIN}/settings">Cài đặt & SEO</a> để nhập.</div>`}
-<p class="muted">${moderation ? 'Đang bật duyệt: bình luận mới chỉ hiện sau khi bạn bấm Duyệt.' : 'Đang tắt duyệt: bình luận hiện ngay (trừ bình luận có link).'}</p>
+<p class="muted">${moderation ? 'Đang bật duyệt tất cả: bình luận mới chỉ hiện sau khi bạn bấm Duyệt.' : `Bình luận hiện ngay, trừ bình luận có link hoặc chứa từ trong <a href="${ADMIN}/settings">bộ lọc từ</a>.`}</p>
 <nav class="tabs-admin">${tabs.map(([k, l]) => `<a href="?status=${k}" class="${k === status ? 'on' : ''}">${l} (${count[k] || 0})</a>`).join('')}</nav>
 <div class="table">
   ${rows.map(c => `<div class="trow crow">
     <span class="tmain"><b>${h(c.name)}${c.banned ? ' <em class="pill">Đã khóa</em>' : ''} <small>${h(c.email)}</small></b>
       <span class="cbody">${h(c.body)}</span>
+      ${c.status === 'pending' ? (hits => hits.length ? `<small class="wf-hit">⚠ Chứa từ lọc: ${hits.map(h).join(', ')}</small>` : '')(matchWords(c.body, words)) : ''}
       <small>${vnDate(c.created_at, true)} · ${c.parent_id ? 'trả lời · ' : ''}${c.track_slug ? `<a href="/track/${h(c.track_slug)}#comments" target="_blank">${h(c.track_title)}</a>` : 'audio đã xóa'} · ${c.likes} thích · ${h(c.ip)}</small></span>
     <span class="tact col">
       ${c.status !== 'approved' ? btn('approve', 'Duyệt', c, ' class="ok-form"') : ''}

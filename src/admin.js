@@ -8,6 +8,7 @@ import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
 import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
+import { parseWords } from './wordfilter.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -284,6 +285,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      data.comment_words = parseWords(f.get('comment_words')).join('\n').slice(0, 20000);
       for (const k of [...Object.keys(GAME_DEFAULTS), ...Object.keys(WITHDRAW_DEFAULTS).filter(k => k !== 'withdraw_enabled')]) {
         const v = parseFloat(str(f, k).replace(',', '.'));
         data[k] = String(Number.isFinite(v) && v >= 0 ? Math.min(100000, v) : GAME_DEFAULTS[k]);
@@ -414,7 +416,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       all(db, 'SELECT id, name, email FROM users WHERE banned = 1 ORDER BY id DESC LIMIT 100'),
     ]);
     const count = Object.fromEntries(counts.map(r => [r.status, r.n]));
-    return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id }));
+    return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id, words: s.comment_words }));
   }
 
   // Rút Linh Thạch: duyệt yêu cầu

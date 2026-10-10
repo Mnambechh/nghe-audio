@@ -5,6 +5,7 @@ import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { badge } from './levels.js';
+import { matchWords } from './wordfilter.js';
 import { handleWithdrawApi } from './withdraw.js';
 
 const USER_COOKIE = 'aw_user';
@@ -236,7 +237,9 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     }
     // Bình luận có link luôn phải chờ duyệt (chống spam quảng cáo).
     const hasLink = /(https?:\/\/|www\.|\.(com|net|vn|xyz|top|info|io|me|link)\b)/i.test(body);
-    const status = s.comment_moderation === '1' || hasLink ? 'pending' : 'approved';
+    // Chứa từ trong bộ lọc của admin cũng phải chờ duyệt.
+    const flagged = !hasLink && s.comment_moderation !== '1' && matchWords(body, s.comment_words).length > 0;
+    const status = s.comment_moderation === '1' || hasLink || flagged ? 'pending' : 'approved';
     const r = await db.prepare('INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(trackId, me.id, parent, body, status, t, info.ip).run();
     const rewards = status === 'approved'

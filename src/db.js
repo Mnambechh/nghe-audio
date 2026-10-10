@@ -3,6 +3,7 @@ import { now, LIVE_WINDOW } from './util.js';
 import { GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS } from './withdraw.js';
 import { setLevelBase } from './levels.js';
+import { DEFAULT_WORDS } from './wordfilter.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`,
@@ -158,6 +159,11 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 10: bộ lọc từ. Lần đầu có bộ lọc thì tắt duyệt toàn bộ (chỉ bình luận chứa từ lọc / link mới phải duyệt).
+  if (!(await db.prepare("SELECT 1 x FROM settings WHERE k = 'comment_words'").first())) {
+    const st = db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v');
+    await db.batch([st.bind('comment_words', DEFAULT_WORDS), st.bind('comment_moderation', '0')]);
+  }
   // Bản 9: lịch sử EXP / Linh Thạch của từng thành viên.
   if (await missing(db, 'wallet_log')) {
     await db.batch([
@@ -187,7 +193,8 @@ export const DEFAULT_SETTINGS = {
   per_page: '15',
   comments_enabled: '1',
   avatar_max_mb: '5',
-  comment_moderation: '1',
+  comment_moderation: '0',   // 1 = duyệt mọi bình luận; 0 = chỉ duyệt bình luận có link hoặc chứa từ trong bộ lọc
+  comment_words: DEFAULT_WORDS,
   google_client_id: '',
   ad_enabled: '1',
   ad_interval_hours: '6',

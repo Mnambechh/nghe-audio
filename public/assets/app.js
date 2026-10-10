@@ -1009,14 +1009,34 @@
   function setMe(m, g) {
     if (m && g && g.unread > 0) setTimeout(toastNewNotifs, 600);
     const changed = (me && me.id) !== (m && m.id) || !$('.acct-btn') !== !m;
+    const prevLvl = !changed && game && game.level ? game.level.lvl : 0;
     me = m || null;
     game = me ? (g || game) : null;
+    if (prevLvl && game && game.level && game.level.lvl !== prevLvl) setTimeout(syncMyLevel);
     if (game) { ckDeadline = Date.now() + (game.checkinIn || 0) * 1000; if (game.checkedIn) ckNotified = false; }
     histCache = null;
     if (changed) renderAcct(); else renderGame();
   }
 
+  // Cấp độ thay đổi (admin cộng EXP, lên cấp ở thiết bị khác…): cập nhật avatar/cảnh giới của mình đang hiện trên trang.
+  function syncMyLevel() {
+    if (!me || !game || !cState) return;
+    const L = game.level, b = { lvl: L.lvl, tier: L.tier, realm: L.realm };
+    cState.items.forEach(c => { if (c.mine) Object.assign(c, b); });
+    if (cState.me) Object.assign(cState.me, b);
+    $$('#comments .c-item').forEach(el => {
+      const c = cState.items.find(x => String(x.id) === el.dataset.cid);
+      if (!c || !c.mine) return;
+      el.firstElementChild.outerHTML = lvAv(c.name, c.avatar, c, 'c-av');
+      const name = $(':scope > .c-main > .c-bubble .c-name', el);
+      if (name) name.innerHTML = `<b>${esc(c.name)}</b>${realmTag(c)}`;
+    });
+    $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av'); });
+  }
+
+  let meFetchedAt = 0;
   function fetchMe() {
+    meFetchedAt = Date.now();
     return fetch(`${APP.base}/api/me`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
       if (!r || !r.ok) return;
       clientId = r.clientId || '';
@@ -1025,7 +1045,11 @@
     }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); initRating(); });
   }
 
-  setInterval(() => { if (me && !document.hidden) fetchMe(); }, 120000);
+  // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
+  setInterval(() => { if (me && !document.hidden) fetchMe(); }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (me && !document.hidden && Date.now() - meFetchedAt > 10000) fetchMe();
+  });
 
   function openLogin() {
     const m = $('#loginbox');
