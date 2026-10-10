@@ -785,7 +785,7 @@
     once('quest' + a.dataset.quest, () => api('/api/quest/open', { id: +a.dataset.quest }).then(r => {
       if (!r || !r.ok) { toast((r && r.error) || 'Chưa ghi nhận được nhiệm vụ'); return; }
       if (x) x.done = true;
-      if (!r.already) showRewards(r.rewards, `Bạn đã hoàn thành nhiệm vụ "${esc(r.title)}"`, '🎯');
+      if (!r.already) showRewards(r.rewards, 'Nhiệm vụ thành công', '🎯');
       loadQuests(); fetchMe();
     }));
   });
@@ -814,7 +814,7 @@
         L.sec = r.sec;
         if (r.reached && r.reached.length) {
           L.tiers.forEach(t => { if (r.reached.includes(t.min)) t.done = true; });
-          showRewards(r.rewards, `Bạn đã nghe đủ ${r.reached[r.reached.length - 1]} phút hôm nay`, '🎧');
+          showRewards(r.rewards, `Nghe đủ ${r.reached[r.reached.length - 1]} phút`, '🎧');
           fetchMe();
         }
       } else lq.pending += sec;
@@ -935,7 +935,7 @@
       if (!confirm(`Rút ${nf(amount)} Linh Thạch?`)) return;
       once('withdraw', () => api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
-        rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)}</b> Linh Thạch. Admin sẽ duyệt sớm.`, '💎', 6000);
+        rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)} 💎</b>`, '💸', 5000);
         loadWithdraw(); fetchMe();
       }));
     }
@@ -1187,15 +1187,14 @@
     list = list || [];
     const sum = t => list.filter(r => r.type === t).reduce((n, r) => n + (r.n || 0), 0);
     const exp = sum('exp'), stones = sum('stones');
-    const gains = [exp && `<b>+${nf(exp)}</b> kinh nghiệm`, stones && `<b>+${nf(stones)}</b> Linh Thạch`].filter(Boolean);
+    // Ngắn gọn: "Bình luận thành công · +2 EXP · +20 💎" (+ "⚡ Lên cấp N" nếu đột phá).
+    const gains = [exp && `<b>+${nf(exp)} EXP</b>`, stones && `<b>+${nf(stones)} 💎</b>`].filter(Boolean);
     const up = list.filter(r => r.type === 'levelup').pop();
     if (!title && !gains.length && !up) return;
-    let html = title ? `Chúc mừng! ${title}` : 'Chúc mừng!';
-    if (gains.length) html += ` và nhận ${gains.join(', ')}`;
-    html += '!';
+    let html = [title || '', ...gains].filter(Boolean).join(' · ');
     if (up) {
       lastLevelToast = Date.now();
-      html += `<br>⚡ Đột phá thành công: ${realmTag(up)} <b>Cấp ${up.lvl}</b>`;
+      html += `<br>⚡ Lên <b>cấp ${up.lvl}</b>`;
     }
     rewardToast(html, up ? '⚡' : icon, up ? 7000 : 5000);
   }
@@ -1230,7 +1229,7 @@
       : Promise.resolve();
     once('checkin', () => flush.then(() => api('/api/checkin', {})).then(r => {
       if (r && r.ok) {
-        showRewards(r.rewards, 'Bạn đã điểm danh thành công', '📅');
+        showRewards(r.rewards, 'Điểm danh thành công', '📅');
         ckNotified = false;
         fetchMe();
       } else {
@@ -1516,7 +1515,7 @@
     once('heart', () => api('/api/heart', { track_id: +box.dataset.track }).then(r => {
       if (!r || !r.ok) { box.classList.remove('on'); toast((r && r.error) || 'Chưa bắn tim được, thử lại sau'); initHeartReset(box); return; }
       n.textContent = nf(r.count);
-      if (r.added) { showRewards(r.rewards, 'Bạn đã thả tim thành công', '❤️'); fetchMe(); }
+      if (r.added) { showRewards(r.rewards, 'Thả tim thành công', '❤️'); fetchMe(); }
     }));
   }
   function initHeartReset(box) { delete box.dataset.loaded; initHeart(); }
@@ -1563,7 +1562,7 @@
       $('.stars', box).style.setProperty('--pct', pct + '%');
       $('.rate-text', box).textContent = `${avg.toFixed(1).replace('.', ',')} (${pct}%) · ${r.count} đánh giá`;
       showMine(box, r.mine);
-      showRewards(r.rewards, `Bạn đã đánh giá <b>${r.mine}★</b>`, '⭐');
+      showRewards(r.rewards, 'Đánh giá thành công', '⭐');
       fetchMe();
     }));
   });
@@ -1972,8 +1971,8 @@
       cState.items.unshift(r.item);
       if (!r.item.pending) cState.total++;
       renderComments();
-      if (r.item.pending) rewardToast('Đã gửi bình luận, bình luận sẽ hiện sau khi được duyệt.', '💬', 5000);
-      else { showRewards(r.rewards, 'Bạn đã bình luận thành công', '💬'); fetchMe(); }
+      if (r.item.pending) rewardToast('Đã gửi, chờ duyệt', '💬', 4000);
+      else { showRewards(r.rewards, 'Bình luận thành công', '💬'); fetchMe(); }
     });
   });
 
