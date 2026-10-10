@@ -1,5 +1,5 @@
 // Trang quản trị và trình cài đặt.
-import { saveSettings, clearCache, all, first, liveCounts, withLive, uniqueSlug, DEFAULT_SETTINGS } from './db.js';
+import { saveSettings, loadSettings as loadSettingsFresh, clearCache, all, first, liveCounts, withLive, uniqueSlug, DEFAULT_SETTINGS } from './db.js';
 import {
   html, redirect, now, vnDay, vnPlain, slugify, parseDuration, randomId, getCookie, setCookie,
   hashPassword, verifyPassword, signToken, readToken, safeEqual, imageType, toBase64,
@@ -11,6 +11,7 @@ import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
 import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
 import { demoLoginCookie } from './comments.js';
+import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -18,6 +19,24 @@ const SESSION_DAYS = 7;
 // Đăng nhập sai: 5 lần / 15 phút mỗi IP thì tạm khóa; 10 lần / 10 phút thì chặn IP 24 giờ.
 // Tổng cộng mọi IP sai 30 lần / 15 phút thì khóa đăng nhập 15 phút (chống dò mật khẩu từ nhiều IP).
 const FAILS_PER_IP = 5, FAILS_GLOBAL = 30;
+// Dấu vân tay thiết bị của phiên admin (băm User-Agent): cookie bị lấy cắp đem sang máy khác sẽ không dùng được.
+// Thành viên #1 là tài khoản quản trị mặc định: không xóa, không khóa, không bị thao tác hàng loạt.
+export const OWNER_ID = 1;
+const OWNER_BLOCKED = ['delete', 'lock', 'ban', 'logout', 'avatar_reset'];
+
+async function uaHash(request) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(request.headers.get('User-Agent') || ''));
+  return Array.from(new Uint8Array(d).slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
+}
+async function sha256hex(t) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(d), b => b.toString(16).padStart(2, '0')).join('');
+}
+// Danh sách IP được phép vào trang quản trị (mỗi dòng một IP hoặc tiền tố, vd. 113.161. hoặc 2405:4802:).
+function ipAllowed(list, ip) {
+  const rules = String(list || '').split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+  return !rules.length || rules.some(r => ip === r || (/[.:]$/.test(r) && ip.startsWith(r)));
+}
 const sessionCookie = (token, maxAge) => setCookie(SESSION_COOKIE, token, { maxAge, path: ADMIN, sameSite: 'Strict' });
 
 // Chặn gửi form từ trang web khác (CSRF): yêu cầu POST phải đến từ chính tên miền này.
@@ -102,6 +121,11 @@ export async function handleInstall(request, db) {
 
 export async function handleAdmin(request, env, db, s, path, url, info) {
   const isPost = request.method === 'POST';
+  // Giới hạn IP (nếu admin bật): IP lạ nhận 404 như thể trang không tồn tại.
+  if (!ipAllowed(s.admin_ip_allow, info.ip)) {
+    await logEvent(db, info, 'admin_ip_deny', ADMIN + path.slice('/admin'.length), { hits: 20, hours: 24 });
+    return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
   if (isPost && !sameOrigin(request)) {
     await logEvent(db, info, 'csrf', ADMIN + path.slice('/admin'.length));
     return new Response('Yêu cầu không hợp lệ, vui lòng tải lại trang.', { status: 400 });
@@ -118,9 +142,28 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         await logEvent(db, info, 'login_lock', `user=${str(f, 'user')}`);
         err = 'Sai quá nhiều lần, vui lòng thử lại sau 15 phút.';
       } else if (safeEqual(str(f, 'user'), s.admin_user) && await verifyPassword(String(f.get('pass') || ''), s.admin_pass)) {
-        await logEvent(db, info, 'login_ok', `user=${s.admin_user}`);
-        const token = await signToken(s.secret, { u: s.admin_user, exp: now() + SESSION_DAYS * 86400 });
-        return redirect(ADMIN + '/overview', { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
+        // Bước 2: mã 6 số từ ứng dụng xác thực (hoặc mã dự phòng dùng 1 lần).
+        let ok2 = true;
+        if (s.admin_totp) {
+          const code = str(f, 'code').replace(/\s/g, '').toUpperCase();
+          const counter = await verifyTotp(s.admin_totp, code, +s.admin_totp_last || 0);
+          if (counter) await saveSettings(db, { admin_totp_last: String(counter) });
+          else {
+            const codes = String(s.admin_recovery || '').split(',').filter(Boolean);
+            const hash = code.length >= 8 ? await sha256hex(code.replace(/-/g, '')) : '';
+            if (hash && codes.includes(hash)) await saveSettings(db, { admin_recovery: codes.filter(c => c !== hash).join(',') });
+            else ok2 = false;
+          }
+        }
+        if (!ok2) {
+          await logEvent(db, info, 'login_fail', `user=${s.admin_user} (sai mã 2 bước)`, { hits: 10, hours: 24 });
+          await new Promise(r => setTimeout(r, 600));
+          err = 'Mã xác thực 2 bước không đúng hoặc đã hết hạn.';
+        } else {
+          await logEvent(db, info, 'login_ok', `user=${s.admin_user}${s.admin_totp ? ' · 2 bước' : ''}`);
+          const token = await signToken(s.secret, { u: s.admin_user, d: await uaHash(request), exp: now() + SESSION_DAYS * 86400 });
+          return redirect(ADMIN + '/overview', { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
+        }
       } else {
         await logEvent(db, info, 'login_fail', `user=${str(f, 'user')}`, { hits: 10, hours: 24 });
         await new Promise(r => setTimeout(r, 600)); // làm chậm dò mật khẩu
@@ -132,6 +175,11 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
 
   const session = await readToken(s.secret, getCookie(request, SESSION_COOKIE));
   if (!session || session.u !== s.admin_user) return redirect(ADMIN + '/login');
+  // Phiên gắn với thiết bị đã đăng nhập: cookie dùng trên thiết bị khác → bắt đăng nhập lại và ghi nhật ký.
+  if (s.admin_bind_device !== '0' && session.d && session.d !== await uaHash(request)) {
+    await logEvent(db, info, 'session_stolen', ADMIN + path.slice('/admin'.length));
+    return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
+  }
 
   if (path === '/admin/logout' && isPost) {
     return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
@@ -375,9 +423,37 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     let err = '';
     if (isPost) {
       const f = await request.formData();
+      const act2 = f.get('action');
+      // ----- Xác thực 2 bước -----
+      if (act2 === '2fa_start') {
+        await saveSettings(db, { admin_totp_pending: randomBase32(32) });
+        return go(ADMIN + '/password#twofa');
+      }
+      if (act2 === '2fa_confirm') {
+        const sec = s.admin_totp_pending;
+        const c = sec ? await verifyTotp(sec, str(f, 'code')) : 0;
+        if (!c) return go(ADMIN + '/password#twofa', ['err', 'Mã không đúng. Kiểm tra giờ trên điện thoại và nhập mã mới nhất.']);
+        // 8 mã dự phòng dùng 1 lần (chỉ hiện một lần), lưu dạng băm.
+        const plain = Array.from({ length: 8 }, () => randomBase32(8));
+        await saveSettings(db, { admin_totp: sec, admin_totp_pending: '', admin_totp_last: String(c),
+          admin_recovery: (await Promise.all(plain.map(sha256hex))).join(','), secret: randomId(40) });
+        await logEvent(db, info, 'admin_2fa', 'Bật xác thực 2 bước');
+        const token = await signToken((await loadSettingsFresh(db)).secret, { u: s.admin_user, d: await uaHash(request), exp: now() + SESSION_DAYS * 86400 });
+        return html(V.adminLayout(s, path, ['ok', 'Đã bật xác thực 2 bước. Mọi thiết bị khác đã bị đăng xuất.'], V.recoveryView(plain)), 200,
+          { ...noStore, 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
+      }
+      if (act2 === '2fa_off') {
+        const okPass = await verifyPassword(String(f.get('old') || ''), s.admin_pass);
+        const okCode = await verifyTotp(s.admin_totp, str(f, 'code'), +s.admin_totp_last || 0);
+        if (!okPass || !okCode) return go(ADMIN + '/password#twofa', ['err', 'Sai mật khẩu hoặc mã xác thực.']);
+        await saveSettings(db, { admin_totp: '', admin_totp_pending: '', admin_recovery: '' });
+        await logEvent(db, info, 'admin_2fa', 'Tắt xác thực 2 bước');
+        return go(ADMIN + '/password', ['ok', 'Đã tắt xác thực 2 bước.']);
+      }
       const nw = String(f.get('new') || '');
       if (!(await verifyPassword(String(f.get('old') || ''), s.admin_pass))) err = 'Mật khẩu hiện tại không đúng.';
-      else if (nw.length < 8) err = 'Mật khẩu mới cần ít nhất 8 ký tự.';
+      else if (nw.length < 10 || !/[a-zA-Z]/.test(nw) || !/\d/.test(nw)) err = 'Mật khẩu mới cần ít nhất 10 ký tự, gồm cả chữ và số.';
+      else if (nw.toLowerCase().includes(String(str(f, 'user') || s.admin_user).toLowerCase())) err = 'Mật khẩu không được chứa tên đăng nhập.';
       else if (nw !== f.get('new2')) err = 'Hai mật khẩu mới không khớp.';
       else {
         const user = str(f, 'user') || s.admin_user;
@@ -390,7 +466,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         return new Response(null, { status: 303, headers });
       }
     }
-    return view(V.passwordView(s, err), err ? 400 : 200);
+    const pendingUri = s.admin_totp_pending ? otpauthUri(s.admin_totp_pending, s.admin_user, s.site_name || 'Admin') : '';
+    return view(V.passwordView(s, err, { pendingUri, recoveryLeft: String(s.admin_recovery || '').split(',').filter(Boolean).length }), err ? 400 : 200);
   }
 
   // Bình luận: duyệt, ẩn, xóa, khóa người dùng
@@ -423,6 +500,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         const ids = await all(db, "SELECT id FROM comments WHERE status = 'pending' ORDER BY created_at LIMIT 100");
         for (const r of ids) await approve(r.id);
       }
+      else if (act === 'ban' && uid === OWNER_ID) return go(back, ['err', 'Không thể khóa tài khoản quản trị (#1).']);
       else if (act === 'ban' && uid) {
         await db.batch([
           db.prepare('UPDATE users SET banned = 1 WHERE id = ?').bind(uid),
@@ -551,7 +629,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     if (isPost) {
       const f = await request.formData();
       const act = f.get('action');
-      const ids = f.getAll('ids').map(x => parseInt(x, 10)).filter(x => x > 0).slice(0, 200);
+      const ids = f.getAll('ids').map(x => parseInt(x, 10)).filter(x => x > 0 && x !== OWNER_ID).slice(0, 200);
       const back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
       const BULK = {
         lock: ['UPDATE users SET locked = 1, session_ver = session_ver + 1 WHERE id = ?', 'Đã khóa tài khoản'],
@@ -619,6 +697,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const reason = str(f, 'reason');
       // Bấm từ danh sách: quay lại danh sách (giữ bộ lọc).
       if (f.get('from') === 'list') back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
+      if (uid === OWNER_ID && OWNER_BLOCKED.includes(act)) return go(back, ['err', 'Tài khoản quản trị (#1) được bảo vệ: không thể xóa, khóa hay đăng xuất từ đây.']);
       if (act === 'impersonate') {
         await log('impersonate', 0, 'Admin đăng nhập xem thử');
         return redirect('/', { 'Set-Cookie': await demoLoginCookie(db, u) });
@@ -740,6 +819,12 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
         await db.prepare('DELETE FROM security_log').run();
         return go(ADMIN + '/security', ['ok', 'Đã xóa nhật ký.']);
       }
+      if (act === 'access') {
+        const list = str(f, 'admin_ip_allow').split(/[\s,]+/).filter(x => /^[0-9a-fA-F:.]{2,45}$/.test(x)).join('\n');
+        if (list && !ipAllowed(list, info.ip)) return go(ADMIN + '/security', ['err', `IP hiện tại của bạn (${info.ip}) không nằm trong danh sách — thêm nó vào để tránh tự khóa mình.`]);
+        await saveSettings(db, { admin_ip_allow: list, admin_bind_device: f.get('admin_bind_device') ? '1' : '0' });
+        return go(ADMIN + '/security', ['ok', 'Đã lưu giới hạn truy cập.']);
+      }
       if (act === 'logout_all') {
         await saveSettings(db, { secret: randomId(40) });
         return redirect(ADMIN + '/login', { 'Set-Cookie': sessionCookie('', 0) });
@@ -752,7 +837,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       all(db, 'SELECT * FROM security_log ORDER BY at DESC LIMIT 150'),
       all(db, 'SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300'),
     ]);
-    return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip }));
+    const logins = await all(db, "SELECT at, ip, country, ua, detail FROM security_log WHERE event = 'login_ok' ORDER BY at DESC LIMIT 10");
+    return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip, s, logins }));
   }
 
   return new Response('Không tìm thấy', { status: 404 });

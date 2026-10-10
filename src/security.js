@@ -96,6 +96,9 @@ export const EVENT_LABELS = {
   probe: 'Dò quét lỗ hổng',
   login_fail: 'Đăng nhập sai',
   login_ok: 'Đăng nhập thành công',
+  admin_ip_deny: 'IP lạ vào trang quản trị',
+  session_stolen: 'Phiên admin dùng trên thiết bị khác',
+  admin_2fa: 'Thay đổi xác thực 2 bước',
   login_lock: 'Khóa đăng nhập tạm thời',
   csrf: 'Gửi form giả mạo',
   play_spam: 'Bơm lượt nghe',
@@ -129,6 +132,9 @@ export function withSecurityHeaders(res, isAdmin) {
     h.set('Content-Security-Policy', ADMIN_CSP);
     h.set('X-Robots-Tag', 'noindex, nofollow');
     h.set('Cache-Control', 'no-store');
+    h.set('Cross-Origin-Opener-Policy', 'same-origin');
+    h.set('Cross-Origin-Resource-Policy', 'same-origin');
+    h.set('Referrer-Policy', 'no-referrer'); // không để lộ đường dẫn quản trị khi bấm link ra ngoài
   }
   return out;
 }

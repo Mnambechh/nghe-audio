@@ -1,7 +1,7 @@
 // Giao diện trang quản trị.
 import { h, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { ASSET_V } from './public.js';
-import { ADMIN, EVENT_LABELS } from '../security.js';
+import { ADMIN, EVENT_LABELS, deviceOf } from '../security.js';
 import { levelInfo } from '../levels.js';
 import { matchWords } from '../wordfilter.js';
 import { parseLevelTiers } from '../game.js';
@@ -52,6 +52,7 @@ export function loginPage(s, err) {
   ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   <label>Tên đăng nhập<input name="user" required autocomplete="username" autofocus></label>
   <label>Mật khẩu<input name="pass" type="password" required autocomplete="current-password"></label>
+  ${s.admin_totp ? '<label>Mã xác thực 2 bước (6 số trong ứng dụng)<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required placeholder="123456"><small class="muted">Mất điện thoại? Nhập một mã dự phòng.</small></label>' : ''}
   <button class="btn" type="submit">Đăng nhập</button>
 </form>
 </body>`);
@@ -312,21 +313,51 @@ export function pageForm(p) {
 </form>`;
 }
 
-export function passwordView(s, err) {
+export function passwordView(s, err, tf = {}) {
+  const key = s.admin_totp_pending ? s.admin_totp_pending.replace(/(.{4})/g, '$1 ').trim() : '';
+  const twofa = s.admin_totp
+    ? `<p><em class="pill ok">Đang bật</em> Đăng nhập cần mật khẩu + mã 6 số trong ứng dụng xác thực. Còn <b>${tf.recoveryLeft || 0}</b> mã dự phòng.</p>
+      <form method="post" class="form" data-confirm="Tắt xác thực 2 bước sẽ làm tài khoản kém an toàn hơn. Tiếp tục?"><input type="hidden" name="action" value="2fa_off">
+        <div class="grid2"><label>Mật khẩu hiện tại<input name="old" type="password" required autocomplete="current-password"></label>
+        <label>Mã 6 số hiện tại<input name="code" inputmode="numeric" maxlength="6" required></label></div>
+        <button class="btn ghost danger-txt">Tắt xác thực 2 bước</button></form>`
+    : s.admin_totp_pending
+      ? `<ol class="steps">
+          <li>Cài ứng dụng <b>Google Authenticator</b>, <b>Microsoft Authenticator</b> hoặc <b>Authy</b> trên điện thoại.</li>
+          <li>Trong ứng dụng chọn <b>Thêm tài khoản → Nhập khóa thiết lập</b> (hoặc mở link bên dưới trên điện thoại):
+            <div class="totp-key" data-copy="${h(s.admin_totp_pending)}" title="Bấm để sao chép">${h(key)}</div>
+            <a class="btn ghost" href="${h(tf.pendingUri)}">Mở trong ứng dụng xác thực</a></li>
+          <li>Nhập mã 6 số ứng dụng hiện ra để xác nhận:</li></ol>
+        <form method="post" class="form"><input type="hidden" name="action" value="2fa_confirm">
+          <label>Mã 6 số<input name="code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code"></label>
+          <button class="btn">Xác nhận và bật</button></form>`
+      : `<p class="muted">Kể cả khi lộ mật khẩu, kẻ gian vẫn không vào được nếu không có điện thoại của bạn. <b>Rất nên bật.</b></p>
+        <form method="post"><input type="hidden" name="action" value="2fa_start"><button class="btn">Bật xác thực 2 bước</button></form>`;
   return `<h1>Tài khoản quản trị</h1>
 ${err ? `<div class="flash err">${h(err)}</div>` : ''}
+<div class="card narrow" id="twofa"><h2>🔐 Xác thực 2 bước</h2>${twofa}</div>
 <form method="post" class="form card narrow">
+  <h2>Đổi tên đăng nhập / mật khẩu</h2>
   <label>Tên đăng nhập<input name="user" value="${h(s.admin_user)}" autocomplete="username"></label>
   <label>Mật khẩu hiện tại<input name="old" type="password" required autocomplete="current-password"></label>
-  <label>Mật khẩu mới (ít nhất 8 ký tự)<input name="new" type="password" required minlength="8" autocomplete="new-password"></label>
-  <label>Nhập lại mật khẩu mới<input name="new2" type="password" required minlength="8" autocomplete="new-password"></label>
+  <label>Mật khẩu mới (ít nhất 10 ký tự, có chữ và số)<input name="new" type="password" required minlength="10" autocomplete="new-password"></label>
+  <label>Nhập lại mật khẩu mới<input name="new2" type="password" required minlength="10" autocomplete="new-password"></label>
   <div class="row-actions"><button class="btn" type="submit">Lưu</button></div>
 </form>`;
 }
 
+export function recoveryView(codes) {
+  return `<h1>Mã dự phòng</h1>
+<div class="card narrow">
+  <p><b>Lưu 8 mã này ở nơi an toàn</b> (chụp màn hình, ghi giấy). Mỗi mã dùng được <b>1 lần</b> thay cho mã 6 số khi bạn mất điện thoại. Mã chỉ hiện <b>một lần duy nhất</b>.</p>
+  <div class="recovery">${codes.map(c => `<code>${h(c.slice(0, 4))}-${h(c.slice(4))}</code>`).join('')}</div>
+  <p class="row-actions"><a class="btn" href="${ADMIN}/password">Tôi đã lưu xong</a></p>
+</div>`;
+}
+
 // ---------- Bảo mật ----------
 
-export function securityView({ stats, logs, blocked, myIp }) {
+export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [] }) {
   const by = Object.fromEntries(stats.map(r => [r.event, r]));
   const stat = (k, label) => `<div><b>${fmtInt(by[k]?.n || 0)}</b><span>${label} (${by[k]?.ips || 0} IP)</span></div>`;
   const label = e => EVENT_LABELS[e] || e;
@@ -335,6 +366,31 @@ export function securityView({ stats, logs, blocked, myIp }) {
     <input type="hidden" name="ip" value="${h(ip)}"><input type="hidden" name="reason" value="${h(reason)}"><input type="hidden" name="hours" value="0"><button>Chặn</button></form>`;
   return `
 <h1>Bảo mật</h1>
+<div class="grid2">
+  <div class="card">
+    <h2>🛡️ Mức bảo vệ hiện tại</h2>
+    <ul class="sec-check">
+      <li class="${s.admin_totp ? 'ok' : 'bad'}">Xác thực 2 bước: ${s.admin_totp ? 'đang bật' : `<b>chưa bật</b> — <a href="${ADMIN}/password#twofa">bật ngay</a>`}</li>
+      <li class="${s.admin_bind_device !== '0' ? 'ok' : 'bad'}">Phiên đăng nhập gắn với thiết bị: ${s.admin_bind_device !== '0' ? 'bật' : 'tắt'}</li>
+      <li class="${s.admin_ip_allow ? 'ok' : 'warn'}">Giới hạn IP vào trang quản trị: ${s.admin_ip_allow ? 'bật' : 'không giới hạn'}</li>
+      <li class="ok">Đường dẫn quản trị riêng, ẩn khỏi bot tìm kiếm (noindex)</li>
+      <li class="ok">Khóa đăng nhập khi sai nhiều lần, tự chặn IP dò quét</li>
+      <li class="ok">Chống giả mạo form (CSRF), cookie HttpOnly + Secure + SameSite=Strict, chặn nhúng iframe, CSP</li>
+    </ul>
+  </div>
+  <form method="post" class="form card"><input type="hidden" name="action" value="access">
+    <h2>🌐 Giới hạn truy cập</h2>
+    <label>Chỉ cho các IP này vào trang quản trị (mỗi dòng một IP; kết thúc bằng dấu chấm/hai chấm để cho cả dải, vd. <code>113.161.</code>)
+      <textarea name="admin_ip_allow" rows="4" placeholder="Để trống = không giới hạn">${h(s.admin_ip_allow || '')}</textarea></label>
+    <small class="muted">IP hiện tại của bạn: <b>${h(myIp)}</b>. Mạng 4G đổi IP thường xuyên — chỉ dùng khi bạn có IP cố định. IP lạ sẽ thấy trang 404 như không tồn tại.</small>
+    <label class="check"><input type="checkbox" name="admin_bind_device" value="1"${s.admin_bind_device !== '0' ? ' checked' : ''}> Gắn phiên đăng nhập với thiết bị (cookie bị lấy cắp đem sang máy khác sẽ vô hiệu)</label>
+    <div class="row-actions"><button class="btn">Lưu</button></div>
+  </form>
+</div>
+<h2>Đăng nhập admin gần đây</h2>
+<div class="table">${logins.map(l => `<div class="trow"><span class="tmain"><b>${vnDate(l.at, true)} · ${h(l.ip)}${l.country ? ' (' + h(l.country) + ')' : ''}${l.ip === myIp ? ' <em class="pill ok">bạn</em>' : ''}</b><small>${h(deviceOf(l.ua))} · ${h(l.detail || '')}</small></span></div>`).join('') || '<p class="muted pad">Chưa có.</p>'}</div>
+<p class="muted">Thấy lần đăng nhập lạ? Bấm <b>Đăng xuất mọi thiết bị</b> bên dưới rồi đổi mật khẩu ngay.</p>
+
 <p class="muted">IP của bạn: <b>${h(myIp)}</b>. Link quản trị: <code>${h(ADMIN)}</code>. Đừng chia sẻ link này.</p>
 <h2>24 giờ qua</h2>
 <div class="stats">
@@ -483,8 +539,8 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
   <div class="mtable">
     <div class="mt-head"><span></span><span>Thành viên</span><span>Ghi chú</span><span>Cấp độ</span><span>Linh Thạch</span><span>Đã rút</span><span>Trạng thái</span><span>IP · Thiết bị</span><span>Hoạt động</span><span>Thao tác</span></div>
     ${rows.map(u => `<div class="mt-row${u.locked ? ' is-locked' : ''}">
-      <span class="mt-cb"><input type="checkbox" name="ids" value="${u.id}" form="bulkForm" aria-label="Chọn ${h(u.name)}"></span>
-      <a class="mt-user" href="${ADMIN}/members/${u.id}">${memberAv(u, 36)}<span><b>${h(u.name)} <small>#${u.id}</small></b><small>${h(u.email)}</small></span></a>
+      <span class="mt-cb">${u.id === 1 ? '<span title="Tài khoản quản trị được bảo vệ">🔒</span>' : `<input type="checkbox" name="ids" value="${u.id}" form="bulkForm" aria-label="Chọn ${h(u.name)}">`}</span>
+      <a class="mt-user" href="${ADMIN}/members/${u.id}">${memberAv(u, 36)}<span><b>${h(u.name)} <small>#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}</b><small>${h(u.email)}</small></span></a>
       <span class="mt-note" data-l="Ghi chú">${u.note ? h(u.note.length > 40 ? u.note.slice(0, 40) + '…' : u.note) : '<i>Không có</i>'}</span>
       <span data-l="Cấp độ">${realmTag(u.exp)}</span>
       <span class="mt-num" data-l="Linh Thạch"><b>${fmtInt(u.stones)}</b><small>${fmtInt(u.exp)} EXP</small></span>
@@ -494,9 +550,9 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
       <span class="mt-time" data-l="Hoạt động"><span>${ago(u.last_seen || u.last_login)}</span><small>ĐK ${vnDate(u.created_at)}</small></span>
       <span class="mt-act">
         <a class="mi" href="${ADMIN}/members/${u.id}" title="Xem / sửa" aria-label="Xem / sửa">${micon('edit')}</a>
-        ${u.locked ? '' : rowAct(u, 'impersonate', 'login', 'Đăng nhập vào tài khoản (xem thử)', 'mi-green', `Mở web dưới tài khoản ${u.name} ở chế độ xem thử (1 giờ, không thao tác được)?`, true)}
-        ${u.locked ? rowAct(u, 'unlock', 'unlock', 'Mở khóa tài khoản', 'mi-green') : rowAct(u, 'lock', 'lock', 'Khóa tài khoản', 'mi-red', `Khóa tài khoản ${u.name}?`)}
-        <a class="mi mi-red" href="${ADMIN}/members/${u.id}#delete" title="Xóa tài khoản" aria-label="Xóa tài khoản">${micon('trash')}</a>
+        ${u.id === 1 ? '' : u.locked ? '' : rowAct(u, 'impersonate', 'login', 'Đăng nhập vào tài khoản (xem thử)', 'mi-green', `Mở web dưới tài khoản ${u.name} ở chế độ xem thử (1 giờ, không thao tác được)?`, true)}
+        ${u.id === 1 ? '' : u.locked ? rowAct(u, 'unlock', 'unlock', 'Mở khóa tài khoản', 'mi-green') : rowAct(u, 'lock', 'lock', 'Khóa tài khoản', 'mi-red', `Khóa tài khoản ${u.name}?`)}
+        ${u.id === 1 ? '' : `<a class="mi mi-red" href="${ADMIN}/members/${u.id}#delete" title="Xóa tài khoản" aria-label="Xóa tài khoản">${micon('trash')}</a>`}
       </span>
     </div>`).join('') || '<p class="muted pad">Không có thành viên nào.</p>'}
   </div>
@@ -533,7 +589,7 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
 <p><a href="${ADMIN}/members">← Danh sách thành viên</a></p>
 <div class="card mhead">
   ${memberAv(u, 72)}
-  <div><h1>${h(u.name)} <small class="muted">#${u.id}</small></h1>
+  <div><h1>${h(u.name)} <small class="muted">#${u.id}</small>${u.id === 1 ? ' <em class="st st-admin">Quản trị viên</em>' : ''}</h1>
     <p>${realmTag(u.exp)} ${u.locked ? '<em class="pill bad">Tài khoản bị khóa</em>' : ''} ${u.banned ? '<em class="pill">Khóa bình luận</em>' : ''}</p>
     <p class="muted">${h(u.email)} · đăng nhập bằng Google</p></div>
 </div>
@@ -580,8 +636,8 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
   <div class="row-actions">
     <form method="post" target="_blank"><input type="hidden" name="action" value="impersonate"><button class="btn ghost">Đăng nhập vào tài khoản (xem thử)</button></form>
     ${act('logout', 'Đăng xuất mọi thiết bị', 'btn ghost', 'Đăng xuất thành viên này khỏi mọi thiết bị?')}
-    ${u.locked ? act('unlock', 'Mở khóa tài khoản', 'btn') : act('lock', 'Khóa tài khoản', 'btn ghost danger-txt', 'Khóa tài khoản này? Thành viên sẽ không đăng nhập được.')}
-    ${u.banned ? act('unban', 'Mở khóa bình luận', 'btn ghost') : act('ban', 'Khóa bình luận', 'btn ghost danger-txt', 'Khóa bình luận và ẩn mọi bình luận của thành viên này?')}
+    ${u.id === 1 ? '' : u.locked ? act('unlock', 'Mở khóa tài khoản', 'btn') : act('lock', 'Khóa tài khoản', 'btn ghost danger-txt', 'Khóa tài khoản này? Thành viên sẽ không đăng nhập được.')}
+    ${u.id === 1 ? '' : u.banned ? act('unban', 'Mở khóa bình luận', 'btn ghost') : act('ban', 'Khóa bình luận', 'btn ghost danger-txt', 'Khóa bình luận và ẩn mọi bình luận của thành viên này?')}
     ${u.avatar ? act('avatar_reset', 'Bỏ ảnh đại diện', 'btn ghost', 'Bỏ ảnh đại diện của thành viên này?') : ''}
   </div>
 </div>
@@ -596,13 +652,13 @@ ${walletSection(u, wallet)}
 <div class="table">${comments.map(c => `<div class="trow crow"><span class="tmain"><span class="cbody">${h(c.body)}</span>
   <small>${vnDate(c.created_at, true)} · ${{ approved: 'Đã hiện', pending: 'Chờ duyệt', hidden: 'Đã ẩn' }[c.status] || c.status} · ${c.likes} thích · ${c.slug ? `<a href="/track/${h(c.slug)}#comments" target="_blank">${h(c.title)}</a>` : 'audio đã xóa'}</small></span></div>`).join('') || '<p class="muted pad">Chưa bình luận.</p>'}</div>
 
-<form method="post" class="form card danger-zone" id="delete" data-confirm="Xóa vĩnh viễn tài khoản này cùng toàn bộ bình luận, đánh giá, lịch sử?">
+${u.id === 1 ? '<p class="muted">🔒 Đây là tài khoản quản trị mặc định (#1): không thể xóa, khóa hay khóa bình luận.</p>' : `<form method="post" class="form card danger-zone" id="delete" data-confirm="Xóa vĩnh viễn tài khoản này cùng toàn bộ bình luận, đánh giá, lịch sử?">
   <input type="hidden" name="action" value="delete">
   <h2>Xóa tài khoản</h2>
   <p class="muted">Xóa vĩnh viễn thành viên cùng bình luận, lượt thích, đánh giá, lịch sử nghe. Không thể hoàn tác.</p>
   <label>Gõ <b>XOA</b> để xác nhận<input name="confirm" autocomplete="off"></label>
   <div class="row-actions"><button class="btn danger-btn">Xóa tài khoản</button></div>
-</form>`;
+</form>`}`;
 }
 
 // ---------- Rút Linh Thạch ----------

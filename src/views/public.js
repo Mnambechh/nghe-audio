@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '40';
+export const ASSET_V = '41';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
