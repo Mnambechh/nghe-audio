@@ -733,7 +733,8 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
     const per = 30;
     const where = [], args = [];
     if (q) {
-      if (/^\d+$/.test(q)) { where.push('(id = ? OR reg_ip = ? OR last_ip = ?)'); args.push(+q, q, q); }
+      if (/^ref:\d+$/.test(q)) { where.push('referred_by = ?'); args.push(+q.slice(4)); }
+      else if (/^\d+$/.test(q)) { where.push('(id = ? OR reg_ip = ? OR last_ip = ?)'); args.push(+q, q, q); }
       else { where.push('(name LIKE ? OR email LIKE ? OR reg_ip = ? OR last_ip = ?)'); args.push(`%${q}%`, `%${q}%`, q, q); }
     }
     if (filter === 'banned') where.push('banned = 1');
@@ -879,8 +880,9 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
         WHERE c.user_id = ? ORDER BY c.created_at DESC LIMIT 20`, uid),
       all(db, 'SELECT * FROM member_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', uid),
       first(db, `SELECT (SELECT COUNT(*) FROM ratings WHERE user_id = ?) ratings, (SELECT COUNT(*) FROM history WHERE user_id = ?) history,
-        (SELECT COUNT(*) FROM comments WHERE user_id = ?) comments_all, (SELECT COUNT(*) FROM users WHERE id != ? AND (reg_ip = ? OR last_ip = ?) AND ? != '') same_ip`,
-        uid, uid, uid, uid, u.reg_ip || '-', u.last_ip || '-', u.reg_ip || u.last_ip || ''),
+        (SELECT COUNT(*) FROM comments WHERE user_id = ?) comments_all, (SELECT COUNT(*) FROM users WHERE id != ? AND (reg_ip = ? OR last_ip = ?) AND ? != '') same_ip,
+        (SELECT COUNT(*) FROM users WHERE referred_by = ?) invited`,
+        uid, uid, uid, uid, u.reg_ip || '-', u.last_ip || '-', u.reg_ip || u.last_ip || '', uid),
     ]);
     return view(V.memberView({ u, comments, logs, counts, myIp: info.ip, wallet: walletData }));
   }

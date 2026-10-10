@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '61';
+export const ASSET_V = '62';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -86,6 +86,7 @@ ${safeHeadCode(s.head_code)}
   <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
+  <a href="/gioi-thieu" data-nav="/gioi-thieu">🤝 Giới thiệu bạn bè</a>
   <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
   <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn</a>
   </nav>
@@ -100,6 +101,7 @@ ${safeHeadCode(s.head_code)}
   <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
+  <a href="/gioi-thieu" data-nav="/gioi-thieu">🤝 Giới thiệu bạn bè</a>
   <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
   <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn tích Linh Thạch</a>
 </nav>
@@ -501,6 +503,14 @@ export function guidePage(ctx, g) {
     ${g.promax ? `<a class="gd-promax" href="${h(g.promax.url)}" target="_blank" rel="noopener">🚀 <span><b>${h(g.promax.title)}</b><small>${h(g.promax.desc)}</small></span></a>` : ''}
   </div>`;
   return layout(ctx, { title: `Hướng dẫn tích Linh Thạch - ${ctx.s.site_name}`, canonical: ctx.origin + '/huong-dan' }, body);
+}
+
+export function referralPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Giới thiệu bạn bè</h1>
+    <p class="sub">Mời bạn bè nghe truyện, nhận hoa hồng Linh Thạch mãi mãi</p>
+    <div id="referral"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Giới thiệu bạn bè - ${ctx.s.site_name}`, canonical: ctx.origin + '/gioi-thieu', noindex: true }, body);
 }
 
 export function notificationsPage(ctx) {

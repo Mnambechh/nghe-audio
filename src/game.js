@@ -1,5 +1,6 @@
 // Tu luyện: EXP, cấp độ, Linh Thạch, điểm danh, đánh giá truyện, thông báo.
-import { all, first } from './db.js';
+import { all, first, loadSettings } from './db.js';
+import { payCommission } from './referral.js';
 import { json, now, vnDay } from './util.js';
 import { levelInfo, badge } from './levels.js';
 
@@ -16,6 +17,8 @@ export const GAME_DEFAULTS = {
   heart_exp: '1',           // EXP mỗi lần thả tim truyện
   heart_daily: '50',        // số truyện được thả tim mỗi ngày
   comment_like_daily: '50', // số lượt thả tim bình luận mỗi ngày
+  ref_rate: '5',            // % Linh Thạch người mời nhận từ người được mời
+  ref_daily: '20',          // số người được mời tối đa mỗi ngày (mỗi người mời)
   level_base_exp: '100',    // cấp N cần N × số này EXP để lên cấp (tính lại từ 0 mỗi cấp)
 };
 // Thưởng Linh Thạch mỗi lần lên cấp theo khoảng cấp: "đến cấp:Linh Thạch" mỗi dòng.
@@ -69,6 +72,10 @@ export function walletStmt(db, userId, kind, amount, note) {
 export async function walletLog(db, userId, kind, amount, note) {
   if (!userId || !amount) return;
   await walletStmt(db, userId, kind, amount, note).run();
+  // Hoa hồng giới thiệu cho người mời (chỉ Linh Thạch tự kiếm).
+  if (kind === 'stones' && amount > 0) {
+    try { await payCommission(db, userId, amount, note, await loadSettings(db)); } catch (e) { /* không chặn việc cộng thưởng */ }
+  }
   if (Math.random() < 0.01) await db.prepare('DELETE FROM wallet_log WHERE created_at < ?').bind(now() - 365 * 86400).run();
 }
 

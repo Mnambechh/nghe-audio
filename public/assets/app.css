@@ -1133,3 +1133,24 @@ img.c-av, img.acct-av, img.lb-av, img.np-av, img.prof-img, .av-wrap > img {
 }
 span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.lb-av, .av-wrap > span.np-av { background: #C9708A; color: #fff; }
 .c-name b { white-space: nowrap; max-width: 100%; }
+
+/* Giới thiệu bạn bè */
+.ref-card { padding: 20px 18px; border-radius: 24px; text-align: center; background: linear-gradient(135deg, #FFF0C7, #FFE3E6); box-shadow: 0 2px 0 var(--dh-pink-line, #F6BCC6); }
+.ref-big { margin: 0; font-family: var(--dh-display, inherit); font-size: 22px; font-weight: 700; }
+.ref-big b { color: var(--brand); font-size: 30px; }
+.ref-sub { margin: 4px 0 14px; color: var(--muted); font-size: 14px; }
+.ref-link { display: flex; gap: 8px; }
+.ref-link input { flex: 1; min-width: 0; height: 42px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--dh-pink-line, #F6BCC6); background: #fff; font: inherit; font-size: 13.5px; color: var(--text); }
+.ref-link .q-btn { flex: none; }
+.ref-share { margin-top: 12px; }
+.ref-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.ref-stats div { padding: 14px; border-radius: 18px; background: var(--surface); box-shadow: 0 2px 0 var(--line); text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.ref-stats b { font-size: 20px; color: var(--brand); }
+.ref-stats span { font-size: 12.5px; color: var(--muted); }
+.ref-steps { margin-bottom: 8px; }
+.ref-list { display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: var(--surface); box-shadow: 0 2px 0 var(--line); }
+.ref-list .c-note { padding: 14px; margin: 0; }
+.ref-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.ref-row:last-child { border-bottom: 0; }
+.ref-row small { color: var(--muted); flex: 1; }
+.ref-row span { font-weight: 700; color: var(--brand); }

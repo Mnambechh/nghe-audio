@@ -4,6 +4,7 @@ import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId,
 import { verifyGoogleToken } from './google.js';
 import { deviceOf, logEvent } from './security.js';
 import { checkIp } from './proxycheck.js';
+import { attachReferrer, handleReferralApi } from './referral.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
 import { badge } from './levels.js';
@@ -121,6 +122,11 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     ]);
     return json({ ok: true, count: tr ? tr.hearts : 0, mine: !!mine });
   }
+  if (request.method === 'GET' && path === '/api/referral') {
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    return handleReferralApi(request, db, s, me);
+  }
   if (request.method === 'GET' && (path === '/api/notifications' || path === '/api/rate')) {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
@@ -178,6 +184,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       return json({ ok: false, error: 'Đăng nhập Google không thành công, vui lòng thử lại.' }, 401);
     }
     const t = now();
+    const isNew = !(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub));
     // Tài khoản MỚI: giới hạn số tài khoản mỗi IP và chặn đăng ký qua proxy / VPN (chống clone, tài khoản ảo).
     if (!(await first(db, 'SELECT id FROM users WHERE sub = ?', g.sub))) {
       const limit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
@@ -205,8 +212,11 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
       .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t).run();
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE sub = ?', g.sub);
     if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
+    // Tài khoản mới đến từ link giới thiệu: ghi nhận người mời (đã kiểm tra chống tự mời / cùng IP).
+    const refCookie = isNew ? await attachReferrer(db, s, request, u.id, info.ip) : '';
     const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: t + USER_DAYS * 86400 });
-    return withCookie(json({ ok: true, me: publicUser(u) }), setCookie(USER_COOKIE, token, { maxAge: USER_DAYS * 86400 }));
+    const res = withCookie(json({ ok: true, me: publicUser(u) }), setCookie(USER_COOKIE, token, { maxAge: USER_DAYS * 86400 }));
+    return refCookie ? withCookie(res, refCookie) : res;
   }
 
   if (path === '/api/auth/logout') {

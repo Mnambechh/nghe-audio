@@ -160,6 +160,20 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 21: giới thiệu bạn bè.
+  try {
+    await db.prepare('SELECT ref_code FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE users ADD COLUMN ref_code TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN referred_by INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN ref_carry REAL NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN ref_earned INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN ref_given INTEGER NOT NULL DEFAULT 0`,
+      `CREATE INDEX IF NOT EXISTS idx_users_ref_code ON users(ref_code)`,
+      `CREATE INDEX IF NOT EXISTS idx_users_referred ON users(referred_by, created_at)`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 20: giới hạn lượt thả tim bình luận mỗi ngày.
   try {
     await db.prepare('SELECT like_n FROM users LIMIT 1').first();
@@ -285,6 +299,7 @@ export const DEFAULT_SETTINGS = {
   comments_enabled: '1',
   avatar_max_mb: '5',
   levelup_tiers: '5:200\n20:500\n50:1000\n70:1500', // thưởng Linh Thạch lên cấp theo khoảng cấp (xem game.js)
+  ref_enabled: '1',         // bật giới thiệu bạn bè
   reg_per_ip: '2',          // số tài khoản tối đa được đăng ký từ một IP (0 = không giới hạn)
   reg_block_proxy: '1',     // chặn đăng ký khi dùng proxy / VPN (cần khóa proxycheck.io)
   comment_moderation: '0',   // 1 = duyệt mọi bình luận; 0 = chỉ duyệt bình luận có link hoặc chứa từ trong bộ lọc

@@ -432,6 +432,7 @@
     markMenu();
     initRating();
     initHeart();
+    loadReferral();
     initRailDots();
     refreshLive();
   }
@@ -503,6 +504,14 @@
       case 'logout': doLogout(); return;
       case 'acct-menu': { const mm = $('.acct-card'); mm.hidden = !mm.hidden; $('.notif-panel').hidden = true; return; }
       case 'heart': doHeart(t); return;
+      case 'ref-copy': {
+        const inp = $('#referral .ref-link input');
+        const done = () => toast('Đã sao chép link giới thiệu');
+        if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(done, () => { inp.select(); document.execCommand('copy'); done(); });
+        else { inp.select(); document.execCommand('copy'); done(); }
+        return;
+      }
+      case 'ref-share': navigator.share({ title: document.title, text: 'Nghe truyện audio miễn phí, nhận Linh Thạch đổi tiền thật!', url: $('#referral').dataset.link }).catch(() => {}); return;
       case 'bell': openNotifs(); return;
       case 'nf-more': moreNotifs(); return;
       case 'menu': { const mm = $('#mainmenu'); mm.hidden = !mm.hidden; markMenu(); return; }
@@ -1293,7 +1302,7 @@
       avatarMaxMb = r.avatarMaxMb || 5;
       editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); initRailDots(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1389,6 +1398,40 @@
     span.textContent = (Array.from(img.dataset.n.trim())[0] || '?').toUpperCase();
     img.replaceWith(span);
   }, true);
+  // ---------- Giới thiệu bạn bè ----------
+  function loadReferral() {
+    const box = $('#referral');
+    if (!box || !meLoaded) return;
+    if (!me) {
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để lấy link giới thiệu và nhận hoa hồng.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    if (box.dataset.loaded) return;
+    box.dataset.loaded = '1';
+    fetch(`${APP.base}/api/referral`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('#referral') !== box) return;
+      const link = `${location.origin}/?ref=${r.code}`;
+      box.innerHTML = `${r.enabled ? '' : '<p class="c-note">Chương trình giới thiệu đang tạm dừng.</p>'}
+        <div class="ref-card">
+          <p class="ref-big">Nhận <b>${nf(r.rate)}%</b> Linh Thạch</p>
+          <p class="ref-sub">từ mọi Linh Thạch bạn bè của bạn tự kiếm được, mãi mãi.</p>
+          <div class="ref-link"><input readonly value="${esc(link)}" aria-label="Link giới thiệu"><button type="button" class="q-btn" data-act="ref-copy">Sao chép</button></div>
+          ${navigator.share ? '<button type="button" class="btn-play inline ref-share" data-act="ref-share">Chia sẻ link</button>' : ''}
+        </div>
+        <div class="ref-stats"><div><b>${nf(r.count)}</b><span>bạn đã mời</span></div><div><b>${nf(r.earned)} 💎</b><span>hoa hồng đã nhận</span></div></div>
+        <h2 class="h2">Cách hoạt động</h2>
+        <ol class="gd-steps ref-steps">
+          <li>Gửi link của bạn cho bạn bè (Zalo, Facebook, Messenger…).</li>
+          <li>Bạn bè bấm link và <b>tạo tài khoản mới</b> (đăng nhập Google lần đầu) trong vòng 30 ngày.</li>
+          <li>Mỗi khi bạn bè nhận Linh Thạch từ điểm danh, nhiệm vụ, đánh giá, thả tim, lên cấp… bạn được cộng <b>${nf(r.rate)}%</b> (phần lẻ được cộng dồn).</li>
+        </ol>
+        <p class="c-note">Không tính khi tự mời chính mình hoặc mời người dùng chung mạng/IP. Tài khoản gian lận sẽ bị khóa và hủy hoa hồng.</p>
+        <h2 class="h2">Bạn bè đã mời (${nf(r.count)})</h2>
+        <div class="ref-list">${r.list.map(x => `<div class="ref-row"><b>${esc(x.name)}</b><small>Tham gia ${cDate(x.at).replace(/^ngày /, '')}</small><span>+${nf(x.given)} 💎</span></div>`).join('') || '<p class="c-note">Chưa có ai. Hãy gửi link cho bạn bè nhé!</p>'}</div>`;
+      box.dataset.link = link;
+    }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
+  }
+
   let rateWarnAt = 0;
   // Kệ cuộn ngang trên điện thoại: chấm trang bên dưới để biết còn kéo sang được.
   function initRailDots() {

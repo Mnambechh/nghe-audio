@@ -302,6 +302,8 @@ export function settingsView(s, origin) {
     <label>Thả tim: EXP mỗi truyện<input name="heart_exp" inputmode="numeric" value="${h(s.heart_exp)}"></label>
     <label>Số truyện được thả tim mỗi ngày<input name="heart_daily" inputmode="numeric" value="${h(s.heart_daily)}"></label>
     <label>Số lượt thả tim bình luận mỗi ngày<input name="comment_like_daily" inputmode="numeric" value="${h(s.comment_like_daily)}"></label>
+    <label>Giới thiệu bạn bè: % hoa hồng cho người mời<input name="ref_rate" inputmode="decimal" value="${h(s.ref_rate)}"></label>
+    <label>Giới thiệu: số người được mời tối đa / ngày<input name="ref_daily" inputmode="numeric" value="${h(s.ref_daily)}"></label>
   </div>
   <h3>Thưởng Linh Thạch mỗi lần lên cấp</h3>
   <p class="muted">Mỗi dòng: lên tới cấp nào thì mỗi lần lên cấp được thưởng bao nhiêu. Vd. "đến cấp 5: 200" nghĩa là lên cấp 2, 3, 4, 5 mỗi lần +200.</p>
@@ -724,6 +726,8 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
     ${ipRow('IP đăng ký', u.reg_ip)}
     ${ipRow('IP gần nhất', u.last_ip)}
     <dt>Quốc gia</dt><dd>${h(u.country || '—')}</dd>
+    <dt>Được mời bởi</dt><dd>${u.referred_by ? `<a href="${ADMIN}/members/${u.referred_by}">#${u.referred_by}</a> · đã tạo ${fmtInt(u.ref_given || 0)} 💎 hoa hồng` : '—'}</dd>
+    <dt>Đã mời</dt><dd>${fmtInt(counts.invited || 0)} người · nhận ${fmtInt(u.ref_earned || 0)} 💎 hoa hồng${counts.invited ? ` · <a href="${ADMIN}/members?q=ref:${u.id}">xem danh sách</a>` : ''}</dd>
     <dt>Cùng IP</dt><dd>${counts.same_ip ? `<a href="${ADMIN}/members?q=${encodeURIComponent(u.reg_ip || u.last_ip)}">${counts.same_ip} tài khoản khác</a> <small class="muted">(có thể là clone, hoặc chung mạng di động)</small>` : 'Không có'}</dd>
   </dl>
   <div class="row-actions"><button class="btn">Lưu</button></div>

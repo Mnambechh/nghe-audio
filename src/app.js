@@ -1,18 +1,30 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, comingSoonPage, withdrawPage } from './views/public.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, comingSoonPage, withdrawPage } from './views/public.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
 import { withdrawConfig, METHODS } from './withdraw.js';
 import { MAX_LEVEL, realmOf, expToNext } from './levels.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
+import { refCookieFor } from './referral.js';
 import { handleAdmin, handleInstall, handleEditor, EDITOR_PATH } from './admin.js';
 import { searchTracks } from './search.js';
 import { ADMIN, clientInfo, isBlocked, isProbe, logEvent, withSecurityHeaders } from './security.js';
 
 export async function handle(request, env, ctx) {
+  const res = await handleInner(request, env, ctx);
+  // Khách đến từ link giới thiệu (?ref=MÃ): lưu cookie người mời trên trang thường (không áp dụng API / quản trị).
+  const url = new URL(request.url);
+  if (request.method === 'GET' && url.searchParams.has('ref') && !url.pathname.startsWith('/api/') && (res.headers.get('Content-Type') || '').includes('text/html')) {
+    const c = refCookieFor(request, url);
+    if (c) { const out = new Response(res.body, res); out.headers.append('Set-Cookie', c); return out; }
+  }
+  return res;
+}
+
+async function handleInner(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const db = env.DB;
@@ -69,6 +81,7 @@ export async function handle(request, env, ctx) {
     const rows = await cached(db, 'leaderboard_' + kind, 300, () => leaderboard(db, kind, 50));
     return html(leaderboardPage(pageCtx, rows, kind));
   }
+  if (path === '/gioi-thieu') return html(referralPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/huong-dan') return html(guidePage(pageCtx, await guideData(db, s)));
   if (path === '/thong-bao') return html(notificationsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/nhiem-vu') return html(questsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
