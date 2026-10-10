@@ -1160,3 +1160,6 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .ref-plus { color: #2F7D4F !important; font-weight: 800; white-space: nowrap; }
 .ref-log .ref-txt { display: block; }
 .ref-log .ref-txt small { display: block; margin-top: 2px; }
+
+/* Máy tính: thanh menu trên đầu đã có Bảng xếp hạng → ẩn trong thẻ tài khoản cho đỡ trùng */
+@media (min-width: 1024px) { .ac-links .ac-lb { display: none; } }
