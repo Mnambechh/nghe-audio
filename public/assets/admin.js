@@ -122,3 +122,24 @@ document.addEventListener('change', e => {
   if (e.target.id !== 'checkAll') return;
   document.querySelectorAll('input[name=ids]').forEach(c => { c.checked = e.target.checked; });
 });
+
+// Form audio: đếm ký tự SEO + xem trước kết quả Google.
+(() => {
+  const form = document.getElementById('trackForm');
+  if (!form) return;
+  const $ = n => form.querySelector(`[name="${n}"]`);
+  const update = () => {
+    form.querySelectorAll('.seo-count').forEach(c => {
+      const v = ($(c.dataset.for).value || '').length, max = +c.dataset.max;
+      c.textContent = `${v}/${max}`;
+      c.style.color = v > max ? '#c0392b' : v >= max * 0.6 ? '#0d6b43' : '';
+    });
+    const title = $('seo_title').value.trim() || `${$('title').value.trim() || 'Tên truyện'} - Nghe Audio Full Miễn Phí`;
+    const desc = $('seo_desc').value.trim() || $('description').value.trim().replace(/\s+/g, ' ').slice(0, 155) || `Nghe ${$('title').value.trim() || 'truyện'} audio full miễn phí, giọng đọc truyền cảm…`;
+    const t = form.querySelector('.serp-title'), d = form.querySelector('.serp-desc');
+    if (t) t.textContent = title.length > 62 ? title.slice(0, 60) + '…' : title;
+    if (d) d.textContent = desc.length > 160 ? desc.slice(0, 158) + '…' : desc;
+  };
+  form.addEventListener('input', update);
+  update();
+})();

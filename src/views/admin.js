@@ -124,7 +124,21 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
     <label>Nhãn<input name="tag" value="${h(track.tag)}" placeholder="Audio Full"></label>
     <label>Đường dẫn (để trống sẽ tự tạo)<input name="slug" value="${h(track.slug)}" placeholder="yeu-doi-audio-so-306"></label>
   </div>
-  <label>Mô tả (hiện trên trang nghe và dùng cho SEO)<textarea name="description" rows="3">${h(track.description)}</textarea></label>
+  <label>Mô tả (hiện trên trang nghe)<textarea name="description" rows="3">${h(track.description)}</textarea></label>
+
+  <details class="seo-box"${track.seo_title || track.seo_desc || track.seo_keywords ? ' open' : ''}>
+    <summary>🔎 SEO cho truyện này <small class="muted">(để trống = web tự tạo nội dung chuẩn SEO)</small></summary>
+    <label>Tiêu đề SEO <small class="muted seo-count" data-for="seo_title" data-max="60"></small>
+      <input name="seo_title" value="${h(track.seo_title || '')}" maxlength="120" placeholder="Ví dụ: ${h(track.title || 'Tên truyện')} - Nghe Audio Full Miễn Phí"></label>
+    <label>Mô tả SEO (hiện dưới tiêu đề trên Google) <small class="muted seo-count" data-for="seo_desc" data-max="160"></small>
+      <textarea name="seo_desc" rows="3" maxlength="320" placeholder="1–2 câu tóm tắt hấp dẫn, có tên truyện và từ khóa chính, 120–160 ký tự.">${h(track.seo_desc || '')}</textarea></label>
+    <label>Từ khóa (cách nhau bằng dấu phẩy)<input name="seo_keywords" value="${h(track.seo_keywords || '')}" placeholder="tên truyện, truyện audio, nghe truyện ..."></label>
+    <div class="serp" aria-label="Xem trước trên Google">
+      <small class="serp-url">${h('truyengi.info › track › ' + (track.slug || 'ten-truyen'))}</small>
+      <b class="serp-title"></b>
+      <span class="serp-desc"></span>
+    </div>
+  </details>
 
   <h2>Link audio <small class="muted">.mp3 .m4a .aac .ogg .opus .wav .flac</small></h2>
   <div id="parts">

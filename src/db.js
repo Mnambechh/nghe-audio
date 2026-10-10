@@ -160,6 +160,16 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 13: SEO riêng cho từng truyện.
+  try {
+    await db.prepare('SELECT seo_title FROM tracks LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      `ALTER TABLE tracks ADD COLUMN seo_title TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE tracks ADD COLUMN seo_desc TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE tracks ADD COLUMN seo_keywords TEXT NOT NULL DEFAULT ''`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 12: thiết bị và thời điểm hoạt động gần nhất của thành viên.
   try {
     await db.prepare('SELECT last_seen FROM users LIMIT 1').first();

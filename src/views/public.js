@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '41';
+export const ASSET_V = '42';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -50,9 +50,14 @@ export function layout(ctx, meta, body) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${h(title)}</title>
 <meta name="description" content="${h(desc)}">
-${s.seo_keywords ? `<meta name="keywords" content="${h(s.seo_keywords)}">` : ''}
+${(meta.keywords || s.seo_keywords) ? `<meta name="keywords" content="${h(meta.keywords || s.seo_keywords)}">` : ''}
 <link rel="canonical" href="${h(canonical)}">
-${meta.noindex ? '<meta name="robots" content="noindex">' : ''}
+${meta.noindex ? '<meta name="robots" content="noindex">' : '<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">'}
+<meta property="og:locale" content="vi_VN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${h(title)}">
+<meta name="twitter:description" content="${h(desc)}">
+${meta.extraHead || ''}
 <meta name="theme-color" content="#FFF6F0">
 <meta property="og:type" content="${meta.ogType || 'website'}">
 <meta property="og:site_name" content="${h(s.site_name)}">
@@ -320,12 +325,21 @@ export function homePage(ctx, d) {
 export function trackPage(ctx, t, related) {
   const s = ctx.s;
   const plainDesc = t.description.replace(/\s+/g, ' ').trim();
-  const desc = plainDesc ? plainDesc.slice(0, 160) : `Nghe ${t.title} miễn phí tại ${s.site_name}.`;
+  const mins = Math.max(1, Math.round((t.duration || 0) / 60));
+  // SEO: ưu tiên nội dung admin nhập; để trống thì tự tạo câu mô tả tự nhiên, đủ từ khóa, dài ~150 ký tự.
+  const cut = (x, n) => x.length <= n ? x : x.slice(0, x.lastIndexOf(' ', n - 1) > n * 0.6 ? x.lastIndexOf(' ', n - 1) : n - 1).replace(/[\s,.;:–-]+$/, '') + '…';
+  const seoTitle = t.seo_title || `${t.title} - Nghe ${t.tag || 'Audio Full'} Miễn Phí | ${s.site_name}`;
+  const desc = t.seo_desc || cut(plainDesc
+    ? `${plainDesc}${/[.!?…]$/.test(plainDesc) ? '' : '.'} Nghe ${t.title} audio full miễn phí tại ${s.site_name}.`
+    : `Nghe ${t.title} ${(t.tag || 'audio full').toLowerCase()} miễn phí${t.duration ? `, thời lượng ${mins} phút` : ''}, giọng đọc truyền cảm, nghe online mượt, không cần tài khoản tại ${s.site_name}.`, 160);
+  const keywords = t.seo_keywords || [t.title, `nghe ${t.title}`, `${t.title} audio`, `${t.title} full`, t.tag, 'truyện audio', 'nghe truyện online'].filter(Boolean).join(', ');
   const canonical = `${ctx.origin}/track/${t.slug}`;
   const parts = t.parts.map((p, i) => ({ title: p.title || `Phần ${i + 1}`, url: p.url, duration: p.duration }));
   const data = { id: t.id, slug: t.slug, title: t.title, parts };
   const ld = {
-    '@context': 'https://schema.org', '@type': 'AudioObject', name: t.title, description: desc, url: canonical,
+    '@context': 'https://schema.org', '@type': 'AudioObject', name: t.title, description: desc, url: canonical, inLanguage: 'vi', keywords,
+    genre: t.tag || undefined, publisher: { '@type': 'Organization', name: s.site_name, url: ctx.origin },
+    dateModified: new Date((t.updated_at || t.created_at) * 1000).toISOString(),
     uploadDate: new Date(t.created_at * 1000).toISOString(), duration: `PT${t.duration}S`, contentUrl: parts[0]?.url || '',
     interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ListenAction', userInteractionCount: t.views },
   };
@@ -373,7 +387,14 @@ export function trackPage(ctx, t, related) {
 <script type="application/json" id="track-data">${jsonScript(data)}</script>
 <script type="application/ld+json">${jsonScript(ld)}</script>`;
 
-  return layout(ctx, { title: `${t.title} - ${s.site_name}`, desc, canonical, ogType: 'music.song' }, body);
+  const crumbs = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+    { '@type': 'ListItem', position: 1, name: s.site_name, item: ctx.origin + '/' },
+    { '@type': 'ListItem', position: 2, name: t.title, item: canonical }] };
+  const extraHead = `<meta property="og:audio" content="${h(parts[0] ? parts[0].url : '')}">
+<meta property="article:published_time" content="${new Date(t.created_at * 1000).toISOString()}">
+<meta property="article:modified_time" content="${new Date((t.updated_at || t.created_at) * 1000).toISOString()}">
+<script type="application/ld+json">${jsonScript(crumbs)}</script>`;
+  return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead }, body);
 }
 
 export function staticPage(ctx, p) {

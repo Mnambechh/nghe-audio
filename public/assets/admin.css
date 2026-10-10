@@ -244,3 +244,10 @@ a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(
 .st-admin { font-style: normal; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 11px; padding: 1px 8px; vertical-align: 2px; }
 .pm-btns { flex-wrap: wrap; }
 .pm-btns .btn { flex: 1; min-width: 140px; }
+.seo-box { margin: 6px 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfd; }
+.seo-box summary { cursor: pointer; font-weight: 700; }
+.seo-box[open] summary { margin-bottom: 10px; }
+.serp { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px dashed var(--line); font-family: arial, sans-serif; }
+.serp-url { color: #202124; font-size: 12px; }
+.serp-title { color: #1a0dab; font-size: 18px; font-weight: 400; }
+.serp-desc { color: #4d5156; font-size: 13.5px; line-height: 1.45; }

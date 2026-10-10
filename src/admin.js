@@ -259,7 +259,8 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     });
     if (!title) err = 'Vui lòng nhập tên truyện.';
     else if (!newParts.length && !err) err = 'Cần ít nhất một link audio.';
-    track = { ...track, title, slug: str(f, 'slug'), tag: str(f, 'tag'), description: str(f, 'description'), published: f.get('published') ? 1 : 0 };
+    track = { ...track, title, slug: str(f, 'slug'), tag: str(f, 'tag'), description: str(f, 'description'), published: f.get('published') ? 1 : 0,
+      seo_title: str(f, 'seo_title').slice(0, 120), seo_desc: str(f, 'seo_desc').replace(/\s+/g, ' ').slice(0, 320), seo_keywords: str(f, 'seo_keywords').slice(0, 300) };
     if (err) return view(V.trackForm({ track, parts: newParts, err }), 400);
 
     const slug = await uniqueSlug(db, 'tracks', slugify(track.slug || title), id);
@@ -269,6 +270,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       await db.batch([
         db.prepare('UPDATE tracks SET title=?, slug=?, search=?, tag=?, description=?, published=?, duration=?, updated_at=? WHERE id=?')
           .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, id),
+        db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, id),
         ...(f.get('bump') ? [db.prepare('UPDATE tracks SET created_at = ? WHERE id = ?').bind(t, id)] : []),
         db.prepare('DELETE FROM parts WHERE track_id = ?').bind(id),
       ]);
@@ -276,6 +278,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const r = await db.prepare('INSERT INTO tracks (title, slug, search, tag, description, published, duration, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
         .bind(title, slug, vnPlain(title), track.tag, track.description, track.published, duration, t, t).run();
       id = r.meta.last_row_id;
+      await db.prepare('UPDATE tracks SET seo_title=?, seo_desc=?, seo_keywords=? WHERE id=?').bind(track.seo_title, track.seo_desc, track.seo_keywords, id).run();
     }
     const ins = db.prepare('INSERT INTO parts (track_id, pos, title, url, duration) VALUES (?,?,?,?,?)');
     await db.batch(newParts.map((p, i) => ins.bind(id, i, p.title, p.url, p.duration)));
