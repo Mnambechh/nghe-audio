@@ -990,3 +990,81 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
   15% { opacity: 1; }
   100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(var(--s)) rotate(var(--r)); }
 }
+
+/* 70 màu cấp độ: mỗi cấp một cặp màu riêng, chuyển chéo từ trái sang phải (theo mẫu). */
+.lv.l1 { background: linear-gradient(115deg, #F06292, #FFA4B4); }
+.lv.l2 { background: linear-gradient(115deg, #5B8DEF, #A8C8FF); }
+.lv.l3 { background: linear-gradient(115deg, #1F2D5C, #B8C2D9); }
+.lv.l4 { background: linear-gradient(115deg, #D6D3A6, #4B4A55); }
+.lv.l5 { background: linear-gradient(115deg, #FF8A65, #FFD180); }
+.lv.l6 { background: linear-gradient(115deg, #43E3A2, #2EC5E8); }
+.lv.l7 { background: linear-gradient(115deg, #7E57C2, #B39DDB); }
+.lv.l8 { background: linear-gradient(115deg, #26A69A, #A5D6A7); }
+.lv.l9 { background: linear-gradient(115deg, #EC407A, #7E57C2); }
+.lv.l10 { background: linear-gradient(115deg, #B87333, #E8B07A); }
+.lv.l11 { background: linear-gradient(115deg, #0F4C81, #5DADE2); }
+.lv.l12 { background: linear-gradient(115deg, #8E0E1A, #C9302C); }
+.lv.l13 { background: linear-gradient(115deg, #F9A825, #FF7043); }
+.lv.l14 { background: linear-gradient(115deg, #2E7D32, #9CCC65); }
+.lv.l15 { background: linear-gradient(115deg, #5C6BC0, #E1BEE7); }
+.lv.l16 { background: linear-gradient(115deg, #00838F, #80DEEA); }
+.lv.l17 { background: linear-gradient(115deg, #AD1457, #F48FB1); }
+.lv.l18 { background: linear-gradient(115deg, #B3123B, #F7C7CF); }
+.lv.l19 { background: linear-gradient(115deg, #37474F, #90A4AE); }
+.lv.l20 { background: linear-gradient(115deg, #8E9AAF, #DDE3EA); }
+.lv.l21 { background: linear-gradient(115deg, #FF6F61, #FFB88C); }
+.lv.l22 { background: linear-gradient(115deg, #1565C0, #26C6DA); }
+.lv.l23 { background: linear-gradient(115deg, #6A1B9A, #EC407A); }
+.lv.l24 { background: linear-gradient(115deg, #558B2F, #FDD835); }
+.lv.l25 { background: linear-gradient(115deg, #3E2723, #A1887F); }
+.lv.l26 { background: linear-gradient(115deg, #00BFA5, #1DE9B6); }
+.lv.l27 { background: linear-gradient(115deg, #283593, #7986CB); }
+.lv.l28 { background: linear-gradient(115deg, #D81B60, #FF8A80); }
+.lv.l29 { background: linear-gradient(115deg, #4E342E, #FFB74D); }
+.lv.l30 { background: linear-gradient(115deg, #D4A017, #FFE680); }
+.lv.l31 { background: linear-gradient(115deg, #0D47A1, #82B1FF); }
+.lv.l32 { background: linear-gradient(115deg, #880E4F, #CE93D8); }
+.lv.l33 { background: linear-gradient(115deg, #1B5E20, #69F0AE); }
+.lv.l34 { background: linear-gradient(115deg, #FF5722, #FFC107); }
+.lv.l35 { background: linear-gradient(115deg, #263238, #4DD0E1); }
+.lv.l36 { background: linear-gradient(115deg, #C2185B, #FFCDD2); }
+.lv.l37 { background: linear-gradient(115deg, #311B92, #B388FF); }
+.lv.l38 { background: linear-gradient(115deg, #00695C, #FFE082); }
+.lv.l39 { background: linear-gradient(115deg, #BF360C, #FFAB91); }
+.lv.l40 { background: linear-gradient(115deg, #B9A3F0, #F3A6D8); }
+.lv.l41 { background: linear-gradient(115deg, #01579B, #B3E5FC); }
+.lv.l42 { background: linear-gradient(115deg, #4A148C, #F06292); }
+.lv.l43 { background: linear-gradient(115deg, #6D0710, #1A0306); }
+.lv.l44 { background: linear-gradient(115deg, #827717, #E6EE9C); }
+.lv.l45 { background: linear-gradient(115deg, #004D40, #64FFDA); }
+.lv.l46 { background: linear-gradient(115deg, #E91E63, #FFC400); }
+.lv.l47 { background: linear-gradient(115deg, #1A237E, #00E5FF); }
+.lv.l48 { background: linear-gradient(115deg, #3E2723, #D7CCC8); }
+.lv.l49 { background: linear-gradient(115deg, #9C27B0, #00BCD4); }
+.lv.l50 { background: linear-gradient(115deg, #B3133A, #F25C7A); }
+.lv.l51 { background: linear-gradient(115deg, #212121, #BDBDBD); }
+.lv.l52 { background: linear-gradient(115deg, #FF4081, #7C4DFF); }
+.lv.l53 { background: linear-gradient(115deg, #00796B, #B2DFDB); }
+.lv.l54 { background: linear-gradient(115deg, #E65100, #FFD54F); }
+.lv.l55 { background: linear-gradient(115deg, #4527A0, #80CBC4); }
+.lv.l56 { background: linear-gradient(115deg, #AD1457, #263238); }
+.lv.l57 { background: linear-gradient(115deg, #33691E, #00E676); }
+.lv.l58 { background: linear-gradient(115deg, #E77FB2, #5EC8C9); }
+.lv.l59 { background: linear-gradient(115deg, #0D1B2A, #E0B04A); }
+.lv.l60 { background: linear-gradient(115deg, #3B4FD8, #A35CF0); }
+.lv.l61 { background: linear-gradient(115deg, #FF1744, #FF9100); }
+.lv.l62 { background: linear-gradient(115deg, #006064, #B388FF); }
+.lv.l63 { background: linear-gradient(115deg, #880E4F, #FFD700); }
+.lv.l64 { background: linear-gradient(115deg, #1B1B2F, #E94560); }
+.lv.l65 { background: linear-gradient(115deg, #00C853, #2962FF); }
+.lv.l66 { background: linear-gradient(115deg, #D500F9, #FF80AB); }
+.lv.l67 { background: linear-gradient(115deg, #3D0000, #FF0000); }
+.lv.l68 { background: linear-gradient(115deg, #0B3D91, #FFD700); }
+.lv.l69 { background: linear-gradient(115deg, #232526, #E0C3FC); }
+.lv.l70 { background: linear-gradient(115deg, #16D1C1, #3B82F6 55%, #8B5CF6); box-shadow: 0 3px 8px rgba(0,0,0,.25), 0 0 0 2px rgba(255,255,255,.6), 0 0 12px rgba(59,130,246,.55); }
+/* Huy hiệu cấp: tròn, số trắng đậm, góc trên bên trái, đổ bóng mềm (theo mẫu). */
+.av-wrap .lv { left: -7px; right: auto; top: -6px; min-width: 21px; height: 21px; padding: 0 4px; border-radius: 11px; border: 0;
+  font: 800 11px/21px system-ui, -apple-system, sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,.18); box-shadow: 0 3px 7px rgba(0,0,0,.28); }
+.acct-btn .av-wrap .lv { left: -6px; right: auto; top: -5px; }
+.prof-av .av-wrap .lv, .lb-top .av-wrap .lv { min-width: 30px; height: 30px; border-radius: 15px; font-size: 15px; line-height: 30px; left: -4px; top: -4px; }
+

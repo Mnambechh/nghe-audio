@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '45';
+export const ASSET_V = '46';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -262,7 +262,7 @@ export function lvAvatar(name, url, b, cls = 'c-av') {
   const img = url
     ? `<img class="${cls}" src="${h(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
     : `<span class="${cls} av-letter">${h(Array.from(String(name || '?').trim())[0] || '?').toUpperCase()}</span>`;
-  return `<span class="av-wrap t${b.tier}">${img}<i class="lv t${b.tier}">${b.lvl}</i></span>`;
+  return `<span class="av-wrap t${b.tier}">${img}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>`;
 }
 export const realmBadge = b => `<span class="realm t${b.tier}">${h(b.realm)}</span>`;
 

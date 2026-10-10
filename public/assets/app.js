@@ -973,7 +973,7 @@
   const ICON_OUT = '<svg viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5zm9-14H12v2h7v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>';
   let game = null, ckTimer = 0, ckLeftSec = 0, ckNotified = false, notifs = null;
 
-  const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier}">${b.lvl}</i></span>` : avatar(name, url, cls);
+  const lvAv = (name, url, b, cls) => b ? `<span class="av-wrap t${b.tier}">${avatar(name, url, cls)}<i class="lv t${b.tier} l${b.lvl}">${b.lvl}</i></span>` : avatar(name, url, cls);
   const realmTag = b => b ? `<span class="realm t${b.tier}">${esc(b.realm)}</span>` : '';
   const nf = n => String(Math.floor(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
