@@ -1,6 +1,7 @@
 // Cơ sở dữ liệu D1: tạo bảng, cài đặt, bộ nhớ đệm, truy vấn dùng chung.
 import { now, LIVE_WINDOW } from './util.js';
 import { GAME_DEFAULTS } from './game.js';
+import { WITHDRAW_DEFAULTS } from './withdraw.js';
 import { setLevelBase } from './levels.js';
 
 const SCHEMA = [
@@ -141,6 +142,22 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_member_log ON member_log(user_id, created_at DESC)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 8: rút Linh Thạch.
+  if (await missing(db, 'withdrawals')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS payout_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, method TEXT NOT NULL, bank TEXT NOT NULL DEFAULT '',
+        number TEXT NOT NULL, holder TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_payout_user ON payout_accounts(user_id)`,
+      `CREATE TABLE IF NOT EXISTS withdrawals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, amount INTEGER NOT NULL, vnd INTEGER NOT NULL,
+        method TEXT NOT NULL, bank TEXT NOT NULL DEFAULT '', number TEXT NOT NULL, holder TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', admin_note TEXT NOT NULL DEFAULT '', day TEXT NOT NULL, ip TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL, processed_at INTEGER NOT NULL DEFAULT 0)`,
+      `CREATE INDEX IF NOT EXISTS idx_wd_status ON withdrawals(status, created_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
+    ].map(q => db.prepare(q)));
+  }
   migrated = true;
 }
 
@@ -170,7 +187,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 export async function loadSettings(db) {
-  const s = { ...DEFAULT_SETTINGS, ...GAME_DEFAULTS };
+  const s = { ...DEFAULT_SETTINGS, ...GAME_DEFAULTS, ...WITHDRAW_DEFAULTS };
   const { results } = await db.prepare('SELECT k, v FROM settings').all();
   for (const r of results) s[r.k] = r.v;
   setLevelBase(s.level_base_exp);

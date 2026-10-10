@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '16';
+export const ASSET_V = '17';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -71,7 +71,13 @@ ${safeHeadCode(s.head_code)}
     ${s.logo ? `<img src="${h(s.logo)}" alt="${h(s.site_name)}" height="28">` : '<span class="brand-dot"></span>'}
     <span>${h(s.site_name)}</span>
   </a>
-  <a class="nav-pill" href="/">Trang chủ</a>
+  <nav class="top-nav">
+  <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
+  <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
+  </nav>
   <span class="top-right">
     <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
     <span class="acct" id="acct"><button class="btn-login" type="button" data-act="login">Đăng nhập</button></span>
@@ -413,6 +419,13 @@ export function questsPage(ctx) {
     <p class="sub">Làm nhiệm vụ mỗi ngày để nhận Linh Thạch và EXP tu luyện</p>
     <div id="quests"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Nhiệm vụ - ${ctx.s.site_name}`, canonical: ctx.origin + '/nhiem-vu', noindex: true }, body);
+}
+
+export function withdrawPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Rút Linh Thạch</h1>
+    <div id="withdraw"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Rút Linh Thạch - ${ctx.s.site_name}`, canonical: ctx.origin + '/rut-linh-thach', noindex: true }, body);
 }
 
 export function comingSoonPage(ctx, title, icon, text) {

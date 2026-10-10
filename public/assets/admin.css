@@ -138,3 +138,13 @@ a.trow:hover { background: #f7faf8; }
 .row-actions form { margin: 0; }
 .danger-zone { border-color: #f5c2bd; }
 .danger-btn { background: var(--danger); border-color: var(--danger); }
+
+.wrow { align-items: flex-start; flex-wrap: wrap; }
+.wacc { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; padding: 10px 12px; border-radius: 10px; background: #f6f8fa; font-size: 14px; }
+.copy { cursor: pointer; padding: 1px 6px; border-radius: 5px; background: #fff; border: 1px solid var(--line); font-size: 14px; }
+.copy:hover { border-color: var(--brand); }
+.copy.copied { border-color: var(--brand); color: var(--brand); }
+.wact { display: flex; flex-direction: column; gap: 8px; min-width: 230px; }
+.wact form { display: flex; gap: 6px; margin: 0; }
+.wact input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 14px; }
+.wact .btn { height: 38px; padding: 0 12px; white-space: nowrap; }

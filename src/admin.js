@@ -7,6 +7,7 @@ import {
 import * as V from './views/admin.js';
 import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
 import { onCommentApproved, notify, awardExp, GAME_DEFAULTS } from './game.js';
+import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -280,8 +281,9 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const data = {};
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
+      data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
-      for (const k of Object.keys(GAME_DEFAULTS)) {
+      for (const k of [...Object.keys(GAME_DEFAULTS), ...Object.keys(WITHDRAW_DEFAULTS).filter(k => k !== 'withdraw_enabled')]) {
         const v = parseFloat(str(f, k).replace(',', '.'));
         data[k] = String(Number.isFinite(v) && v >= 0 ? Math.min(100000, v) : GAME_DEFAULTS[k]);
       }
@@ -412,6 +414,47 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     ]);
     const count = Object.fromEntries(counts.map(r => [r.status, r.n]));
     return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id }));
+  }
+
+  // Rút Linh Thạch: duyệt yêu cầu
+  if (path === '/admin/withdrawals') {
+    if (isPost) {
+      const f = await request.formData();
+      const id = parseInt(f.get('id'), 10) || 0;
+      const act = f.get('action');
+      const note = str(f, 'note').slice(0, 200);
+      const w = await first(db, "SELECT * FROM withdrawals WHERE id = ? AND status = 'pending'", id);
+      if (!w) return go(ADMIN + '/withdrawals', ['err', 'Yêu cầu không còn ở trạng thái chờ.']);
+      const where = `${METHODS[w.method] || w.method}${w.bank ? ' ' + w.bank : ''}`;
+      const money = w.vnd.toLocaleString('vi-VN') + 'đ';
+      if (act === 'paid') {
+        await db.prepare("UPDATE withdrawals SET status = 'paid', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id).run();
+        await notify(db, w.user_id, 'withdraw', { text: `Đã chuyển ${money} về ${where} (rút ${w.amount.toLocaleString('vi-VN')} Linh Thạch)${note ? ' · ' + note : ''}` });
+        return go(ADMIN + '/withdrawals', ['ok', `Đã đánh dấu đã chuyển ${money}.`]);
+      }
+      if (act === 'reject') {
+        const r = await db.prepare("UPDATE withdrawals SET status = 'rejected', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id).run();
+        if (r.meta.changes) {
+          await db.batch([
+            db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(w.amount, w.user_id),
+            db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
+              .bind(w.user_id, 'withdraw_refund', w.amount, note || 'Từ chối yêu cầu rút', now()),
+          ]);
+          await notify(db, w.user_id, 'withdraw', { text: `Yêu cầu rút ${w.amount.toLocaleString('vi-VN')} Linh Thạch bị từ chối, đã hoàn lại${note ? ' · Lý do: ' + note : ''}` });
+        }
+        return go(ADMIN + '/withdrawals', ['ok', 'Đã từ chối và hoàn Linh Thạch.']);
+      }
+      return go(ADMIN + '/withdrawals');
+    }
+    const status = ['pending', 'paid', 'rejected'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
+    const [rows, counts] = await Promise.all([
+      all(db, `SELECT w.*, u.name, u.email, u.exp, u.created_at user_created, u.reg_ip, u.last_ip,
+          (SELECT COUNT(*) FROM users x WHERE x.id != u.id AND u.reg_ip != '' AND (x.reg_ip = u.reg_ip OR x.last_ip = u.last_ip)) same_ip,
+          (SELECT COALESCE(SUM(vnd), 0) FROM withdrawals y WHERE y.user_id = u.id AND y.status = 'paid') paid_total
+        FROM withdrawals w JOIN users u ON u.id = w.user_id WHERE w.status = ? ORDER BY w.id ${status === 'pending' ? 'ASC' : 'DESC'} LIMIT 100`, status),
+      all(db, 'SELECT status, COUNT(*) n, COALESCE(SUM(vnd), 0) vnd FROM withdrawals GROUP BY status'),
+    ]);
+    return view(V.withdrawalsView({ rows, counts: Object.fromEntries(counts.map(r => [r.status, r])), status }));
   }
 
   // Thành viên: danh sách

@@ -5,6 +5,7 @@ import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { badge } from './levels.js';
+import { handleWithdrawApi } from './withdraw.js';
 
 const USER_COOKIE = 'aw_user';
 const USER_DAYS = 60;
@@ -89,6 +90,11 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     return json({ ok: true, me: selfUser(me), game: me ? await gameStats(db, s, me) : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
+  if (request.method === 'GET' && path === '/api/withdraw') {
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    return handleWithdrawApi(request, db, s, path, me, {}, info);
+  }
   if (request.method === 'GET' && (path === '/api/notifications' || path === '/api/rate')) {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
@@ -163,6 +169,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
+  if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
   if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate') {
     return handleGameApi(request, db, s, path, me, input);
   }

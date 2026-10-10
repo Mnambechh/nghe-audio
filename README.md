@@ -51,6 +51,13 @@ Chống spam: mỗi người cách nhau tối thiểu 15 giây, tối đa 50 bì
 - **Chuông thông báo:** có người trả lời, thả tim bình luận, bình luận được duyệt, lên cấp, đến giờ điểm danh.
 - **Bảng xếp hạng:** `/bang-xep-hang`.
 
+## Rút Linh Thạch
+- Người dùng thêm tối đa 3 **tài khoản nhận tiền**: ngân hàng (danh sách ngân hàng VN), MoMo, ViettelPay, ZaloPay.
+- Gửi yêu cầu rút (tối thiểu 10.000 Linh Thạch). Linh Thạch bị **tạm giữ** ngay khi gửi.
+- Admin → **Rút Linh Thạch**: xem số tài khoản, tên chủ tài khoản, nội dung chuyển khoản (bấm để sao chép), cấp độ, số tài khoản cùng IP.
+  Chuyển khoản thủ công rồi bấm **Đã chuyển**, hoặc **Từ chối** (tự hoàn Linh Thạch). Người dùng nhận thông báo.
+- Cài đặt & SEO → Rút Linh Thạch: bật/tắt, tỷ giá (1 Linh Thạch = ? đồng), mức tối thiểu, cấp tối thiểu, số ngày tạo tài khoản, số lần/ngày.
+
 ## Audio trên R2
 - Tạo bucket R2, vào **Settings → Public access → Custom domain**, gắn một tên miền phụ như `cdn.tenmien.com`.
 - Upload file `.mp3` hoặc `.m4a` lên bucket, rồi dán link dạng `https://cdn.tenmien.com/ten-file.mp3` vào trang admin. Thời lượng sẽ tự lấy.

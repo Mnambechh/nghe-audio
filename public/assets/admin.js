@@ -1,3 +1,13 @@
+// Bấm vào số tài khoản / tên để sao chép (trang Rút Linh Thạch).
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-copy]');
+  if (!c || !navigator.clipboard) return;
+  navigator.clipboard.writeText(c.dataset.copy).then(() => {
+    c.classList.add('copied');
+    setTimeout(() => c.classList.remove('copied'), 1200);
+  });
+});
+
 // Hỏi xác nhận trước khi xóa/chặn (thay cho onsubmit nội tuyến, vì CSP chặn script nội tuyến).
 document.addEventListener('submit', e => {
   const f = e.target;

@@ -20,7 +20,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -262,6 +262,16 @@ export function settingsView(s, origin) {
     <label>Số truyện được đánh giá mỗi ngày (mỗi lượt +1 EXP)<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
   </div>
 
+  <h2>Rút Linh Thạch</h2>
+  <label class="check"><input type="checkbox" name="withdraw_enabled" value="1"${s.withdraw_enabled !== '0' ? ' checked' : ''}> Cho phép rút Linh Thạch</label>
+  <div class="grid2">
+    <label>Tỷ giá: 1 Linh Thạch = ? đồng<input name="withdraw_rate" inputmode="decimal" value="${h(s.withdraw_rate)}"></label>
+    <label>Rút tối thiểu (Linh Thạch)<input name="withdraw_min" inputmode="numeric" value="${h(s.withdraw_min)}"></label>
+    <label>Cấp tối thiểu được rút<input name="withdraw_min_level" inputmode="numeric" value="${h(s.withdraw_min_level)}"></label>
+    <label>Tài khoản tạo tối thiểu (ngày)<input name="withdraw_min_days" inputmode="numeric" value="${h(s.withdraw_min_days)}"></label>
+    <label>Số lần rút mỗi ngày<input name="withdraw_daily" inputmode="numeric" value="${h(s.withdraw_daily)}"></label>
+  </div>
+
   <h2>SEO</h2>
   <label>Tiêu đề trang chủ (title)<input name="seo_title" maxlength="70" value="${h(s.seo_title)}"><small class="muted">Nên dưới 60 ký tự.</small></label>
   <label>Mô tả web (meta description)<textarea name="seo_description" rows="3" maxlength="300">${h(s.seo_description)}</textarea><small class="muted">Nên 120–160 ký tự. Hiện trên Google và khi chia sẻ Facebook/Zalo.</small></label>
@@ -400,7 +410,8 @@ const memberAv = (u, size = 40) => u.avatar
   : `<span class="m-av" style="width:${size}px;height:${size}px">${h(Array.from(u.name || '?')[0].toUpperCase())}</span>`;
 const realmTag = exp => { const L = levelInfo(exp); return `<span class="m-realm t${L.tier}">Cấp ${L.lvl} · ${h(L.realm)}</span>`; };
 const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP', ban: 'Khóa bình luận', unban: 'Mở khóa bình luận', lock: 'Khóa tài khoản',
-  unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP' };
+  unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP',
+  withdraw: 'Yêu cầu rút Linh Thạch', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
 
 export function membersView({ rows, total, stats, q, sort, filter, page, per }) {
   const pages = Math.max(1, Math.ceil(total / per));
@@ -507,4 +518,45 @@ export function memberView({ u, comments, logs, counts, myIp }) {
   <label>Gõ <b>XOA</b> để xác nhận<input name="confirm" autocomplete="off"></label>
   <div class="row-actions"><button class="btn danger-btn">Xóa tài khoản</button></div>
 </form>`;
+}
+
+// ---------- Rút Linh Thạch ----------
+
+const WD_METHODS = { bank: 'Ngân hàng', momo: 'MoMo', viettelpay: 'ViettelPay', zalopay: 'ZaloPay' };
+
+export function withdrawalsView({ rows, counts, status }) {
+  const tabs = [['pending', 'Chờ duyệt'], ['paid', 'Đã chuyển'], ['rejected', 'Từ chối']];
+  const money = n => fmtInt(n) + 'đ';
+  return `
+<h1>Rút Linh Thạch</h1>
+<div class="stats">
+  <div><b>${fmtInt(counts.pending?.n || 0)}</b><span>chờ duyệt · ${money(counts.pending?.vnd || 0)}</span></div>
+  <div><b>${money(counts.paid?.vnd || 0)}</b><span>đã chuyển (${fmtInt(counts.paid?.n || 0)} lần)</span></div>
+  <div><b>${fmtInt(counts.rejected?.n || 0)}</b><span>đã từ chối</span></div>
+</div>
+<p class="muted">Chuyển tiền thủ công theo thông tin bên dưới rồi bấm <b>Đã chuyển</b>. Từ chối sẽ tự hoàn Linh Thạch. Hãy kiểm tra cột "cùng IP" để phát hiện người dùng nhiều tài khoản.</p>
+<nav class="tabs-admin">${tabs.map(([k, l]) => `<a href="?status=${k}" class="${k === status ? 'on' : ''}">${l} (${counts[k]?.n || 0})</a>`).join('')}</nav>
+<div class="table">
+  ${rows.map(w => {
+    const L = levelInfo(w.exp);
+    return `<div class="trow wrow">
+    <span class="tmain">
+      <b>${money(w.vnd)} <small class="muted">· ${fmtInt(w.amount)} Linh Thạch · #${w.id}</small></b>
+      <span class="wacc"><b>${h(WD_METHODS[w.method] || w.method)}${w.bank ? ' · ' + h(w.bank) : ''}</b>
+        <span>Số: <code class="copy" data-copy="${h(w.number)}">${h(w.number)}</code></span>
+        <span>Chủ TK: <code class="copy" data-copy="${h(w.holder)}">${h(w.holder)}</code></span>
+        <span>Nội dung CK: <code class="copy" data-copy="RUT ${w.id}">RUT ${w.id}</code></span></span>
+      <small><a href="${ADMIN}/members/${w.user_id}">${h(w.name)}</a> · ${h(w.email)} · Cấp ${L.lvl} · tạo TK ${vnDate(w.user_created)} ·
+        IP rút ${h(w.ip || '—')}${w.same_ip ? ` · <b class="danger-txt">${w.same_ip} TK cùng IP</b>` : ''} · đã nhận trước đó ${money(w.paid_total)}</small>
+      <small>Gửi lúc ${vnDate(w.created_at, true)}${w.processed_at ? ' · xử lý ' + vnDate(w.processed_at, true) : ''}${w.admin_note ? ' · Ghi chú: ' + h(w.admin_note) : ''}</small>
+    </span>
+    ${w.status === 'pending' ? `<span class="wact">
+      <form method="post" data-confirm="Xác nhận đã chuyển ${money(w.vnd)} cho ${h(w.holder)}?"><input type="hidden" name="action" value="paid"><input type="hidden" name="id" value="${w.id}">
+        <input name="note" placeholder="Mã giao dịch (tùy chọn)"><button class="btn">Đã chuyển</button></form>
+      <form method="post" data-confirm="Từ chối và hoàn ${fmtInt(w.amount)} Linh Thạch?"><input type="hidden" name="action" value="reject"><input type="hidden" name="id" value="${w.id}">
+        <input name="note" placeholder="Lý do từ chối"><button class="btn ghost danger-txt">Từ chối</button></form>
+    </span>` : ''}
+  </div>`;
+  }).join('') || '<p class="muted pad">Không có yêu cầu nào.</p>'}
+</div>`;
 }

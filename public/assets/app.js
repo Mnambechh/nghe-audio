@@ -369,6 +369,7 @@
     loadHistory();
     loadProfile();
     loadQuests();
+    loadWithdraw();
     markMenu();
     initRating();
     refreshLive();
@@ -654,7 +655,7 @@
   // Menu 3 gạch: tô hồng mục đang xem.
   function markMenu() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
-    $$('#mainmenu [data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === p));
+    $$('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === p));
   }
 
   // Trang nhiệm vụ: tiến độ hôm nay.
@@ -682,6 +683,116 @@
       ${q('⚡', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} 💎`, '')}
       <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
   }
+
+  // ---------- Rút Linh Thạch ----------
+  let wd = null;
+  const WD_ICON = { bank: '🏦', momo: '🟣', viettelpay: '🔴', zalopay: '🔵' };
+  const accLabel = a => `${WD_ICON[a.method] || ''} ${esc(wd.methods[a.method] || a.method)}${a.bank ? ' · ' + esc(a.bank) : ''}`;
+
+  function loadWithdraw() {
+    const box = $('#withdraw');
+    if (!box || !meLoaded) return;
+    if (!me) {
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để rút Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    fetch(`${APP.base}/api/withdraw`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
+      if (!r || !r.ok || $('#withdraw') !== box) return;
+      wd = r;
+      renderWithdraw();
+    }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
+  }
+
+  function renderWithdraw() {
+    const box = $('#withdraw');
+    if (!box || !wd) return;
+    const c = wd.config, vnd = n => nf(Math.floor(n * c.rate)) + 'đ';
+    const STATUS = { pending: ['Chờ duyệt', 'st-pending'], paid: ['Đã chuyển', 'st-paid'], rejected: ['Từ chối, đã hoàn', 'st-rejected'] };
+    box.innerHTML = `
+      <div class="wd-balance"><span>Số dư</span><b>${nf(wd.balance)} 💎</b><small>≈ ${vnd(wd.balance)} · 1 Linh Thạch = ${String(c.rate).replace('.', ',')}đ</small></div>
+      <p class="wd-rules">Rút tối thiểu <b>${nf(c.min)}</b> Linh Thạch · cần đạt <b>cấp ${c.minLevel}</b> · tài khoản tạo từ <b>${c.minDays} ngày</b> · ${c.daily} lần/ngày. Admin duyệt và chuyển khoản thủ công, thường trong 24–48 giờ.</p>
+      ${wd.blocked ? `<div class="wd-warn">${esc(wd.blocked)}</div>` : ''}
+
+      <h2 class="h2">Tạo yêu cầu rút</h2>
+      ${wd.accounts.length ? `<form class="wd-form" id="wdForm">
+        <div class="wd-accs">${wd.accounts.map((a, i) => `<label class="wd-acc"><input type="radio" name="account_id" value="${a.id}"${i === 0 ? ' checked' : ''}>
+          <span><b>${accLabel(a)}</b><small>${esc(a.number)} · ${esc(a.holder)}</small></span></label>`).join('')}</div>
+        <label class="wd-amount">Số Linh Thạch muốn rút
+          <input name="amount" inputmode="numeric" placeholder="${nf(c.min)}" autocomplete="off"></label>
+        <div class="wd-quick">${[c.min, c.min * 2, c.min * 5].filter(n => n <= wd.balance).map(n => `<button type="button" data-amt="${n}">${nf(n)}</button>`).join('')}
+          ${wd.balance >= c.min ? `<button type="button" data-amt="${wd.balance}">Tất cả</button>` : ''}</div>
+        <p class="wd-vnd">Bạn sẽ nhận: <b>0đ</b></p>
+        <button class="btn-play inline" type="submit"${wd.blocked || wd.balance < c.min ? ' disabled' : ''}>Gửi yêu cầu rút</button>
+      </form>` : '<p class="c-note">Hãy thêm tài khoản nhận tiền bên dưới trước khi rút.</p>'}
+
+      <h2 class="h2">Tài khoản nhận tiền <small class="muted">(${wd.accounts.length}/3)</small></h2>
+      <div class="list">${wd.accounts.map(a => `<div class="row wd-row"><span class="row-body"><b>${accLabel(a)}</b>
+        <span class="meta">${esc(a.number)} · ${esc(a.holder)}</span></span>
+        <button class="hist-del" type="button" data-act="wd-del" data-id="${a.id}" aria-label="Xóa">×</button></div>`).join('')}</div>
+      ${wd.accounts.length < 3 ? `<form class="wd-add" id="wdAdd">
+        <div class="wd-methods">${Object.entries(wd.methods).map(([k, l], i) => `<label><input type="radio" name="method" value="${k}"${i === 0 ? ' checked' : ''}><span>${WD_ICON[k]} ${esc(l)}</span></label>`).join('')}</div>
+        <label class="wd-bank">Ngân hàng<select name="bank"><option value="">— Chọn ngân hàng —</option>${wd.banks.map(b => `<option>${esc(b)}</option>`).join('')}</select></label>
+        <label><span class="wd-num-label">Số tài khoản</span><input name="number" inputmode="numeric" autocomplete="off" placeholder="Số tài khoản"></label>
+        <label>Tên chủ tài khoản (không dấu)<input name="holder" autocomplete="off" placeholder="NGUYEN VAN A" style="text-transform:uppercase"></label>
+        <button class="btn-ghost sm" type="submit">+ Thêm tài khoản</button>
+      </form>` : ''}
+
+      <h2 class="h2">Lịch sử rút</h2>
+      <div class="list">${wd.history.map(w => `<div class="row wd-row"><span class="row-body">
+        <span class="row-head"><b>${nf(w.amount)} 💎 → ${nf(w.vnd)}đ</b><span class="st ${STATUS[w.status][1]}">${STATUS[w.status][0]}</span></span>
+        <span class="meta">${esc(wd.methods[w.method] || w.method)}${w.bank ? ' · ' + esc(w.bank) : ''} · ${esc(w.number)} · ${cDate(w.created_at)}</span>
+        ${w.admin_note ? `<span class="meta">Ghi chú: ${esc(w.admin_note)}</span>` : ''}</span></div>`).join('') || '<p class="c-note">Chưa có yêu cầu rút nào.</p>'}</div>`;
+  }
+
+  document.addEventListener('change', e => {
+    const f = e.target.closest('#wdAdd');
+    if (!f || e.target.name !== 'method') return;
+    const bank = e.target.value === 'bank';
+    $('.wd-bank', f).hidden = !bank;
+    $('.wd-num-label', f).textContent = bank ? 'Số tài khoản' : 'Số điện thoại ví';
+    $('[name=number]', f).placeholder = bank ? 'Số tài khoản' : '09xxxxxxxx';
+  });
+  document.addEventListener('input', e => {
+    const f = e.target.closest('#wdForm');
+    if (!f || e.target.name !== 'amount' || !wd) return;
+    const n = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0;
+    $('.wd-vnd b', f).textContent = nf(Math.floor(n * wd.config.rate)) + 'đ';
+  });
+  document.addEventListener('click', e => {
+    const q = e.target.closest('[data-amt]');
+    if (q) {
+      const inp = $('#wdForm [name=amount]');
+      inp.value = q.dataset.amt;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+    const d = e.target.closest('[data-act="wd-del"]');
+    if (d && confirm('Xóa tài khoản nhận tiền này?')) {
+      api('/api/withdraw/account/delete', { id: +d.dataset.id }).then(() => loadWithdraw());
+    }
+  });
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (f.id === 'wdAdd') {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(f));
+      api('/api/withdraw/account', d).then(r => {
+        if (!r || !r.ok) { toast((r && r.error) || 'Không thêm được'); return; }
+        toast('Đã thêm tài khoản nhận tiền'); loadWithdraw();
+      });
+    }
+    if (f.id === 'wdForm') {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(f));
+      const amount = parseInt(String(d.amount).replace(/\D/g, ''), 10) || 0;
+      if (!confirm(`Rút ${nf(amount)} Linh Thạch (≈ ${nf(Math.floor(amount * wd.config.rate))}đ)?`)) return;
+      api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
+        if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
+        rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)}</b> Linh Thạch (≈ ${nf(r.vnd)}đ). Admin sẽ duyệt sớm.`, '💎', 6000);
+        loadWithdraw(); fetchMe();
+      });
+    }
+  });
 
   // Bấm kính lúp: hiện ô tìm kiếm ngay dưới thanh đầu trang (không chuyển trang).
   function openTopSearch() {
@@ -789,6 +900,7 @@
     approved: () => 'Bình luận của bạn đã được duyệt',
     levelup: () => '🎉 Đột phá thành công!',
     admin: () => '🛡️ Quản trị viên',
+    withdraw: () => '💎 Rút Linh Thạch',
   };
 
   function renderNotifs() {
@@ -800,7 +912,7 @@
     }
     html += (notifs || []).map(n => {
       const href = n.slug ? `${APP.base}/track/${encodeURIComponent(n.slug)}#comments` : `${APP.base}/tai-khoan`;
-      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎' }[n.type] || '✅'}</span>`;
+      const ico = n.actor ? lvAv(n.actor, n.actor_avatar, n.actor_badge, 'np-av') : `<span class="np-ico">${{ levelup: '⚡', admin: '💎', withdraw: '💸' }[n.type] || '✅'}</span>`;
       return `<a class="np-item${n.is_read ? '' : ' unread'}" href="${href}">${ico}<span class="np-body">
         <span>${(NOTIF_TEXT[n.type] || (() => ''))(n)}${n.text ? `: <q>${esc(n.text)}</q>` : ''}</span>
         <small>${cDate(n.created_at)}${n.title ? ' · ' + esc(n.title) : ''}</small></span></a>`;
@@ -869,8 +981,8 @@
       fresh.forEach((n, i) => {
         shownNotifs.add(n.id);
         if (n.type === 'levelup' && Date.now() - lastLevelToast < 300000) return;
-        const icon = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎' }[n.type] || '🔔';
-        const withText = n.type === 'levelup' || n.type === 'admin';
+        const icon = { reply: '💬', like: '❤️', approved: '✅', levelup: '⚡', admin: '💎', withdraw: '💸' }[n.type] || '🔔';
+        const withText = n.type === 'levelup' || n.type === 'admin' || n.type === 'withdraw';
         setTimeout(() => rewardToast(`${(NOTIF_TEXT[n.type] || (() => ''))(n)}${withText && n.text ? `: ${esc(n.text)}` : ''}`, icon, 6000), i * 300);
       });
       store.set('shown_notifs', [...shownNotifs].slice(-200));
@@ -907,7 +1019,7 @@
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); initRating(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); initRating(); });
   }
 
   setInterval(() => { if (me && !document.hidden) fetchMe(); }, 120000);
