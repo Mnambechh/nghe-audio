@@ -77,6 +77,8 @@ async function handleInner(request, env, ctx) {
   if (path === '/sitemap.xml') return sitemap(db, url.origin);
 
   const pageCtx = await publicContext(db, s, url);
+  // Có cookie đăng nhập → vẽ sẵn chỗ avatar thay vì nút "Đăng nhập" (tránh nhấp nháy khi tải lại trang). Chỉ xem có cookie, không đọc DB.
+  pageCtx.authed = /(?:^|;\s*)aw_user=/.test(request.headers.get('Cookie') || '');
 
   if (path === '/') return html(homePage(pageCtx, await homeData(db, s, url)), 200, { 'Cache-Control': 'no-cache' });
 

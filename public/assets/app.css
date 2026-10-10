@@ -1297,3 +1297,9 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .vip-buy .sh-buy { padding: 11px 14px; font-size: 15px; background: #3b2a00; color: #ffe082; }
 .vip-buy .sh-sold { color: #6b5200; text-align: center; margin-bottom: 6px; }
 .ac-name { display: flex; align-items: center; gap: 2px; min-width: 0; }
+/* Khung chờ tài khoản khi tải lại trang (đã đăng nhập): giữ đúng chỗ chuông + avatar, không hiện nút "Đăng nhập" rồi nhảy. */
+.acct-ph { display: contents; }
+.acct-ph i { display: block; flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--dh-pink, var(--surface2)); -webkit-animation: phPulse 1.2s ease-in-out infinite; animation: phPulse 1.2s ease-in-out infinite; }
+.acct-ph .ph-av { width: 41px; height: 41px; background: var(--surface2); }
+@-webkit-keyframes phPulse { 50% { opacity: .55; } }
+@keyframes phPulse { 50% { opacity: .55; } }

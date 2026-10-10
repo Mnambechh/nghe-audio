@@ -1496,6 +1496,9 @@
     me = m || null;
     game = me ? (g || game) : null;
     store.set('vip_until', me ? me.vipUntil || 0 : 0); // nhớ VIP để bỏ quảng cáo ngay cả khi chưa tải xong tài khoản
+    // Nhớ avatar / cấp để lần tải trang sau vẽ ngay, không nhấp nháy nút "Đăng nhập".
+    if (me) store.set('acct_cache', { name: me.name, avatar: me.avatar, frame: me.frame || '', fs: me.fs, L: game && game.level ? { lvl: game.level.lvl, tier: game.level.tier } : null });
+    else store.del('acct_cache');
     if (prevLvl && game && game.level && game.level.lvl !== prevLvl) setTimeout(syncMyLevel);
     if (game && game.quests && game.quests.resetIn != null) questResetAt = Date.now() + game.quests.resetIn * 1000;
     if (game) { ckLeftSec = Math.max(0, (game.checkinIn || 0) - onlinePending); if (game.checkedIn) ckNotified = false; }
@@ -2234,5 +2237,12 @@
   if (last && last.track && last.track.parts && last.track.parts.length) load(last.track, last.idx || 0);
   initPage();
   focusSearchFromHash();
+  // Tải lại trang khi đã đăng nhập: vẽ ngay avatar đã nhớ (chỉ để nhìn, chưa bấm được) trong lúc chờ máy chủ trả thông tin.
+  (() => {
+    const box = $('#acct'), c = store.get('acct_cache');
+    if (!box || !$('.acct-ph', box)) return;
+    if (!c) return; // chưa có avatar đã nhớ: giữ khung chờ
+    box.innerHTML = `<span class="bell" aria-hidden="true">${ICON_BELL}</span><span class="acct-btn" aria-hidden="true">${lvAv(c.name, c.avatar, c.L, 'acct-av', c)}</span>`;
+  })();
   fetchMe();
 })();
