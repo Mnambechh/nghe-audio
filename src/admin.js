@@ -10,6 +10,7 @@ import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAUL
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
 import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
+import { demoLoginCookie } from './comments.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -451,6 +452,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     if (isPost) {
       const f = await request.formData();
       const act = f.getAll('action').pop(); // nút Xóa ghi đè action của form
+      await clearCache(db); // trang Hướng dẫn hiện đúng nhiệm vụ mới
       const int = k => Math.max(0, Math.min(1000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
       const cleanUrl = u => /^https?:\/\/\S+$/i.test(u) ? u.slice(0, 1000) : '';
       if (act === 'listen') {
@@ -617,6 +619,10 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const reason = str(f, 'reason');
       // Bấm từ danh sách: quay lại danh sách (giữ bộ lọc).
       if (f.get('from') === 'list') back = ADMIN + '/members' + (str(f, 'qs') ? '?' + str(f, 'qs').replace(/^\?/, '') : '');
+      if (act === 'impersonate') {
+        await log('impersonate', 0, 'Admin đăng nhập xem thử');
+        return redirect('/', { 'Set-Cookie': await demoLoginCookie(db, u) });
+      }
       if (act === 'save') {
         const name = str(f, 'name').replace(/\s+/g, ' ');
         if ([...name].length < 2 || [...name].length > 40) return go(back, ['err', 'Tên cần từ 2 đến 40 ký tự.']);

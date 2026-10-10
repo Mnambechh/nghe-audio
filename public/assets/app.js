@@ -1199,6 +1199,21 @@
     if (game) { ckDeadline = Date.now() + (game.checkinIn || 0) * 1000; if (game.checkedIn) ckNotified = false; }
     histCache = null;
     if (changed) renderAcct(); else renderGame();
+    renderDemoBar();
+  }
+
+  // Admin đang xem thử tài khoản thành viên: hiện thanh cảnh báo + nút thoát.
+  function renderDemoBar() {
+    let bar = $('#demoBar');
+    if (!(me && me.demo)) { if (bar) bar.remove(); body.classList.remove('is-demo'); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'demoBar';
+      bar.className = 'demo-bar';
+      document.body.prepend(bar);
+    }
+    bar.innerHTML = `👁️ Đang xem thử tài khoản <b>${esc(me.name)}</b> (chế độ admin, chỉ xem) <button type="button" data-act="logout">Thoát</button>`;
+    body.classList.add('is-demo');
   }
 
   // Cấp độ thay đổi (admin cộng EXP, lên cấp ở thiết bị khác…): cập nhật avatar/cảnh giới của mình đang hiện trên trang.

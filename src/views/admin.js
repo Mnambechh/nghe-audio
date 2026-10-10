@@ -421,13 +421,14 @@ const memberAv = (u, size = 40) => u.avatar
 const realmTag = exp => { const L = levelInfo(exp); return `<span class="m-realm t${L.tier}">Cấp ${L.lvl} · ${h(L.realm)}</span>`; };
 const ACTION_LABELS = { rename: 'Đổi tên', stones: 'Linh Thạch', exp: 'EXP', ban: 'Khóa bình luận', unban: 'Mở khóa bình luận', lock: 'Khóa tài khoản',
   unlock: 'Mở khóa tài khoản', logout: 'Đăng xuất mọi thiết bị', avatar_reset: 'Bỏ ảnh đại diện', block_ip: 'Chặn IP',
-  withdraw: 'Yêu cầu rút Linh Thạch', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
+  withdraw: 'Yêu cầu rút Linh Thạch', impersonate: 'Admin xem thử tài khoản', withdraw_refund: 'Hoàn Linh Thạch (từ chối rút)' };
 
 const MI = {
   view: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   unlock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/>',
+  login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
 };
@@ -447,7 +448,7 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
   const params = { q, sort, f: filter, page };
   const qs = (o = {}) => '?' + new URLSearchParams({ ...params, ...o }).toString();
   const curQs = new URLSearchParams(params).toString();
-  const rowAct = (u, a, icon, title, cls = '', confirm = '') => `<form method="post" action="${ADMIN}/members/${u.id}"${confirm ? ` data-confirm="${h(confirm)}"` : ''}>
+  const rowAct = (u, a, icon, title, cls = '', confirm = '', blank = false) => `<form method="post" action="${ADMIN}/members/${u.id}"${blank ? ' target="_blank"' : ''}${confirm ? ` data-confirm="${h(confirm)}"` : ''}>
     <input type="hidden" name="action" value="${a}"><input type="hidden" name="from" value="list"><input type="hidden" name="qs" value="${h(curQs)}">
     <button class="mi ${cls}" title="${title}" aria-label="${title}">${micon(icon)}</button></form>`;
   const status = u => u.locked ? '<span class="st st-bad">Khóa tài khoản</span>' : u.banned ? '<span class="st st-warn">Khóa bình luận</span>' : '<span class="st st-ok">Hoạt động</span>';
@@ -493,7 +494,7 @@ export function membersView({ rows, total, stats, q, sort, filter, page, per }) 
       <span class="mt-time" data-l="Hoạt động"><span>${ago(u.last_seen || u.last_login)}</span><small>ĐK ${vnDate(u.created_at)}</small></span>
       <span class="mt-act">
         <a class="mi" href="${ADMIN}/members/${u.id}" title="Xem / sửa" aria-label="Xem / sửa">${micon('edit')}</a>
-        ${rowAct(u, 'logout', 'logout', 'Đăng xuất mọi thiết bị', 'mi-orange', `Đăng xuất ${u.name} khỏi mọi thiết bị?`)}
+        ${u.locked ? '' : rowAct(u, 'impersonate', 'login', 'Đăng nhập vào tài khoản (xem thử)', 'mi-green', `Mở web dưới tài khoản ${u.name} ở chế độ xem thử (1 giờ, không thao tác được)?`, true)}
         ${u.locked ? rowAct(u, 'unlock', 'unlock', 'Mở khóa tài khoản', 'mi-green') : rowAct(u, 'lock', 'lock', 'Khóa tài khoản', 'mi-red', `Khóa tài khoản ${u.name}?`)}
         <a class="mi mi-red" href="${ADMIN}/members/${u.id}#delete" title="Xóa tài khoản" aria-label="Xóa tài khoản">${micon('trash')}</a>
       </span>
@@ -577,6 +578,7 @@ export function memberView({ u, comments, logs, counts, myIp, wallet }) {
   <h2>Mật khẩu & đăng nhập</h2>
   <p class="muted">Thành viên đăng nhập bằng Google nên web không lưu mật khẩu; mật khẩu do Google quản lý. Bạn có thể buộc đăng xuất hoặc khóa tài khoản:</p>
   <div class="row-actions">
+    <form method="post" target="_blank"><input type="hidden" name="action" value="impersonate"><button class="btn ghost">Đăng nhập vào tài khoản (xem thử)</button></form>
     ${act('logout', 'Đăng xuất mọi thiết bị', 'btn ghost', 'Đăng xuất thành viên này khỏi mọi thiết bị?')}
     ${u.locked ? act('unlock', 'Mở khóa tài khoản', 'btn') : act('lock', 'Khóa tài khoản', 'btn ghost danger-txt', 'Khóa tài khoản này? Thành viên sẽ không đăng nhập được.')}
     ${u.banned ? act('unban', 'Mở khóa bình luận', 'btn ghost') : act('ban', 'Khóa bình luận', 'btn ghost danger-txt', 'Khóa bình luận và ẩn mọi bình luận của thành viên này?')}

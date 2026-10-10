@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '38';
+export const ASSET_V = '40';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -80,6 +80,7 @@ ${safeHeadCode(s.head_code)}
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
   <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
+  <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn</a>
   </nav>
   <span class="top-right">
     <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
@@ -93,6 +94,7 @@ ${safeHeadCode(s.head_code)}
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
   <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
+  <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn tích Linh Thạch</a>
 </nav>
 <main id="main" data-title="${h(title)}">
 ${body}
@@ -387,6 +389,83 @@ export function notFoundPage(ctx) {
     <p class="sub">Audio này có thể đã bị gỡ hoặc đường dẫn không đúng.</p>
     <p><a class="btn-play inline" href="/">Về trang chủ</a></p></div>`;
   return layout(ctx, { title: `Không tìm thấy - ${ctx.s.site_name}` }, body);
+}
+
+// Hướng dẫn tích Linh Thạch: mọi con số lấy từ cài đặt hiện tại của admin.
+export function guidePage(ctx, g) {
+  const n = v => fmtNum(v);
+  const nf = v => Number(v || 0).toLocaleString('vi-VN');
+  const gem = v => `<b class="gd-gem">+${nf(v)} 💎</b>`;
+  const xp = v => `<b class="gd-exp">+${nf(v)} EXP</b>`;
+  const rw = (st, ex) => [st ? gem(st) : '', ex ? xp(ex) : ''].filter(Boolean).join(' ') || '<span class="muted">không thưởng</span>';
+  const mins = s => Math.max(1, Math.round(s / 60));
+  const row = (icon, title, desc, reward) => `<div class="gd-row"><span class="gd-ico">${icon}</span><div><b>${title}</b><p>${desc}</p></div><div class="gd-rw">${reward}</div></div>`;
+  const body = `<div class="wrap narrow guide"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Hướng dẫn tích Linh Thạch</h1>
+    <p class="sub">Linh Thạch 💎 là phần thưởng khi bạn nghe truyện, làm nhiệm vụ và tu luyện lên cấp. Đủ số lượng có thể <a href="/rut-linh-thach">rút về ngân hàng / ví điện tử</a>.</p>
+
+    <section class="gd-card">
+      <h2>1. Bắt đầu</h2>
+      <ol class="gd-steps">
+        <li><b>Đăng nhập bằng Google</b> (nút Đăng nhập ở góc trên). Khách chưa đăng nhập vẫn nghe được nhưng không tích Linh Thạch.</li>
+        <li>Vào <a href="/nhiem-vu">Nhiệm vụ</a> để xem tiến độ hôm nay.</li>
+        <li>Mọi nhiệm vụ hằng ngày <b>làm mới lúc 0h</b> (giờ Việt Nam). Mỗi nhiệm vụ nhận <b>1 lần mỗi ngày</b>.</li>
+      </ol>
+    </section>
+
+    <section class="gd-card">
+      <h2>2. Nhiệm vụ hằng ngày</h2>
+      ${row('🎁', 'Điểm danh', `Online trên web đủ <b>${mins(g.checkinWait)} phút</b> trong ngày rồi bấm <b>Điểm danh</b> (ở thẻ tài khoản hoặc trang Nhiệm vụ).`, rw(g.checkinStones, g.checkinExp))}
+      ${g.listen ? g.listen.tiers.map(t => row('🎧', `Nghe audio ${t.min} phút`, `Nghe đủ <b>${t.min} phút</b> trong ngày. Tính theo thời gian thật đang phát: nghe 1.5× vẫn cần đủ ${t.min} phút đồng hồ; <b>tua, tạm dừng không được tính</b>. Đạt mốc là tự nhận thưởng.`, rw(t.stones, t.exp))).join('') : ''}
+      ${g.comment ? row('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên <b>được hiện</b> trong ngày. Bình luận chứa từ ngữ không phù hợp hoặc link sẽ phải chờ duyệt, được duyệt mới nhận.', rw(g.comment.stones, 0)) : ''}
+      ${g.links.map(q => row('🎯', h(q.title), 'Bấm nút <b>Mở</b> ở trang Nhiệm vụ để xem, nhận thưởng ngay.', rw(q.stones, q.exp))).join('')}
+      <p class="gd-note">Tổng tối đa mỗi ngày từ nhiệm vụ: <b>${nf(g.dailyMax)} 💎</b>.</p>
+    </section>
+
+    <section class="gd-card">
+      <h2>3. Kiếm EXP để lên cấp</h2>
+      ${row('💬', 'Bình luận', `Mỗi bình luận được hiện. Tối đa <b>${nf(g.cmtDaily)} bình luận/ngày</b> được cộng EXP.`, xp(g.cmtExp))}
+      ${row('⭐', 'Đánh giá truyện', `Chấm sao cho truyện, mỗi truyện 1 lần. Tối đa <b>${nf(g.rateDaily)} truyện/ngày</b>.`, xp(1))}
+      ${g.checkinExp ? row('🎁', 'Điểm danh', 'Mỗi ngày điểm danh.', xp(g.checkinExp)) : ''}
+      <p class="gd-note">Cấp <b>N</b> cần <b>N × ${nf(g.base)} EXP</b> để lên cấp kế tiếp (tính lại từ 0 mỗi cấp). Ví dụ: cấp 1 → 2 cần ${nf(g.base)} EXP, cấp 2 → 3 cần ${nf(g.base * 2)} EXP, cấp 10 → 11 cần ${nf(g.base * 10)} EXP.</p>
+    </section>
+
+    <section class="gd-card">
+      <h2>4. Thưởng Linh Thạch khi lên cấp</h2>
+      <p>Mỗi lần đột phá lên một cấp mới bạn nhận Linh Thạch theo bảng sau (lên nhiều cấp một lúc thì cộng đủ từng cấp):</p>
+      <div class="gd-table">
+        <div class="gd-th"><span>Cấp đạt được</span><span>Cảnh giới</span><span>Thưởng mỗi cấp</span></div>
+        ${g.levelTiers.map(t => `<div class="gd-tr"><span>Cấp ${t.from} → ${t.to}</span><span>${h(t.realmFrom)} → ${h(t.realmTo)}</span><span>${gem(t.stones)}</span></div>`).join('')}
+      </div>
+      <p class="gd-note">Tổng Linh Thạch nhận được từ cấp 1 lên cấp ${g.maxLevel}: <b>${nf(g.levelTotal)} 💎</b>.</p>
+      <details class="gd-realms"><summary>Xem 70 cấp tu luyện và EXP cần</summary>
+        <div class="gd-table small">
+          <div class="gd-th"><span>Cấp</span><span>Cảnh giới</span><span>EXP lên cấp kế</span></div>
+          ${g.levels.map(l => `<div class="gd-tr"><span>Cấp ${l.lvl}</span><span>${h(l.realm)}</span><span>${l.need ? nf(l.need) : 'Tối đa'}</span></div>`).join('')}
+        </div>
+      </details>
+    </section>
+
+    <section class="gd-card">
+      <h2>5. Rút Linh Thạch</h2>
+      <ul class="gd-steps">
+        <li>Rút tối thiểu <b>${nf(g.wdMin)} Linh Thạch</b> mỗi lần, ${g.wdDaily ? `tối đa <b>${nf(g.wdDaily)} lần/ngày</b>` : 'không giới hạn số lần'}.</li>
+        <li>Hỗ trợ: <b>${g.wdMethods}</b>. Thêm tài khoản nhận tiền tại trang <a href="/rut-linh-thach">Rút Linh Thạch</a>.</li>
+        <li>Yêu cầu được admin duyệt thủ công. Nếu bị từ chối, Linh Thạch được <b>hoàn lại đầy đủ</b>.</li>
+        ${g.wdEnabled ? '' : '<li><b>Chức năng rút đang tạm đóng.</b></li>'}
+      </ul>
+    </section>
+
+    <section class="gd-card gd-warn">
+      <h2>⚠️ Lưu ý</h2>
+      <ul class="gd-steps">
+        <li>Mỗi người chỉ dùng <b>một tài khoản</b>. Tạo nhiều tài khoản, dùng công cụ gian lận hoặc lợi dụng lỗi sẽ bị khóa tài khoản và hủy Linh Thạch.</li>
+        <li>Phần thưởng có thể được điều chỉnh theo từng thời kỳ; số liệu trên trang này luôn là số hiện tại.</li>
+      </ul>
+    </section>
+    ${g.promax ? `<a class="gd-promax" href="${h(g.promax.url)}" target="_blank" rel="noopener">🚀 <span><b>${h(g.promax.title)}</b><small>${h(g.promax.desc)}</small></span></a>` : ''}
+  </div>`;
+  return layout(ctx, { title: `Hướng dẫn tích Linh Thạch - ${ctx.s.site_name}`, canonical: ctx.origin + '/huong-dan' }, body);
 }
 
 export function notificationsPage(ctx) {

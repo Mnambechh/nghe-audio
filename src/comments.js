@@ -38,12 +38,19 @@ export async function currentUser(request, db) {
     checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec, last_seen FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
+  if (p.demo) u.demo = true; // admin đang xem thử tài khoản này
   return u;
+}
+
+// Admin "đăng nhập vào tài khoản thành viên" ở chế độ xem thử: phiên 1 giờ, chỉ xem, không thao tác được gì.
+export async function demoLoginCookie(db, u) {
+  const token = await signToken(await userSecret(db), { uid: u.id, v: u.session_ver || 0, exp: now() + 3600, demo: 1 });
+  return setCookie(USER_COOKIE, token, { maxAge: 3600 });
 }
 
 const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned, ...badge(u.exp) };
 // Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
-const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked };
+const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked, demo: !!u.demo };
 
 const NAME_GAP = 60; // giây giữa hai lần đổi tên
 
@@ -90,7 +97,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (path === '/api/me') {
     const me = await currentUser(request, db);
     // Ghi thời điểm hoạt động, IP, thiết bị (tối đa 1 lần / 5 phút để đỡ ghi D1).
-    if (me && now() - (me.last_seen || 0) > 300) {
+    if (me && !me.demo && now() - (me.last_seen || 0) > 300) {
       const job = db.prepare('UPDATE users SET last_seen = ?, last_ip = ?, device = ? WHERE id = ?').bind(now(), info.ip, deviceOf(info.ua), me.id).run();
       if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
     }
@@ -177,6 +184,8 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
+  // Chế độ xem thử của admin: chặn mọi thao tác ghi (nhận thưởng, rút, bình luận, đổi tên…).
+  if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
   if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
   if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
   if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate') {

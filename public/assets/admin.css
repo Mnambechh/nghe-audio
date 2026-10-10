@@ -232,3 +232,4 @@ a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(
 }
 .qt-main.wide { max-width: 1560px; }
 @media (min-width: 1100px) { .qt-main.wide .ov-grid { grid-template-columns: repeat(4, 1fr); } }
+.mt-ip code { max-width: 100%; word-break: break-all; }

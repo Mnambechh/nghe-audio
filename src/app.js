@@ -1,8 +1,11 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, comingSoonPage, withdrawPage } from './views/public.js';
-import { leaderboard } from './game.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, comingSoonPage, withdrawPage } from './views/public.js';
+import { leaderboard, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
+import { listenConfig, commentConfig } from './quests.js';
+import { withdrawConfig, METHODS } from './withdraw.js';
+import { MAX_LEVEL, realmOf, expToNext } from './levels.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
 import { handleAdmin, handleInstall } from './admin.js';
@@ -58,6 +61,7 @@ export async function handle(request, env, ctx) {
     const rows = await cached(db, 'leaderboard', 300, () => leaderboard(db, 50));
     return html(leaderboardPage(pageCtx, rows));
   }
+  if (path === '/huong-dan') return html(guidePage(pageCtx, await guideData(db, s)));
   if (path === '/thong-bao') return html(notificationsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/nhiem-vu') return html(questsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/cua-hang') return html(comingSoonPage(pageCtx, 'Cửa hàng', '🛍️', 'Cửa hàng đổi Linh Thạch lấy vật phẩm đang được chuẩn bị. Hãy tích lũy Linh Thạch từ bây giờ nhé!'));
@@ -108,6 +112,34 @@ async function suggestFor(db, currentId, n = 10) {
     [list[i], list[j]] = [list[j], list[i]];
   }
   return list.slice(0, n);
+}
+
+// Số liệu cho trang Hướng dẫn: đọc thẳng từ cài đặt hiện tại.
+async function guideData(db, s) {
+  const num = (k, d = 0) => Math.max(0, parseFloat(s[k]) || d);
+  const L = listenConfig(s), C = commentConfig(s), W = withdrawConfig(s);
+  const links = await cached(db, 'guide_links', 300, () => all(db, "SELECT title, stones, exp FROM quests WHERE active = 1 AND url != '' ORDER BY pos, id"));
+  // Gom các cấp liên tiếp cùng mức thưởng thành từng khoảng.
+  const tiers = [];
+  let levelTotal = 0;
+  for (let l = 2; l <= MAX_LEVEL; l++) {
+    const st = levelupStones(s, l);
+    levelTotal += st;
+    const last = tiers[tiers.length - 1];
+    if (last && last.stones === st && last.to === l - 1) { last.to = l; last.realmTo = realmOf(l).name; }
+    else tiers.push({ from: l, to: l, stones: st, realmFrom: realmOf(l).name, realmTo: realmOf(l).name });
+  }
+  const levels = Array.from({ length: MAX_LEVEL }, (_, i) => ({ lvl: i + 1, realm: realmOf(i + 1).name, need: i + 1 < MAX_LEVEL ? expToNext(i + 1) : 0 }));
+  const listen = L.enabled ? L : null, comment = C.enabled && C.stones ? C : null;
+  const dailyMax = num('checkin_stones') + (listen ? listen.tiers.reduce((a, t) => a + t.stones, 0) : 0) + (comment ? comment.stones : 0) + links.reduce((a, q) => a + q.stones, 0);
+  return {
+    checkinStones: num('checkin_stones'), checkinExp: num('checkin_exp'), checkinWait: num('checkin_wait', 180),
+    listen, comment, links, dailyMax,
+    cmtExp: num('comment_exp'), cmtDaily: num('comment_exp_daily'), rateDaily: num('rate_daily'),
+    base: Math.max(1, Math.round(num('level_base_exp', 100))), levelTiers: tiers, levelTotal, levels, maxLevel: MAX_LEVEL,
+    wdMin: W.min, wdDaily: W.daily, wdEnabled: W.enabled, wdMethods: Object.values(METHODS).join(', '),
+    promax: s.promax_enabled !== '0' && /^https?:\/\//i.test(s.promax_url || '') ? { url: s.promax_url, title: s.promax_title, desc: s.promax_desc } : null,
+  };
 }
 
 async function publicContext(db, s, url) {
