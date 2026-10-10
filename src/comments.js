@@ -4,6 +4,7 @@ import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId,
 import { verifyGoogleToken } from './google.js';
 import { deviceOf, logEvent, recentHits } from './security.js';
 import { checkIp } from './proxycheck.js';
+import { mailConfig, sendMail, resetMailHtml } from './mailer.js';
 import { attachReferrer, handleReferralApi } from './referral.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
@@ -73,6 +74,11 @@ async function newAccountGuard(db, s, info, email) {
     }
   }
   return null;
+}
+
+async function sha256(t) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(d), b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Tạo phiên đăng nhập (cookie) cho người dùng.
@@ -264,6 +270,50 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE id = ?', ins.meta.last_row_id);
     const refCookie = await attachReferrer(db, s, request, u.id, info.ip, refCode);
     return loginResponse(db, u, refCookie);
+  }
+
+  // ---------- Quên mật khẩu ----------
+  if (path === '/api/auth/forgot') {
+    const email = String(input.email || '').trim().toLowerCase();
+    const generic = json({ ok: true, message: 'Nếu email này đã đăng ký, chúng tôi vừa gửi link đặt lại mật khẩu. Hãy kiểm tra hộp thư (cả mục Spam).' });
+    if (!/^[^\s@]{1,64}@[^\s@]+\.[a-z]{2,}$/i.test(email)) return json({ ok: false, error: 'Email không hợp lệ.' }, 400);
+    const cfg = mailConfig(s, info, new URL(request.url).origin);
+    if (!cfg.ok) return json({ ok: false, error: 'Web chưa bật gửi email. Hãy liên hệ quản trị viên để đặt lại mật khẩu.' }, 503);
+    // Chống spam: mỗi IP 5 lần / giờ, mỗi email 3 lần / giờ.
+    if (await recentHits(db, 'pw_forgot', 3600, info.ip) >= 5) return json({ ok: false, error: 'Bạn yêu cầu quá nhiều lần, vui lòng thử lại sau.' }, 429);
+    await logEvent(db, info, 'pw_forgot', email);
+    const u = await first(db, 'SELECT id, name, email, locked FROM users WHERE email = ? COLLATE NOCASE', email);
+    if (!u || u.locked) return generic; // không tiết lộ email có tồn tại hay không
+    const recent = await first(db, 'SELECT COUNT(*) c FROM password_resets WHERE user_id = ? AND created_at > ?', u.id, now() - 3600);
+    if (recent.c >= 3) return generic;
+    const token = randomId(40);
+    await db.prepare('INSERT INTO password_resets (token_hash, user_id, expires, ip, created_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(await sha256(token), u.id, now() + 1800, info.ip, now()).run();
+    const link = `${new URL(request.url).origin}/dat-lai-mat-khau?t=${token}`;
+    const r = await sendMail(cfg, u.email, `Đặt lại mật khẩu - ${s.site_name}`, resetMailHtml(s.site_name, u.name, link));
+    if (!r.ok) {
+      await logEvent(db, info, 'mail_fail', r.error);
+      return json({ ok: false, error: 'Chưa gửi được email, vui lòng thử lại sau hoặc liên hệ quản trị viên.' }, 502);
+    }
+    return generic;
+  }
+
+  if (path === '/api/auth/reset') {
+    const token = String(input.token || '');
+    const pass = String(input.password || ''), pass2 = String(input.password2 || '');
+    if (!/^[A-Za-z0-9]{40}$/.test(token)) return json({ ok: false, error: 'Link không hợp lệ.' }, 400);
+    if (pass.length < 8 || !/[a-zA-Z]/.test(pass) || !/\d/.test(pass)) return json({ ok: false, error: 'Mật khẩu cần ít nhất 8 ký tự, gồm cả chữ và số.' }, 400);
+    if (pass.length > 100) return json({ ok: false, error: 'Mật khẩu quá dài.' }, 400);
+    if (pass !== pass2) return json({ ok: false, error: 'Hai mật khẩu không khớp.' }, 400);
+    const th = await sha256(token);
+    // Đánh dấu đã dùng trong một câu lệnh có điều kiện → link chỉ dùng được 1 lần kể cả khi bấm nhiều lần cùng lúc.
+    const row = await first(db, 'UPDATE password_resets SET used = 1 WHERE token_hash = ? AND used = 0 AND expires > ? RETURNING user_id', th, now());
+    if (!row) return json({ ok: false, error: 'Link đã hết hạn hoặc đã được dùng. Hãy yêu cầu link mới.' }, 400);
+    await db.prepare('UPDATE users SET pass_hash = ?, session_ver = session_ver + 1 WHERE id = ?').bind(await hashPassword(pass), row.user_id).run();
+    await db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ?').bind(row.user_id).run();
+    const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE id = ?', row.user_id);
+    if (!u || u.locked) return json({ ok: false, error: 'Tài khoản đã bị khóa.' }, 403);
+    return loginResponse(db, u, '');
   }
 
   if (path === '/api/auth/login') {

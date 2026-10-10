@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '65';
+export const ASSET_V = '66';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -211,7 +211,13 @@ ${body}
       <label>Email<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="ban@gmail.com"></label>
       <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required maxlength="100"></label>
       <button class="btn-play" type="submit">Đăng nhập</button>
-      <p class="login-note">Chưa có tài khoản? <button type="button" class="link-btn" data-lg="register">Đăng ký ngay</button></p>
+      <p class="login-note"><button type="button" class="link-btn" data-lg="forgot">Quên mật khẩu?</button> · Chưa có tài khoản? <button type="button" class="link-btn" data-lg="register">Đăng ký ngay</button></p>
+    </form>
+    <form class="lg-pane lg-form" data-pane="forgot" id="emailForgot" hidden>
+      <p class="login-note">Nhập email đã đăng ký, chúng tôi sẽ gửi link đặt lại mật khẩu (hiệu lực 30 phút).</p>
+      <label>Email<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="ban@gmail.com"></label>
+      <button class="btn-play" type="submit">Gửi link đặt lại</button>
+      <p class="login-note"><button type="button" class="link-btn" data-lg="login">← Quay lại đăng nhập</button></p>
     </form>
     <form class="lg-pane lg-form" data-pane="register" id="emailRegister" hidden>
       <label>Email<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="ban@gmail.com"></label>
@@ -532,6 +538,17 @@ export function referralPage(ctx) {
     <p class="sub">Mời bạn bè nghe truyện, nhận hoa hồng Linh Thạch mãi mãi</p>
     <div id="referral"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Giới thiệu bạn bè - ${ctx.s.site_name}`, canonical: ctx.origin + '/gioi-thieu', noindex: true }, body);
+}
+
+export function resetPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Đặt lại mật khẩu</h1>
+    <form class="lg-form reset-form" id="resetForm">
+      <label>Mật khẩu mới (ít nhất 8 ký tự, có chữ và số)<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></label>
+      <label>Nhập lại mật khẩu mới<input name="password2" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></label>
+      <button class="btn-play" type="submit">Lưu mật khẩu mới</button>
+    </form></div>`;
+  return layout(ctx, { title: `Đặt lại mật khẩu - ${ctx.s.site_name}`, canonical: ctx.origin + '/dat-lai-mat-khau', noindex: true }, body);
 }
 
 export function notificationsPage(ctx) {

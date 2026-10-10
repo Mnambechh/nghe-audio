@@ -394,7 +394,7 @@ export function recoveryView(codes) {
 
 // ---------- Bảo mật ----------
 
-export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], proxy = {} }) {
+export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], proxy = {}, mail = {} }) {
   const by = Object.fromEntries(stats.map(r => [r.event, r]));
   const stat = (k, label) => `<div><b>${fmtInt(by[k]?.n || 0)}</b><span>${label} (${by[k]?.ips || 0} IP)</span></div>`;
   const label = e => EVENT_LABELS[e] || e;
@@ -435,6 +435,19 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
   ${proxy.hasKey && !proxy.fromEnv ? '<label class="check"><input type="checkbox" name="proxycheck_clear" value="1"> Xóa khóa API đã lưu</label>' : ''}
   <small class="muted">Khóa API được lưu ẩn phía máy chủ, không bao giờ hiện lại trên trang hay gửi xuống trình duyệt. Chỉ kiểm tra khi <b>tạo tài khoản mới</b> (người cũ đăng nhập không bị ảnh hưởng); kết quả mỗi IP lưu 7 ngày để tiết kiệm lượt gọi; nếu proxycheck.io lỗi/hết lượt thì cho đăng ký bình thường.
   Lưu ý: nhà mạng 4G có thể cho nhiều người dùng chung 1 IP — nếu thấy người dùng thật bị chặn, tăng giới hạn lên 3–5.</small>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>
+
+<form method="post" class="form card"><input type="hidden" name="action" value="mail">
+  <h2>📧 Gửi email (Resend) — dùng cho "Quên mật khẩu"</h2>
+  <div class="grid2">
+    <label>Khóa API Resend ${mail.hasKey ? `<em class="pill ok">Đã cài${mail.fromEnv ? ' (biến môi trường)' : ''}</em>` : '<em class="pill">Chưa có</em>'}
+      <input name="resend_key" type="password" autocomplete="off" placeholder="${mail.hasKey ? 'Đã lưu — để trống nếu không đổi' : 're_xxxxxxxx'}"></label>
+    <label>Địa chỉ gửi<input name="mail_from" value="${h(s.mail_from || '')}" placeholder="${h(mail.from || '')}"></label>
+  </div>
+  <label>Gửi email thử tới (không bắt buộc)<input name="test_to" type="email" placeholder="email-cua-ban@gmail.com"></label>
+  ${mail.hasKey && !mail.fromEnv ? '<label class="check"><input type="checkbox" name="resend_clear" value="1"> Xóa khóa đã lưu</label>' : ''}
+  <small class="muted">Khóa được lưu ẩn phía máy chủ, không hiện lại và không gửi xuống trình duyệt. Địa chỉ gửi phải thuộc <b>tên miền đã xác minh</b> trong Resend (Domains → Add domain → thêm các bản ghi DNS vào Cloudflare). Để trống "Địa chỉ gửi" sẽ dùng <code>${h(mail.from || '')}</code>.</small>
   <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>
 

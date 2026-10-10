@@ -1,7 +1,7 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, comingSoonPage, withdrawPage } from './views/public.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, comingSoonPage, withdrawPage } from './views/public.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
 import { withdrawConfig, METHODS } from './withdraw.js';
@@ -32,7 +32,8 @@ async function handleInner(request, env, ctx) {
   await migrate(db);
 
   const info = clientInfo(request);
-  info.proxyKey = env.PROXYCHECK_KEY || ''; // khóa API bí mật (biến môi trường Cloudflare), chỉ dùng phía máy chủ
+  info.proxyKey = env.PROXYCHECK_KEY || '';
+  info.resendKey = env.RESEND_KEY || ''; // khóa gửi email (Resend), chỉ dùng phía máy chủ // khóa API bí mật (biến môi trường Cloudflare), chỉ dùng phía máy chủ
   if (await isBlocked(db, info.ip)) {
     return new Response('Truy cập bị từ chối.', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
@@ -81,6 +82,7 @@ async function handleInner(request, env, ctx) {
     const rows = await cached(db, 'leaderboard_' + kind, 300, () => leaderboard(db, kind, 50));
     return html(leaderboardPage(pageCtx, rows, kind));
   }
+  if (path === '/dat-lai-mat-khau') return html(resetPage(pageCtx), 200, { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
   if (path === '/gioi-thieu') return html(referralPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/huong-dan') return html(guidePage(pageCtx, await guideData(db, s)));
   if (path === '/thong-bao') return html(notificationsPage(pageCtx), 200, { 'Cache-Control': 'no-store' });

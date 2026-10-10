@@ -100,6 +100,8 @@ export const EVENT_LABELS = {
   reg_limit: 'Đăng ký vượt giới hạn IP',
   api_flood: 'Gửi yêu cầu dồn dập',
   reg_try: 'Thử đăng ký bằng email',
+  pw_forgot: 'Yêu cầu quên mật khẩu',
+  mail_fail: 'Gửi email lỗi',
   user_login_fail: 'Thành viên đăng nhập sai mật khẩu',
   reg_proxy: 'Đăng ký bằng VPN / Proxy',
   session_stolen: 'Phiên admin dùng trên thiết bị khác',

@@ -160,6 +160,11 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 24: link đặt lại mật khẩu (lưu dạng băm, hết hạn 30 phút, dùng 1 lần).
+  if (await missing(db, 'password_resets')) {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+      expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0, ip TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`).run();
+  }
   // Bản 23: đăng ký / đăng nhập bằng email + mật khẩu.
   try {
     await db.prepare('SELECT pass_hash FROM users LIMIT 1').first();

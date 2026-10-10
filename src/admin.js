@@ -12,6 +12,7 @@ import { parseWords } from './wordfilter.js';
 import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quests.js';
 import { demoLoginCookie, currentUser } from './comments.js';
 import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
+import { mailConfig, sendMail } from './mailer.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -929,6 +930,24 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
         await saveSettings(db, data);
         return go(ADMIN + '/security', ['ok', 'Đã lưu cài đặt chống tài khoản ảo.']);
       }
+      if (act === 'mail') {
+        const data = { mail_from: str(f, 'mail_from').slice(0, 120) };
+        const key = str(f, 'resend_key');
+        if (f.get('resend_clear')) data.resend_key = '';
+        else if (key) {
+          if (!/^re_[A-Za-z0-9_]{10,80}$/.test(key)) return go(ADMIN + '/security', ['err', 'Khóa Resend không hợp lệ (bắt đầu bằng re_).']);
+          data.resend_key = key;
+        }
+        if (data.mail_from && !/^[^<>]*<[^\s@<>]+@[^\s@<>]+>$|^[^\s@]+@[^\s@]+$/.test(data.mail_from)) return go(ADMIN + '/security', ['err', 'Địa chỉ gửi không hợp lệ. Ví dụ: Truyện Gì <no-reply@truyengi.info>']);
+        await saveSettings(db, data);
+        const to = str(f, 'test_to');
+        if (to) {
+          const s2 = await loadSettingsFresh(db);
+          const r = await sendMail(mailConfig(s2, info, url.origin), to, `Email thử - ${s2.site_name}`, `<p>Gửi email thành công từ ${s2.site_name}. ✅</p>`);
+          return go(ADMIN + '/security', r.ok ? ['ok', `Đã lưu và gửi email thử tới ${to}.`] : ['err', `Đã lưu nhưng gửi thử lỗi: ${r.error}`]);
+        }
+        return go(ADMIN + '/security', ['ok', 'Đã lưu cài đặt email.']);
+      }
       if (act === 'access') {
         const list = str(f, 'admin_ip_allow').split(/[\s,]+/).filter(x => /^[0-9a-fA-F:.]{2,45}$/.test(x)).join('\n');
         if (list && !ipAllowed(list, info.ip)) return go(ADMIN + '/security', ['err', `IP hiện tại của bạn (${info.ip}) không nằm trong danh sách — thêm nó vào để tránh tự khóa mình.`]);
@@ -950,7 +969,8 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
     const logins = await all(db, "SELECT at, ip, country, ua, detail FROM security_log WHERE event = 'login_ok' ORDER BY at DESC LIMIT 10");
     const myCheck = await first(db, 'SELECT proxy, type, provider FROM ip_checks WHERE ip = ?', info.ip);
     return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip, s, logins,
-      proxy: { hasKey: !!(info.proxyKey || s.proxycheck_key), fromEnv: !!info.proxyKey, myCheck } }));
+      proxy: { hasKey: !!(info.proxyKey || s.proxycheck_key), fromEnv: !!info.proxyKey, myCheck },
+      mail: { hasKey: !!(info.resendKey || s.resend_key), fromEnv: !!info.resendKey, from: mailConfig(s, info, url.origin).from } }));
   }
 
   return new Response('Không tìm thấy', { status: 404 });

@@ -1177,3 +1177,4 @@ span.av-letter, .av-wrap > span.c-av, .av-wrap > span.acct-av, .av-wrap > span.l
 .lg-form .btn-play:disabled { opacity: .6; }
 .link-btn { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand); cursor: pointer; text-decoration: underline; }
 .login-box { max-height: 92vh; overflow-y: auto; }
+.reset-form { margin-top: 12px; padding: 18px; border-radius: 22px; background: var(--surface); box-shadow: 0 2px 0 var(--line); }

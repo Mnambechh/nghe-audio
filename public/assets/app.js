@@ -1821,7 +1821,8 @@
     const box = $('#loginbox');
     $$('.lg-tabs [data-lg]', box).forEach(b => b.classList.toggle('on', b.dataset.lg === name));
     $$('.lg-pane', box).forEach(p => { p.hidden = p.dataset.pane !== name; });
-    const title = $('#login-title'); if (title) title.textContent = name === 'register' ? 'Đăng ký' : 'Đăng nhập';
+    const title = $('#login-title'); if (title) title.textContent = name === 'register' ? 'Đăng ký' : name === 'forgot' ? 'Quên mật khẩu' : 'Đăng nhập';
+    if (name === 'forgot') $$('.lg-tabs [data-lg="login"]', box).forEach(b => b.classList.add('on'));
     if (name === 'register') {
       const ref = $('#emailRegister [name=ref]');
       if (ref && !ref.value) ref.value = store.get('ref_code', '') || '';
@@ -1835,6 +1836,21 @@
   try { const rc = new URLSearchParams(location.search).get('ref'); if (rc && /^[A-Za-z0-9]{8}$/.test(rc)) store.set('ref_code', rc); } catch (e) { /* bỏ qua */ }
   document.addEventListener('submit', e => {
     const f = e.target;
+    if (f.id === 'emailForgot' || f.id === 'resetForm') {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(f));
+      const btn = $('button[type=submit]', f);
+      if (f.id === 'resetForm') {
+        if (d.password !== d.password2) { toast('Hai mật khẩu không khớp'); return; }
+        d.token = new URLSearchParams(location.search).get('t') || '';
+      }
+      once('auth', () => { btn.disabled = true; return api(f.id === 'emailForgot' ? '/api/auth/forgot' : '/api/auth/reset', d).then(r => {
+        if (r && r.ok && f.id === 'emailForgot') { f.reset(); rewardToast(esc(r.message), '📧', 8000); }
+        else if (r && r.ok) { toast('Đã đổi mật khẩu, bạn đã được đăng nhập'); setMe(r.me); fetchMe(); setTimeout(() => { location.href = '/'; }, 1200); }
+        else toast((r && r.error) || 'Không thành công, thử lại sau');
+      }).finally(() => { btn.disabled = false; }); });
+      return;
+    }
     if (f.id !== 'emailLogin' && f.id !== 'emailRegister') return;
     e.preventDefault();
     const d = Object.fromEntries(new FormData(f));
