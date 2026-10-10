@@ -1612,7 +1612,7 @@
           <span>${cDate(c.at)}</span>
           ${c.pending ? '<span class="c-pending">Đang chờ duyệt</span>' : `<button type="button" data-c="like" class="${c.liked ? 'on' : ''}">Thích</button>
           <button type="button" data-c="reply">Trả lời</button>`}
-          ${c.mine ? '<button type="button" data-c="del">Xóa</button>' : ''}
+          ${cState && cState.me && cState.me.id === 1 ? '<button type="button" data-c="del">Xóa</button>' : ''}
         </div>
         ${c.parent ? '' : '<div class="c-replies"></div>'}
       </div>

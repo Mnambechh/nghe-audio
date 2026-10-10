@@ -328,8 +328,10 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   // Xóa bình luận của chính mình (kèm các trả lời).
   if (path === '/api/comments/delete') {
+    // Chỉ tài khoản quản trị (#1) được xóa bình luận ngay trên trang; thành viên không tự xóa được (admin quản lý trong trang quản trị).
+    if (me.id !== 1) return json({ ok: false, error: 'Chỉ quản trị viên mới xóa được bình luận.' }, 403);
     const id = parseInt(input.id, 10) || 0;
-    const c = await first(db, 'SELECT id FROM comments WHERE id = ? AND user_id = ?', id, me.id);
+    const c = await first(db, 'SELECT id FROM comments WHERE id = ?', id);
     if (!c) return json({ ok: false }, 404);
     await db.batch([
       db.prepare('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE id = ? OR parent_id = ?)').bind(id, id),
