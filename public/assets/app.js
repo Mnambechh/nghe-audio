@@ -1127,11 +1127,12 @@
         <button type="button" class="sh-buy" data-buy="${i.id}"${perm ? ' disabled' : ''}>${perm ? 'Đã sở hữu' : `${o ? 'Gia hạn' : 'Mua'} · ${nf(i.price)} 💎`}</button></div>`;
     };
     const fxItems = shop.items.filter(i => i.kind === 'fx'), frItems = shop.items.filter(i => i.kind === 'frame'), vipItems = shop.items.filter(i => i.kind === 'vip');
+    const vipDays = vipItems.length ? Math.max(1, vipItems[0].days || 7) : 7; // số ngày của gói VIP (admin cài)
     const vipHtml = vipItems.length ? `<h2 class="h2">👑 Gói Promax VIP</h2>
       <div class="vip-card">
         <div class="vip-head"><b>Promax VIP</b>${VIP_TICK}${shop.vipUntil ? `<em class="vip-on">Đang dùng · ${vipLeft(shop.vipUntil)}</em>` : ''}</div>
         <ul class="vip-perks"><li>🚫 Bỏ quảng cáo toàn web</li><li>${VIP_TICK} Tích xanh xác thực khi bình luận và ở trang cá nhân</li>
-          <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ</li><li>💎 x2 Linh Thạch kiếm được</li></ul>
+          <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ trong ${vipDays} ngày</li><li>💎 x2 Linh Thạch kiếm được trong ${vipDays} ngày khi mua</li></ul>
         <p class="vip-count">👥 ${nf(shop.vipCount)} người đang sở hữu</p>
         <div class="vip-buy">${vipItems.map(i => `<button type="button" class="sh-buy" data-buy="${i.id}">${shop.vipUntil ? 'Gia hạn' : 'Mua'} ${esc(i.name)} · ${nf(i.price)} 💎</button><small class="sh-sold">🔥 Đã bán ${nf(i.sold)} · ${Math.max(1, i.days)} ngày${shop.vipUntil ? ', cộng dồn thêm' : ''}</small>`).join('')}</div>
       </div>` : '';
