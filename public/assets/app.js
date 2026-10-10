@@ -750,7 +750,7 @@
       ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left">${ckLeft ? `Online thêm <b>${fmt(ckLeft)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận'}</span>`, g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
-      ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
+      ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
         `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
       ${((g.quests && g.quests.links) || []).map(x => q('🎯', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
         rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`)).join('')}

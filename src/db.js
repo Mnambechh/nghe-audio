@@ -160,6 +160,13 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 25: EXP bình luận tính theo từng truyện mỗi ngày; thưởng nhiệm vụ bình luận lên 20 Linh Thạch.
+  if (await missing(db, 'comment_exp_log')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS comment_exp_log (user_id INTEGER NOT NULL, track_id INTEGER NOT NULL, day TEXT NOT NULL, PRIMARY KEY (user_id, track_id, day))`,
+      `UPDATE settings SET v = '20' WHERE k = 'comment_quest_stones' AND v = '5'`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 24: link đặt lại mật khẩu (lưu dạng băm, hết hạn 30 phút, dùng 1 lần).
   if (await missing(db, 'password_resets')) {
     await db.prepare(`CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,

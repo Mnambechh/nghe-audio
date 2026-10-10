@@ -294,7 +294,7 @@ export function settingsView(s, origin) {
     <label>Điểm danh: EXP<input name="checkin_exp" inputmode="numeric" value="${h(s.checkin_exp)}"></label>
     <label>Phải online bao lâu mới điểm danh được (giây)<input name="checkin_wait" inputmode="numeric" value="${h(s.checkin_wait)}"></label>
     <label>EXP mỗi bình luận được duyệt<input name="comment_exp" inputmode="numeric" value="${h(s.comment_exp)}"></label>
-    <label>Số bình luận/ngày được cộng EXP<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
+    <label>Số truyện/ngày được cộng EXP bình luận (mỗi truyện 1 lần)<input name="comment_exp_daily" inputmode="numeric" value="${h(s.comment_exp_daily)}"></label>
     <label>Số truyện được đánh giá mỗi ngày<input name="rate_daily" inputmode="numeric" value="${h(s.rate_daily)}"></label>
     <label>Đánh giá: Linh Thạch mỗi truyện<input name="rate_stones" inputmode="numeric" value="${h(s.rate_stones)}"></label>
     <label>Đánh giá: EXP mỗi truyện<input name="rate_exp" inputmode="numeric" value="${h(s.rate_exp)}"></label>
@@ -868,7 +868,7 @@ export function questsView({ quests, counts, listen, comment, s }) {
 <form method="post" class="form card"><input type="hidden" name="action" value="comment">
   <h2>💬 Bình luận hợp lệ</h2>
   <label class="check"><input type="checkbox" name="comment_quest_enabled" value="1"${comment.enabled ? ' checked' : ''}> Bật nhiệm vụ bình luận</label>
-  <label>Linh Thạch thưởng (1 lần mỗi ngày)<input name="comment_quest_stones" inputmode="numeric" value="${comment.stones}"></label>
+  <label>Linh Thạch thưởng (1 lần mỗi ngày, làm mới lúc 0h)<input name="comment_quest_stones" inputmode="numeric" value="${comment.stones}"></label>
   <small class="muted">Thưởng cho bình luận <b>được hiện</b> đầu tiên trong ngày (bình luận bị bộ lọc giữ lại thì nhận khi bạn duyệt). EXP bình luận vẫn tính riêng theo Cài đặt. Hôm nay đã có <b>${fmtInt(counts[-1] || 0)}</b> người hoàn thành.</small>
   <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>

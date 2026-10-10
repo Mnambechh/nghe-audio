@@ -18,7 +18,7 @@ export const QUEST_DEFAULTS = {
   promax_url: 'https://ahoan.com',
   promax_button: 'Mở ahoan.com',
   comment_quest_enabled: '1',
-  comment_quest_stones: '5',
+  comment_quest_stones: '20',
 };
 
 const LISTEN_BASE = 100000; // mã nhiệm vụ nghe trong bảng quest_done = LISTEN_BASE + số phút của mốc

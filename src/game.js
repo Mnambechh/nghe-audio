@@ -106,10 +106,17 @@ export async function awardExp(db, s, userId, amount, note = '') {
 // Gọi khi một bình luận được hiện (tự duyệt hoặc admin duyệt).
 export async function onCommentApproved(db, s, c) {
   const today = vnDay();
-  // Tăng bộ đếm trong một câu lệnh nguyên tử; giá trị trả về quyết định có được cộng EXP không.
-  const u = await first(db, `UPDATE users SET comments_n = comments_n + 1, cexp_n = CASE WHEN cexp_day = ? THEN cexp_n + 1 ELSE 1 END, cexp_day = ?
-    WHERE id = ? RETURNING cexp_n`, today, today, c.user_id);
-  const rewards = u && u.cexp_n <= num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp'), `Bình luận được duyệt #${c.id}`) : [];
+  await db.prepare('UPDATE users SET comments_n = comments_n + 1 WHERE id = ?').bind(c.user_id).run();
+  // EXP bình luận: mỗi truyện chỉ tính 1 lần / ngày (bình luận thêm ở cùng truyện chỉ báo thành công),
+  // và tối đa comment_exp_daily truyện / ngày. Cả hai kiểm tra đều nguyên tử (gửi dồn không cộng trùng).
+  let rewards = [];
+  const firstHere = await db.prepare('INSERT OR IGNORE INTO comment_exp_log (user_id, track_id, day) VALUES (?, ?, ?)').bind(c.user_id, c.track_id, today).run();
+  if (firstHere.meta.changes) {
+    const u = await first(db, `UPDATE users SET cexp_n = CASE WHEN cexp_day = ? THEN cexp_n + 1 ELSE 1 END, cexp_day = ?
+      WHERE id = ? RETURNING cexp_n`, today, today, c.user_id);
+    if (u && u.cexp_n <= num(s, 'comment_exp_daily')) rewards = await awardExp(db, s, c.user_id, num(s, 'comment_exp'), `Bình luận được duyệt #${c.id}`);
+  }
+  if (Math.random() < 0.01) await db.prepare('DELETE FROM comment_exp_log WHERE day < ?').bind(vnDay(7)).run();
   if (c.parent_id) {
     const p = await first(db, 'SELECT user_id FROM comments WHERE id = ?', c.parent_id);
     if (p) await notify(db, p.user_id, 'reply', { actor: c.user_id, track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });

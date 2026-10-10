@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '70';
+export const ASSET_V = '71';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -480,14 +480,14 @@ export function guidePage(ctx, g) {
       <h2>2. Nhiệm vụ hằng ngày</h2>
       ${row('🎁', 'Điểm danh', `Mở web đủ <b>${mins(g.checkinWait)} phút</b> trong ngày rồi bấm <b>Điểm danh</b>. Chỉ tính thời gian <b>đang mở trang web</b>: chuyển sang tab hoặc ứng dụng khác thì đồng hồ tạm dừng.`, rw(g.checkinStones, g.checkinExp))}
       ${g.listen ? g.listen.tiers.map(t => row('🎧', `Nghe audio ${t.min} phút`, `Nghe đủ <b>${t.min} phút</b> trong ngày. Tính theo thời gian thật đang phát: nghe 1.5× vẫn cần đủ ${t.min} phút đồng hồ; <b>tua, tạm dừng không được tính</b>. Đạt mốc là tự nhận thưởng.`, rw(t.stones, t.exp))).join('') : ''}
-      ${g.comment ? row('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên <b>được hiện</b> trong ngày. Bình luận chứa từ ngữ không phù hợp hoặc link sẽ phải chờ duyệt, được duyệt mới nhận.', rw(g.comment.stones, 0)) : ''}
+      ${g.comment ? row('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên <b>được hiện</b> trong ngày (làm mới lúc 0h, bình luận lại truyện cũ vẫn tính). Bình luận chứa từ ngữ không phù hợp hoặc link sẽ phải chờ duyệt, được duyệt mới nhận.', rw(g.comment.stones, 0)) : ''}
       ${g.links.map(q => row('🎯', h(q.title), 'Bấm nút <b>Mở</b> ở trang Nhiệm vụ để xem, nhận thưởng ngay.', rw(q.stones, q.exp))).join('')}
       <p class="gd-note">Tổng tối đa mỗi ngày từ nhiệm vụ: <b>${nf(g.dailyMax)} 💎</b>.</p>
     </section>
 
     <section class="gd-card">
       <h2>3. Kiếm EXP để lên cấp</h2>
-      ${row('💬', 'Bình luận', `Mỗi bình luận được hiện. Tối đa <b>${nf(g.cmtDaily)} bình luận/ngày</b> được cộng EXP.`, xp(g.cmtExp))}
+      ${row('💬', 'Bình luận', `Mỗi <b>truyện khác nhau</b> được tính 1 lần / ngày (bình luận thêm ở cùng truyện không cộng EXP). Tối đa <b>${nf(g.cmtDaily)} truyện/ngày</b>.`, xp(g.cmtExp))}
       ${row('❤️', 'Thả tim truyện', `Bấm <b>Bắn tim</b> ở trang nghe, mỗi truyện 1 lần. Tối đa <b>${nf(g.heartDaily)} truyện/ngày</b>.`, rw(g.heartStones, g.heartExp))}
       ${row('⭐', 'Đánh giá truyện', `Chấm sao cho truyện, <b>mỗi truyện chỉ 1 lần duy nhất</b>. Tối đa <b>${nf(g.rateDaily)} truyện/ngày</b>.`, rw(g.rateStones, g.rateExp))}
       ${g.checkinExp ? row('🎁', 'Điểm danh', 'Mỗi ngày điểm danh.', xp(g.checkinExp)) : ''}
