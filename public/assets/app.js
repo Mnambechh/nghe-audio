@@ -367,6 +367,7 @@
       applyServerResume();
     }
     loadHistory();
+    loadProfile();
     refreshLive();
   }
 
@@ -441,6 +442,13 @@
         api('/api/history/delete', { track_id: +row.dataset.hid }).then(() => { row.remove(); histCache = null; });
         return;
       }
+      case 'avatar-reset':
+        api('/api/profile/avatar/delete', {}).then(r => {
+          if (!r || !r.ok) return;
+          me.avatar = ''; me.customAvatar = false;
+          renderAcct(); loadProfile(); toast('Ảnh Google sẽ được dùng lại từ lần đăng nhập sau');
+        });
+        return;
       case 'hist-clear':
         if (!confirm('Xóa toàn bộ lịch sử nghe?')) return;
         api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); });
@@ -640,14 +648,14 @@
   window.addEventListener('hashchange', focusSearchFromHash);
 
   // ---------- Tài khoản (đăng nhập Google) + lịch sử nghe ----------
-  let me = null, clientId = '', meLoaded = false, histCache = null, lastHist = 0;
+  let me = null, clientId = '', meLoaded = false, histCache = null, lastHist = 0, avatarMaxMb = 5;
 
   function renderAcct() {
     const box = $('#acct');
     if (!box) return;
     if (!me) { box.innerHTML = '<button class="btn-login" type="button" data-act="login">Đăng nhập</button>'; return; }
     box.innerHTML = `<button class="acct-btn" type="button" data-act="acct-menu" aria-label="Tài khoản">${avatar(me.name, me.avatar, 'acct-av')}<span>${esc(me.name)}</span></button>
-      <div class="acct-menu" hidden><p>${esc(me.name)}</p><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><button type="button" data-act="logout">Đăng xuất</button></div>`;
+      <div class="acct-menu" hidden><p>${esc(me.name)}</p><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><button type="button" data-act="logout">Đăng xuất</button></div>`;
   }
 
   function setMe(m) {
@@ -660,8 +668,9 @@
     return fetch(`${APP.base}/api/me`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
       if (!r || !r.ok) return;
       clientId = r.clientId || '';
+      avatarMaxMb = r.avatarMaxMb || 5;
       setMe(r.me);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); });
   }
 
   function openLogin() {
@@ -678,6 +687,7 @@
       toast('Đã đăng xuất');
       loadComments();
       loadHistory();
+      loadProfile();
     });
   }
 
@@ -739,6 +749,86 @@
       }).join('') : '<p class="c-note">Bạn chưa nghe audio nào. Nghe xong sẽ hiện ở đây.</p>';
     });
   }
+
+  // ---------- Thông tin tài khoản: đổi ảnh, đổi tên ----------
+  function loadProfile() {
+    const box = $('#profile');
+    if (!box || !meLoaded) return;
+    if (!me) {
+      box.innerHTML = '<div class="c-login"><p>Đăng nhập để xem và sửa thông tin tài khoản.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    const joined = me.created_at ? cDate(me.created_at).replace(/^ngày /, '') : '';
+    box.innerHTML = `<div class="prof-card">
+      <div class="prof-av">${avatar(me.name, me.avatar, 'prof-img')}
+        <label class="prof-cam" aria-label="Đổi ảnh đại diện"><input type="file" accept="image/*" id="avatarFile" hidden>📷</label></div>
+      <div class="prof-btns">
+        <label class="btn-ghost sm"><input type="file" accept="image/*" class="avatar-input" hidden>Đổi ảnh</label>
+        ${me.customAvatar ? '<button type="button" class="link-btn" data-act="avatar-reset">Dùng lại ảnh Google</button>' : ''}
+      </div>
+      <p class="prof-hint">Ảnh JPG, PNG, WebP. Tối đa ${String(avatarMaxMb).replace('.', ',')}MB.</p>
+      <form class="prof-form" id="nameForm">
+        <label>Tên hiển thị<input name="name" maxlength="40" value="${esc(me.name)}" autocomplete="nickname" required></label>
+        <button class="btn-play inline" type="submit">Lưu tên</button>
+      </form>
+      <dl class="prof-info">
+        ${me.email ? `<dt>Email</dt><dd>${esc(me.email)}</dd>` : ''}
+        ${joined ? `<dt>Tham gia</dt><dd>${esc(joined)}</dd>` : ''}
+        <dt>Đăng nhập bằng</dt><dd>Google</dd>
+      </dl>
+      <p class="prof-links"><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a> · <button type="button" class="link-btn" data-act="logout">Đăng xuất</button></p>
+    </div>`;
+  }
+
+  // Cắt vuông giữa ảnh và nén còn 256×256 JPEG trước khi tải lên.
+  function shrinkImage(file, size = 256) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(img.naturalWidth, img.naturalHeight);
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, size, size);
+        g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => (b ? resolve(b) : reject(new Error('nén lỗi'))), 'image/jpeg', 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('không đọc được ảnh')); };
+      img.src = url;
+    });
+  }
+
+  document.addEventListener('change', async e => {
+    if (!e.target.matches('#profile input[type=file]')) return;
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { toast('Vui lòng chọn file ảnh'); return; }
+    if (file.size > avatarMaxMb * 1024 * 1024) { toast(`Ảnh quá lớn, tối đa ${String(avatarMaxMb).replace('.', ',')}MB`); return; }
+    let blob;
+    try { blob = await shrinkImage(file); } catch (err) { toast('Không đọc được ảnh này, thử ảnh khác'); return; }
+    const fd = new FormData();
+    fd.append('avatar', blob, 'avatar.jpg');
+    toast('Đang tải ảnh lên…');
+    try {
+      const r = await (await fetch(`${APP.base}/api/profile/avatar`, { method: 'POST', body: fd, credentials: 'same-origin' })).json();
+      if (!r.ok) { toast(r.error || 'Tải ảnh không thành công'); return; }
+      me.avatar = r.avatar; me.customAvatar = true;
+      renderAcct(); loadProfile(); toast('Đã đổi ảnh đại diện');
+    } catch (err) { toast('Tải ảnh không thành công'); }
+  });
+
+  document.addEventListener('submit', e => {
+    if (e.target.id !== 'nameForm') return;
+    e.preventDefault();
+    const name = new FormData(e.target).get('name').trim();
+    api('/api/profile', { name }).then(r => {
+      if (!r || !r.ok) { toast((r && r.error) || 'Không lưu được tên'); return; }
+      me.name = r.name; renderAcct(); loadProfile(); toast('Đã lưu tên mới');
+    });
+  });
 
   // Bấm "Nghe tiếp" trong lịch sử: đặt sẵn vị trí để trang audio phát tiếp đúng chỗ.
   document.addEventListener('click', e => {
@@ -886,6 +976,7 @@
         setMe(r.me);
         loadComments();
         loadHistory();
+        loadProfile();
         applyServerResume();
       }
       else toast((r && r.error) || 'Đăng nhập không thành công');

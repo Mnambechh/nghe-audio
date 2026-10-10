@@ -280,6 +280,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
+      data.avatar_max_mb = String(Math.min(20, Math.max(0.5, parseFloat(str(f, 'avatar_max_mb').replace(',', '.')) || 5)));
       const gid = str(f, 'google_client_id');
       if (gid && !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(gid)) return go(ADMIN + '/settings', ['err', 'Google Client ID không đúng dạng (…apps.googleusercontent.com).']);
       data.google_client_id = gid;

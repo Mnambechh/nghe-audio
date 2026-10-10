@@ -244,6 +244,8 @@ export function settingsView(s, origin) {
   <h2>Bình luận & đăng nhập Google</h2>
   <label class="check"><input type="checkbox" name="comments_enabled" value="1"${s.comments_enabled === '1' ? ' checked' : ''}> Bật bình luận</label>
   <label class="check"><input type="checkbox" name="comment_moderation" value="1"${s.comment_moderation === '1' ? ' checked' : ''}> Duyệt bình luận trước khi hiện (bình luận có link luôn phải duyệt)</label>
+  <label>Dung lượng tối đa ảnh đại diện người dùng tải lên (MB)<input name="avatar_max_mb" inputmode="decimal" value="${h(s.avatar_max_mb)}">
+    <small class="muted">Ảnh được tự cắt vuông và nén còn khoảng 20–50KB trước khi lưu.</small></label>
   <label>Google Client ID<input name="google_client_id" value="${h(s.google_client_id)}" placeholder="123456789-xxxx.apps.googleusercontent.com">
     <small class="muted">Tạo tại console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID (Web). Xem hướng dẫn trong README.</small></label>
 

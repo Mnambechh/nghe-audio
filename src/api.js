@@ -10,7 +10,7 @@ import { handleCommentsApi } from './comments.js';
 const MAX_PLAYS_PER_IP_DAY = 300;
 
 export async function handleApi(request, db, path, ctx, info) {
-  if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path === '/api/me') return handleCommentsApi(request, db, path, info, ctx);
+  if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path.startsWith('/api/profile') || path === '/api/me') return handleCommentsApi(request, db, path, info, ctx);
 
   // Cập nhật số đang nghe cho các thẻ trên trang.
   if (path === '/api/live') return json({ ok: true, live: await liveCounts(db) });

@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '9';
+export const ASSET_V = '10';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -342,4 +342,11 @@ export function historyPage(ctx) {
     <div class="bar-line"><h1 class="h1">Lịch sử nghe</h1><button type="button" class="link-btn" data-act="hist-clear" hidden>Xóa tất cả</button></div>
     <div id="history" class="list"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Lịch sử nghe - ${ctx.s.site_name}`, canonical: ctx.origin + '/lich-su', noindex: true }, body);
+}
+
+export function profilePage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Thông tin tài khoản</h1>
+    <div id="profile"><p class="c-note">Đang tải…</p></div></div>`;
+  return layout(ctx, { title: `Tài khoản - ${ctx.s.site_name}`, canonical: ctx.origin + '/tai-khoan', noindex: true }, body);
 }

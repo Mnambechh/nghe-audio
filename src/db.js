@@ -87,6 +87,16 @@ export async function migrate(db) {
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
   if (await missing(db, 'history')) await db.batch(SCHEMA_V4.map(s => db.prepare(s)));
+  // Bản 5: người dùng tự đổi tên/ảnh (không bị Google ghi đè khi đăng nhập lại).
+  try {
+    await db.prepare('SELECT name_locked FROM users LIMIT 1').first();
+  } catch (e) {
+    await db.batch([
+      'ALTER TABLE users ADD COLUMN name_locked INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN avatar_locked INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN name_changed_at INTEGER NOT NULL DEFAULT 0',
+    ].map(q => db.prepare(q)));
+  }
   migrated = true;
 }
 
@@ -105,6 +115,7 @@ export const DEFAULT_SETTINGS = {
   head_code: '',
   per_page: '15',
   comments_enabled: '1',
+  avatar_max_mb: '5',
   comment_moderation: '1',
   google_client_id: '',
   ad_enabled: '1',

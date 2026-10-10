@@ -1,6 +1,6 @@
 // Bình luận + đăng nhập Google cho người nghe.
 import { all, first, loadSettings, saveSettings } from './db.js';
-import { json, now, getCookie, setCookie, signToken, readToken, randomId } from './util.js';
+import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64 } from './util.js';
 import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
 
@@ -29,10 +29,19 @@ export async function currentUser(request, db) {
   if (!tok) return null;
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
-  return first(db, 'SELECT id, name, avatar, banned FROM users WHERE id = ?', p.uid);
+  return first(db, 'SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at FROM users WHERE id = ?', p.uid);
 }
 
 const publicUser = u => u && { id: u.id, name: u.name, avatar: u.avatar, banned: !!u.banned };
+// Thông tin đầy đủ hơn, chỉ trả cho chính chủ.
+const selfUser = u => u && { ...publicUser(u), email: u.email || '', created_at: u.created_at || 0, customAvatar: !!u.avatar_locked };
+
+const NAME_GAP = 60; // giây giữa hai lần đổi tên
+
+async function deleteMedia(db, path) {
+  const m = String(path || '').match(/^\/media\/([A-Za-z0-9]+)\./);
+  if (m) await db.prepare('DELETE FROM media WHERE id = ?').bind(m[1]).run();
+}
 
 function withCookie(res, cookie) {
   const out = new Response(res.body, res);
@@ -71,7 +80,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   // Thông tin người đang đăng nhập (cho thanh đầu trang).
   if (path === '/api/me') {
     const me = await currentUser(request, db);
-    return json({ ok: true, me: publicUser(me), clientId: s.google_client_id || '' });
+    return json({ ok: true, me: selfUser(me), clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
   // Lịch sử nghe của người đang đăng nhập.
@@ -87,6 +96,30 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   if (request.method !== 'POST') return json({ ok: false }, 405);
   if (!sameOrigin(request)) return json({ ok: false, error: 'Yêu cầu không hợp lệ.' }, 400);
+  // Tải ảnh đại diện (multipart). Trình duyệt đã cắt vuông + nén nhỏ trước khi gửi.
+  if (path === '/api/profile/avatar') {
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    const maxMb = Math.max(0.2, parseFloat(s.avatar_max_mb) || 5);
+    const len = parseInt(request.headers.get('Content-Length'), 10) || 0;
+    if (len > maxMb * 1024 * 1024 + 4096) return json({ ok: false, error: `Ảnh tối đa ${maxMb}MB.` }, 413);
+    let file;
+    try { file = (await request.formData()).get('avatar'); } catch (e) { /* bỏ qua */ }
+    if (!file || typeof file === 'string' || !file.size) return json({ ok: false, error: 'Chưa chọn ảnh.' }, 400);
+    if (file.size > maxMb * 1024 * 1024) return json({ ok: false, error: `Ảnh tối đa ${maxMb}MB.` }, 413);
+    if (file.size > 1024 * 1024) return json({ ok: false, error: 'Ảnh sau khi nén vẫn quá lớn, thử ảnh khác.' }, 413);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = imageType(bytes);
+    if (!type || type === 'image/x-icon') return json({ ok: false, error: 'Chỉ nhận ảnh JPG, PNG, WebP hoặc GIF.' }, 400);
+    const id = randomId(20);
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }[type];
+    await db.prepare('INSERT INTO media (id, type, data, created_at) VALUES (?, ?, ?, ?)').bind(id, type, toBase64(bytes), now()).run();
+    if (me.avatar_locked) await deleteMedia(db, me.avatar);
+    const url = `/media/${id}.${ext}`;
+    await db.prepare('UPDATE users SET avatar = ?, avatar_locked = 1 WHERE id = ?').bind(url, me.id).run();
+    return json({ ok: true, avatar: url });
+  }
+
   let input = {};
   try { input = await request.json(); } catch (e) { /* bỏ qua */ }
 
@@ -102,7 +135,9 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     }
     const t = now();
     await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(sub) DO UPDATE SET name = excluded.name, email = excluded.email, avatar = excluded.avatar, last_login = excluded.last_login`)
+      ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login,
+        name = CASE WHEN users.name_locked = 1 THEN users.name ELSE excluded.name END,
+        avatar = CASE WHEN users.avatar_locked = 1 THEN users.avatar ELSE excluded.avatar END`)
       .bind(g.sub, g.name, g.email, g.avatar, t, t).run();
     const u = await first(db, 'SELECT id, name, avatar, banned FROM users WHERE sub = ?', g.sub);
     const token = await signToken(await userSecret(db), { uid: u.id, exp: t + USER_DAYS * 86400 });
@@ -116,6 +151,23 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
   if (me.banned && path.startsWith('/api/comments')) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa bình luận.' }, 403);
+
+  // Đổi tên hiển thị.
+  if (path === '/api/profile') {
+    const name = String(input.name || '').replace(/[\u0000-\u001f\u200b-\u200f\u2028-\u202e]/g, '').replace(/\s+/g, ' ').trim();
+    if ([...name].length < 2 || [...name].length > 40) return json({ ok: false, error: 'Tên cần từ 2 đến 40 ký tự.' }, 400);
+    if (/(https?:|www\.|\.(com|net|vn|xyz|top|io|me|link)\b)/i.test(name)) return json({ ok: false, error: 'Tên không được chứa đường link.' }, 400);
+    if (name !== me.name && now() - (me.name_changed_at || 0) < NAME_GAP) return json({ ok: false, error: 'Bạn vừa đổi tên, đợi một phút rồi thử lại.' }, 429);
+    await db.prepare('UPDATE users SET name = ?, name_locked = 1, name_changed_at = ? WHERE id = ?').bind(name, now(), me.id).run();
+    return json({ ok: true, name });
+  }
+
+  // Bỏ ảnh tự tải lên, quay lại ảnh Google ở lần đăng nhập sau.
+  if (path === '/api/profile/avatar/delete') {
+    if (me.avatar_locked) await deleteMedia(db, me.avatar);
+    await db.prepare("UPDATE users SET avatar = '', avatar_locked = 0 WHERE id = ?").bind(me.id).run();
+    return json({ ok: true });
+  }
 
   // Lưu vị trí đang nghe (gửi định kỳ khi đang phát, khi tạm dừng, khi rời trang).
   if (path === '/api/history') {

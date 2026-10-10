@@ -1,7 +1,7 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage } from './views/public.js';
+import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage } from './views/public.js';
 import { noDbPage } from './views/admin.js';
 import { handleApi } from './api.js';
 import { handleAdmin, handleInstall } from './admin.js';
@@ -53,6 +53,7 @@ export async function handle(request, env, ctx) {
 
   if (path === '/') return html(homePage(pageCtx, await homeData(db, s, url)), 200, { 'Cache-Control': 'no-cache' });
 
+  if (path === '/tai-khoan') return html(profilePage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/lich-su') return html(historyPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
 
   let m = path.match(/^\/track\/([a-z0-9-]+)$/);
