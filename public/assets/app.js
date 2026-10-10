@@ -679,8 +679,6 @@
     box.innerHTML = `<h2 class="h2">Hằng ngày</h2>
       ${q('🎁', 'Điểm danh', ckLeft && !g.checkedIn ? `Online thêm ${fmt(ckLeft)} để điểm danh` : 'Điểm danh mỗi ngày', g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
-      ${q('⭐', 'Đánh giá truyện', 'Chấm sao cho truyện bạn đã nghe (mỗi truyện 1 lần)', g.rateToday, g.rateMax, '+1 EXP / lượt', `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)}
-      ${q('💬', 'Bình luận', 'Bình luận được duyệt sẽ được cộng EXP', g.cmtToday, g.cmtMax, `+${nf(g.cmtExp)} EXP / bình luận`, `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)}
       <h2 class="h2">Tu luyện</h2>
       ${q('⚡', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} 💎`, '')}
       <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
