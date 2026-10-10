@@ -916,24 +916,50 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
         await unblockIp(db, ip);
         return go(ADMIN + '/security', ['ok', `Đã bỏ chặn ${ip}.`]);
       }
+      // Xác nhận lại danh tính admin (mật khẩu + mã 2 bước nếu bật) cho thao tác nhạy cảm:
+      // đổi / xóa khóa API, tắt chặn VPN, xóa nhật ký. Kẻ chiếm được phiên đăng nhập cũng không làm được.
+      const confirmAdmin = async () => {
+        if (!(await verifyPassword(String(f.get('confirm_pass') || ''), s.admin_pass))) return 'Sai mật khẩu admin xác nhận.';
+        if (s.admin_totp) {
+          const c = await verifyTotp(s.admin_totp, str(f, 'confirm_code'), +s.admin_totp_last || 0);
+          if (!c) return 'Sai mã xác thực 2 bước.';
+          await saveSettings(db, { admin_totp_last: String(c) });
+        }
+        return '';
+      };
       if (act === 'clear_log') {
+        const why = await confirmAdmin();
+        if (why) return go(ADMIN + '/security', ['err', why + ' Nhật ký chưa bị xóa.']);
         await db.prepare('DELETE FROM security_log').run();
         return go(ADMIN + '/security', ['ok', 'Đã xóa nhật ký.']);
       }
       if (act === 'antifake') {
         const data = { reg_per_ip: String(Math.max(0, Math.min(100, parseInt(str(f, 'reg_per_ip'), 10) || 0))), reg_block_proxy: f.get('reg_block_proxy') ? '1' : '0' };
         const key = str(f, 'proxycheck_key');
+        const sensitive = key || f.get('proxycheck_clear') || (s.reg_block_proxy !== '0' && data.reg_block_proxy === '0');
+        if (sensitive) {
+          if (info.proxyKey && (key || f.get('proxycheck_clear'))) return go(ADMIN + '/security', ['err', 'Khóa đang đặt bằng biến môi trường Cloudflare (bị khóa cứng) — đổi trong Cloudflare.']);
+          const why = await confirmAdmin();
+          if (why) return go(ADMIN + '/security', ['err', why + ' Chưa lưu thay đổi.']);
+        }
         if (f.get('proxycheck_clear')) data.proxycheck_key = '';
         else if (key) {
           if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return go(ADMIN + '/security', ['err', 'Khóa API không hợp lệ.']);
           data.proxycheck_key = key;
         }
         await saveSettings(db, data);
+        if (sensitive) await logEvent(db, info, 'api_key_change', `proxycheck: ${f.get('proxycheck_clear') ? 'xóa khóa' : key ? 'đổi khóa' : ''}${data.reg_block_proxy === '0' ? ' · tắt chặn VPN' : ''}`);
         return go(ADMIN + '/security', ['ok', 'Đã lưu cài đặt chống tài khoản ảo.']);
       }
       if (act === 'mail') {
         const data = { mail_from: str(f, 'mail_from').slice(0, 120) };
         const key = str(f, 'resend_key');
+        if (key || f.get('resend_clear')) {
+          if (info.resendKey) return go(ADMIN + '/security', ['err', 'Khóa đang đặt bằng biến môi trường Cloudflare (bị khóa cứng) — đổi trong Cloudflare.']);
+          const why = await confirmAdmin();
+          if (why) return go(ADMIN + '/security', ['err', why + ' Chưa lưu thay đổi.']);
+          await logEvent(db, info, 'api_key_change', `resend: ${f.get('resend_clear') ? 'xóa khóa' : 'đổi khóa'}`);
+        }
         if (f.get('resend_clear')) data.resend_key = '';
         else if (key) {
           if (!/^re_[A-Za-z0-9_]{10,80}$/.test(key)) return go(ADMIN + '/security', ['err', 'Khóa Resend không hợp lệ (bắt đầu bằng re_).']);

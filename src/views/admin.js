@@ -429,7 +429,7 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
   <div class="grid2">
     <label>Số tài khoản tối đa được tạo từ một IP (0 = không giới hạn)<input name="reg_per_ip" inputmode="numeric" value="${h(s.reg_per_ip ?? '2')}"></label>
     <label>Khóa API proxycheck.io ${proxy.hasKey ? `<em class="pill ok">Đã cài${proxy.fromEnv ? ' (biến môi trường)' : ''}</em>` : '<em class="pill">Chưa có</em>'}
-      <input name="proxycheck_key" type="password" autocomplete="off" placeholder="${proxy.hasKey ? 'Đã lưu — để trống nếu không đổi' : 'Dán khóa API vào đây'}"></label>
+      <input name="proxycheck_key" type="password" autocomplete="off"${proxy.fromEnv ? ' disabled' : ''} placeholder="${proxy.fromEnv ? 'Khóa cứng bằng biến môi trường Cloudflare' : proxy.hasKey ? 'Đã lưu — để trống nếu không đổi' : 'Dán khóa API vào đây'}"></label>
   </div>
   <label class="check"><input type="checkbox" name="reg_block_proxy" value="1"${s.reg_block_proxy !== '0' ? ' checked' : ''}> Chặn tạo tài khoản mới khi dùng VPN / Proxy / máy chủ ảo / WARP</label>
   ${(c => c ? `<div class="ipcheck"><b>Kiểm tra IP hiện tại của bạn</b> (${h(myIp)}): nhà mạng <b>${h(c.org || '?')}</b> (ASN ${c.asn || '?'})
@@ -437,6 +437,9 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
     · Lớp 2 (proxycheck.io): ${!proxy.hasKey ? '<em class="st st-warn">Chưa có khóa</em>' : c.pc && c.pc.error ? `<em class="st st-warn">Lỗi: ${h(c.pc.error)}</em>` : c.pc && c.pc.proxy ? `<em class="st st-bad">${h(c.pc.type || 'Proxy')} — bị chặn</em>` : '<em class="st st-ok">Bình thường</em>'}
     <br><small class="muted">Mẹo: bật VPN rồi tải lại trang này để xem web có nhận ra VPN không.</small></div>` : '')(proxy.myCheck)}
   ${proxy.hasKey && !proxy.fromEnv ? '<label class="check"><input type="checkbox" name="proxycheck_clear" value="1"> Xóa khóa API đã lưu</label>' : ''}
+  <div class="confirm-box"><b>🔒 Xác nhận khi đổi / xóa khóa</b><small class="muted">Chỉ cần điền khi đổi, xóa khóa hoặc tắt chặn VPN.</small>
+    <div class="grid2"><label>Mật khẩu admin<input name="confirm_pass" type="password" autocomplete="current-password"></label>
+    ${s.admin_totp ? '<label>Mã 2 bước<input name="confirm_code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>' : ''}</div></div>
   <small class="muted">Khóa API được lưu ẩn phía máy chủ, không bao giờ hiện lại trên trang hay gửi xuống trình duyệt. Chỉ kiểm tra khi <b>tạo tài khoản mới</b> (người cũ đăng nhập không bị ảnh hưởng); kết quả mỗi IP lưu 7 ngày để tiết kiệm lượt gọi; nếu proxycheck.io lỗi/hết lượt thì cho đăng ký bình thường.
   Lưu ý: nhà mạng 4G có thể cho nhiều người dùng chung 1 IP — nếu thấy người dùng thật bị chặn, tăng giới hạn lên 3–5.</small>
   <div class="row-actions"><button class="btn">Lưu</button></div>
@@ -446,11 +449,14 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
   <h2>📧 Gửi email (Resend) — dùng cho "Quên mật khẩu"</h2>
   <div class="grid2">
     <label>Khóa API Resend ${mail.hasKey ? `<em class="pill ok">Đã cài${mail.fromEnv ? ' (biến môi trường)' : ''}</em>` : '<em class="pill">Chưa có</em>'}
-      <input name="resend_key" type="password" autocomplete="off" placeholder="${mail.hasKey ? 'Đã lưu — để trống nếu không đổi' : 're_xxxxxxxx'}"></label>
+      <input name="resend_key" type="password" autocomplete="off"${mail.fromEnv ? ' disabled' : ''} placeholder="${mail.fromEnv ? 'Khóa cứng bằng biến môi trường Cloudflare' : mail.hasKey ? 'Đã lưu — để trống nếu không đổi' : 're_xxxxxxxx'}"></label>
     <label>Địa chỉ gửi<input name="mail_from" value="${h(s.mail_from || '')}" placeholder="${h(mail.from || '')}"></label>
   </div>
   <label>Gửi email thử tới (không bắt buộc)<input name="test_to" type="email" placeholder="email-cua-ban@gmail.com"></label>
   ${mail.hasKey && !mail.fromEnv ? '<label class="check"><input type="checkbox" name="resend_clear" value="1"> Xóa khóa đã lưu</label>' : ''}
+  <div class="confirm-box"><b>🔒 Xác nhận khi đổi / xóa khóa</b><small class="muted">Chỉ cần điền khi đổi, xóa khóa hoặc tắt chặn VPN.</small>
+    <div class="grid2"><label>Mật khẩu admin<input name="confirm_pass" type="password" autocomplete="current-password"></label>
+    ${s.admin_totp ? '<label>Mã 2 bước<input name="confirm_code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>' : ''}</div></div>
   <small class="muted">Khóa được lưu ẩn phía máy chủ, không hiện lại và không gửi xuống trình duyệt. Địa chỉ gửi phải thuộc <b>tên miền đã xác minh</b> trong Resend (Domains → Add domain → thêm các bản ghi DNS vào Cloudflare). Để trống "Địa chỉ gửi" sẽ dùng <code>${h(mail.from || '')}</code>.</small>
   <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>
@@ -488,7 +494,10 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
 </div>
 
 <div class="bar"><h2>Nhật ký (30 ngày, mới nhất trước)</h2>
-  <form method="post" data-confirm="Xóa toàn bộ nhật ký?"><input type="hidden" name="action" value="clear_log"><button class="btn ghost">Xóa nhật ký</button></form>
+  <form method="post" class="inline-form" data-confirm="Xóa toàn bộ nhật ký?"><input type="hidden" name="action" value="clear_log">
+    <input name="confirm_pass" type="password" placeholder="Mật khẩu admin" autocomplete="current-password" required>
+    ${s.admin_totp ? '<input name="confirm_code" inputmode="numeric" maxlength="6" placeholder="Mã 2 bước" required>' : ''}
+    <button class="btn ghost">Xóa nhật ký</button></form>
 </div>
 <div class="table">
   ${logs.map(l => `<div class="trow">
