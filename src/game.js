@@ -31,6 +31,7 @@ export function levelupStones(s, lvl) {
   return t ? t.stones : 0;
 }
 
+const heartHits = new Map(); // userId → các lần bấm tim gần đây (bộ nhớ tạm của máy chủ)
 const num = (s, k) => Math.max(0, parseFloat(s[k] ?? GAME_DEFAULTS[k]) || 0);
 
 // ---------- Thông báo ----------
@@ -148,6 +149,11 @@ export async function handleGameApi(request, db, s, path, me, input) {
 
   // Bắn tim truyện: mỗi tài khoản 1 lần / truyện, không thể bỏ (chèn có điều kiện nên bấm dồn cũng chỉ tính 1).
   if (path === '/api/heart') {
+    // Chống spam phía máy chủ: quá 5 lần / 10 giây mỗi tài khoản thì trả lỗi ngay, không đụng cơ sở dữ liệu.
+    const t0 = Date.now(), list = (heartHits.get(me.id) || []).filter(x => t0 - x < 10000);
+    list.push(t0); heartHits.set(me.id, list);
+    if (heartHits.size > 5000) heartHits.clear();
+    if (list.length > 5) return json({ ok: false, error: 'Thao tác quá nhanh, thử lại sau ít giây.' }, 429);
     const trackId = parseInt(input.track_id, 10) || 0;
     if (!(await first(db, 'SELECT 1 x FROM tracks WHERE id = ? AND published = 1', trackId))) return json({ ok: false }, 404);
     const r = await db.prepare('INSERT OR IGNORE INTO track_hearts (user_id, track_id, created_at) VALUES (?, ?, ?)').bind(me.id, trackId, now()).run();

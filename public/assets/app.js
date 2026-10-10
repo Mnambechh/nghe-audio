@@ -1408,10 +1408,22 @@
     }
     btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
   }
+  // Chống spam: bấm từ lần thứ 3 trở đi trong 2 giây thì bỏ qua hoàn toàn (không gửi máy chủ, không hiện thông báo);
+  // thông báo "đã bắn tim" chỉ hiện tối đa 1 lần / 5 giây.
+  const heartClicks = [];
+  let heartToastAt = 0;
   function doHeart(btn) {
     const box = btn.closest('.heart-box');
+    const t = Date.now();
+    while (heartClicks.length && t - heartClicks[0] > 2000) heartClicks.shift();
+    heartClicks.push(t);
+    if (heartClicks.length >= 3) return;
     if (!me) { openLogin(); return; }
-    if (box.classList.contains('on')) { heartBurst(btn); toast('Bạn đã bắn tim truyện này rồi ❤️'); return; }
+    if (box.classList.contains('on')) {
+      heartBurst(btn);
+      if (t - heartToastAt > 5000) { heartToastAt = t; toast('Bạn đã bắn tim truyện này rồi ❤️'); }
+      return;
+    }
     box.classList.add('on');
     heartBurst(btn);
     const n = $('.heart-n', box);
