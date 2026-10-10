@@ -382,6 +382,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
         await saveSettings(db, {
           ad_enabled: f.get('ad_enabled') ? '1' : '0',
           ad_interval_hours: String(hours),
+          ad_mode: str(f, 'ad_mode') === 'every' ? 'every' : 'hours',
           ad_message: str(f, 'ad_message'),
           ad_button: str(f, 'ad_button'),
           ad_note: str(f, 'ad_note'),

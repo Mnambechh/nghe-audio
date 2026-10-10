@@ -171,8 +171,10 @@
   }
 
   // Khóa quảng cáo: hiện popup nếu hết hạn mở khóa, bấm quảng cáo thì chạy fn.
+  // Chế độ "mỗi lần phát": lần bấm phát nào (do người dùng bấm) cũng hiện quảng cáo; tự chuyển tập kế tiếp thì không.
   function needAd() {
-    return !!(APP.ad && APP.ad.ads && APP.ad.ads.length) && Date.now() > (store.get('ad_until', 0) || 0);
+    if (!(APP.ad && APP.ad.ads && APP.ad.ads.length)) return false;
+    return APP.ad.every || Date.now() > (store.get('ad_until', 0) || 0);
   }
   let adAction = null, adShown = null;
   function gate(fn) {

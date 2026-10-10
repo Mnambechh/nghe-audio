@@ -2,7 +2,7 @@
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
 
-export const ASSET_V = '79';
+export const ASSET_V = '80';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -37,6 +37,7 @@ export function layout(ctx, meta, body) {
     const hours = Math.max(0.1, parseFloat(s.ad_interval_hours) || 6);
     adConfig = {
       hours,
+      every: s.ad_mode === 'every', // mỗi lần bấm phát đều hiện quảng cáo
       message: s.ad_message,
       button: s.ad_button,
       note: s.ad_note.replace('{hours}', String(hours).replace('.', ',')),

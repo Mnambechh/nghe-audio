@@ -374,6 +374,7 @@ export const DEFAULT_SETTINGS = {
   google_client_id: '',
   ad_enabled: '1',
   ad_interval_hours: '6',
+  ad_mode: 'hours',          // hours = hiện lại sau số giờ; every = mỗi lần bấm phát đều hiện
   ad_message: 'Bạn xác nhận bấm "Đồng ý mở Shopee và tham khảo sản phẩm" là hoàn toàn tự nguyện. Bạn cũng có thể bấm X ở góc để đóng.',
   ad_button: 'Mở Shopee & nghe tiếp',
   ad_note: 'Lưu ý: Quảng cáo chỉ xuất hiện 1 lần mỗi {hours} giờ, mong quý thính giả ủng hộ.',

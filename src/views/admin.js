@@ -225,7 +225,14 @@ export function adsView(s, ads, edit, editor = null) {
   <input type="hidden" name="action" value="config">
   <h2>Cách hiển thị</h2>
   <label class="check"><input type="checkbox" name="ad_enabled" value="1"${s.ad_enabled === '1' ? ' checked' : ''}> Bật khóa audio bằng quảng cáo</label>
-  <label>Sau khi bấm quảng cáo, được nghe tự do trong (giờ)
+  <label>Tần suất hiện quảng cáo
+    <select name="ad_mode">
+      <option value="hours"${s.ad_mode !== 'every' ? ' selected' : ''}>Theo số giờ (bấm 1 lần, nghe tự do trong số giờ bên dưới)</option>
+      <option value="every"${s.ad_mode === 'every' ? ' selected' : ''}>Mỗi lần bấm phát đều hiện quảng cáo 1 lần</option>
+    </select>
+    <small class="muted">"Mỗi lần bấm phát": mỗi lần người nghe bấm ▶ (phát truyện, chọn tập, bấm tiếp tục) đều hiện quảng cáo; tự chuyển sang tập kế tiếp thì không hiện. Nhớ sửa "Ghi chú dưới nút" cho đúng chế độ này.</small>
+  </label>
+  <label>Sau khi bấm quảng cáo, được nghe tự do trong (giờ) <small class="muted">— chỉ dùng cho chế độ "Theo số giờ"</small>
     <input name="ad_interval_hours" inputmode="decimal" value="${h(s.ad_interval_hours)}">
     <small class="muted">Ví dụ: 6 = mỗi 6 tiếng hiện lại 1 lần, 24 = mỗi ngày 1 lần. Tính riêng trên từng thiết bị.</small>
   </label>
