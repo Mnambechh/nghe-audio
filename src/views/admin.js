@@ -431,7 +431,11 @@ export function securityView({ stats, logs, blocked, myIp, s = {}, logins = [], 
     <label>Khóa API proxycheck.io ${proxy.hasKey ? `<em class="pill ok">Đã cài${proxy.fromEnv ? ' (biến môi trường)' : ''}</em>` : '<em class="pill">Chưa có</em>'}
       <input name="proxycheck_key" type="password" autocomplete="off" placeholder="${proxy.hasKey ? 'Đã lưu — để trống nếu không đổi' : 'Dán khóa API vào đây'}"></label>
   </div>
-  <label class="check"><input type="checkbox" name="reg_block_proxy" value="1"${s.reg_block_proxy !== '0' ? ' checked' : ''}> Chặn tạo tài khoản mới khi dùng VPN / Proxy / máy chủ ảo</label>
+  <label class="check"><input type="checkbox" name="reg_block_proxy" value="1"${s.reg_block_proxy !== '0' ? ' checked' : ''}> Chặn tạo tài khoản mới khi dùng VPN / Proxy / máy chủ ảo / WARP</label>
+  ${(c => c ? `<div class="ipcheck"><b>Kiểm tra IP hiện tại của bạn</b> (${h(myIp)}): nhà mạng <b>${h(c.org || '?')}</b> (ASN ${c.asn || '?'})
+    · Lớp 1 (nhà mạng): ${c.host ? '<em class="st st-bad">Bị chặn — máy chủ ảo / VPN</em>' : '<em class="st st-ok">Bình thường</em>'}
+    · Lớp 2 (proxycheck.io): ${!proxy.hasKey ? '<em class="st st-warn">Chưa có khóa</em>' : c.pc && c.pc.error ? `<em class="st st-warn">Lỗi: ${h(c.pc.error)}</em>` : c.pc && c.pc.proxy ? `<em class="st st-bad">${h(c.pc.type || 'Proxy')} — bị chặn</em>` : '<em class="st st-ok">Bình thường</em>'}
+    <br><small class="muted">Mẹo: bật VPN rồi tải lại trang này để xem web có nhận ra VPN không.</small></div>` : '')(proxy.myCheck)}
   ${proxy.hasKey && !proxy.fromEnv ? '<label class="check"><input type="checkbox" name="proxycheck_clear" value="1"> Xóa khóa API đã lưu</label>' : ''}
   <small class="muted">Khóa API được lưu ẩn phía máy chủ, không bao giờ hiện lại trên trang hay gửi xuống trình duyệt. Chỉ kiểm tra khi <b>tạo tài khoản mới</b> (người cũ đăng nhập không bị ảnh hưởng); kết quả mỗi IP lưu 7 ngày để tiết kiệm lượt gọi; nếu proxycheck.io lỗi/hết lượt thì cho đăng ký bình thường.
   Lưu ý: nhà mạng 4G có thể cho nhiều người dùng chung 1 IP — nếu thấy người dùng thật bị chặn, tăng giới hạn lên 3–5.</small>

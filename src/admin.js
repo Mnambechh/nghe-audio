@@ -13,6 +13,7 @@ import { listenConfig, commentConfig, onCommentQuest, parseTiers } from './quest
 import { demoLoginCookie, currentUser } from './comments.js';
 import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
 import { mailConfig, sendMail } from './mailer.js';
+import { checkIp, hostingByAsn } from './proxycheck.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -967,7 +968,9 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       all(db, 'SELECT * FROM blocked_ips ORDER BY created_at DESC LIMIT 300'),
     ]);
     const logins = await all(db, "SELECT at, ip, country, ua, detail FROM security_log WHERE event = 'login_ok' ORDER BY at DESC LIMIT 10");
-    const myCheck = await first(db, 'SELECT proxy, type, provider FROM ip_checks WHERE ip = ?', info.ip);
+    // Kiểm tra trực tiếp IP đang dùng (bật VPN rồi mở trang này để xem web có nhận ra không).
+    const pkey = info.proxyKey || s.proxycheck_key;
+    const myCheck = { asn: info.asn, org: info.asOrg, host: hostingByAsn(info), pc: pkey ? await checkIp(db, pkey, info.ip) : null };
     return view(V.securityView({ stats, logs, blocked: blocked.filter(b => !b.until || b.until > t), myIp: info.ip, s, logins,
       proxy: { hasKey: !!(info.proxyKey || s.proxycheck_key), fromEnv: !!info.proxyKey, myCheck },
       mail: { hasKey: !!(info.resendKey || s.resend_key), fromEnv: !!info.resendKey, from: mailConfig(s, info, url.origin).from } }));

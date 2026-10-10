@@ -104,6 +104,7 @@ export const EVENT_LABELS = {
   mail_fail: 'Gửi email lỗi',
   user_login_fail: 'Thành viên đăng nhập sai mật khẩu',
   reg_proxy: 'Đăng ký bằng VPN / Proxy',
+  proxy_check_fail: 'proxycheck.io lỗi (không kiểm tra được)',
   session_stolen: 'Phiên admin dùng trên thiết bị khác',
   admin_2fa: 'Thay đổi xác thực 2 bước',
   login_lock: 'Khóa đăng nhập tạm thời',

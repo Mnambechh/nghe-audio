@@ -3,7 +3,7 @@ import { all, first, loadSettings, saveSettings } from './db.js';
 import { vnDay, json, now, getCookie, setCookie, signToken, readToken, randomId, imageType, toBase64, hashPassword, verifyPassword } from './util.js';
 import { verifyGoogleToken } from './google.js';
 import { deviceOf, logEvent, recentHits } from './security.js';
-import { checkIp } from './proxycheck.js';
+import { checkIp, hostingByAsn } from './proxycheck.js';
 import { mailConfig, sendMail, resetMailHtml } from './mailer.js';
 import { attachReferrer, handleReferralApi } from './referral.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
@@ -65,12 +65,20 @@ async function newAccountGuard(db, s, info, email) {
       return json({ ok: false, error: `Mỗi mạng (IP) chỉ được tạo tối đa ${limit} tài khoản. Nếu đã có tài khoản, hãy đăng nhập.` }, 403);
     }
   }
-  const key = info.proxyKey || s.proxycheck_key;
-  if (s.reg_block_proxy !== '0' && key) {
-    const r = await checkIp(db, key, info.ip);
-    if (r && r.proxy) {
-      await logEvent(db, info, 'reg_proxy', `${email} · ${r.type || 'Proxy'}${r.provider ? ' · ' + r.provider : ''}`);
-      return json({ ok: false, error: 'Không thể tạo tài khoản khi đang dùng VPN / Proxy. Vui lòng tắt VPN rồi thử lại.' }, 403);
+  if (s.reg_block_proxy !== '0') {
+    const vpnMsg = json({ ok: false, error: 'Không thể tạo tài khoản khi đang dùng VPN / Proxy / 1.1.1.1 WARP / Chuyển tiếp bảo mật iCloud. Vui lòng tắt rồi thử lại.' }, 403);
+    // Lớp 1 (không cần API): nhà mạng thuộc máy chủ ảo / VPN / Cloudflare WARP.
+    const host = hostingByAsn(info);
+    if (host) { await logEvent(db, info, 'reg_proxy', `${email} · ${host}`); return vpnMsg; }
+    // Lớp 2: proxycheck.io (nếu đã có khóa).
+    const key = info.proxyKey || s.proxycheck_key;
+    if (key) {
+      const r = await checkIp(db, key, info.ip);
+      if (r && r.proxy) {
+        await logEvent(db, info, 'reg_proxy', `${email} · ${r.type || 'Proxy'}${r.provider ? ' · ' + r.provider : ''}`);
+        return vpnMsg;
+      }
+      if (r && r.error) await logEvent(db, info, 'proxy_check_fail', r.error);
     }
   }
   return null;

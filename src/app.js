@@ -33,7 +33,10 @@ async function handleInner(request, env, ctx) {
 
   const info = clientInfo(request);
   info.proxyKey = env.PROXYCHECK_KEY || '';
-  info.resendKey = env.RESEND_KEY || ''; // khóa gửi email (Resend), chỉ dùng phía máy chủ // khóa API bí mật (biến môi trường Cloudflare), chỉ dùng phía máy chủ
+  info.resendKey = env.RESEND_KEY || ''; // khóa gửi email (Resend), chỉ dùng phía máy chủ
+  // Nhà mạng (ASN) của người truy cập do Cloudflare cung cấp sẵn — dùng để nhận ra máy chủ ảo / VPN / WARP mà không cần API ngoài.
+  info.asn = (request.cf && +request.cf.asn) || 0;
+  info.asOrg = (request.cf && String(request.cf.asOrganization || '')) || '';
   if (await isBlocked(db, info.ip)) {
     return new Response('Truy cập bị từ chối.', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
