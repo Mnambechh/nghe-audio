@@ -794,7 +794,7 @@
     const x = game && game.quests && game.quests.links.find(v => v.id === +a.dataset.quest);
     if (x && x.done) return; // đã nhận hôm nay: chỉ mở link
     once('quest' + a.dataset.quest, () => api('/api/quest/open', { id: +a.dataset.quest }).then(r => {
-      if (!r || !r.ok) { toast((r && r.error) || 'Chưa ghi nhận được nhiệm vụ'); return; }
+      if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa ghi nhận được nhiệm vụ'); return; }
       if (x) x.done = true;
       if (!r.already) showRewards(r.rewards, 'Nhiệm vụ thành công', '🎯');
       loadQuests(); fetchMe();
@@ -1245,7 +1245,7 @@
         fetchMe();
       } else {
         if (r && r.wait) ckLeftSec = r.wait;
-        toast((r && r.error) || 'Chưa điểm danh được');
+        if (!(r && r.silent)) toast((r && r.error) || 'Chưa điểm danh được');
         tickCk();
       }
     }));

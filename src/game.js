@@ -1,7 +1,7 @@
 // Tu luyện: EXP, cấp độ, Linh Thạch, điểm danh, đánh giá truyện, thông báo.
 import { all, first, loadSettings } from './db.js';
 import { payCommission } from './referral.js';
-import { json, now, vnDay } from './util.js';
+import { json, now, vnDay, dayStartTs } from './util.js';
 import { levelInfo, badge } from './levels.js';
 
 export const GAME_DEFAULTS = {
@@ -42,7 +42,7 @@ export function levelupStones(s, lvl) {
 const heartHits = new Map(); // userId → các lần bấm tim gần đây (bộ nhớ tạm của máy chủ)
 // Chống spam chung: quá `max` lần trong `ms` mili giây với cùng một khóa thì trả true (không đụng cơ sở dữ liệu).
 const spamHits = new Map();
-function tooFast(key, max, ms) {
+export function tooFast(key, max, ms) {
   const t = Date.now(), list = (spamHits.get(key) || []).filter(x => t - x < ms);
   list.push(t); spamHits.set(key, list);
   if (spamHits.size > 10000) spamHits.clear();
@@ -231,6 +231,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
 
   // Điểm danh hằng ngày: phải online đủ thời gian trong ngày.
   if (path === '/api/checkin') {
+    if (tooFast(`ck${me.id}`, 5, 10000)) return json({ ok: false, silent: true }, 429);
     const t = now(), today = vnDay();
     if (me.checkin_day === today) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
     // Chỉ tính thời gian đang mở tab web (máy khách báo về, máy chủ kiểm tra lại) — treo web rồi sang tab khác không được tính.
@@ -239,8 +240,9 @@ export async function handleGameApi(request, db, s, path, me, input) {
       if (me.seen_day !== today) await db.prepare('UPDATE users SET seen_day = ?, seen_at = ?, online_sec = 0, online_at = 0 WHERE id = ?').bind(today, t, me.id).run();
       return json({ ok: false, error: 'Chưa đủ thời gian online trên web.', wait: Math.max(1, Math.ceil(me.seen_day === today ? wait : num(s, 'checkin_wait'))) }, 400);
     }
-    const r = await db.prepare("UPDATE users SET checkin_day = ?, stones = stones + ? WHERE id = ? AND checkin_day != ?")
-      .bind(today, num(s, 'checkin_stones'), me.id, today).run();
+    // Khóa kép: khác ngày + chưa điểm danh kể từ 0h hôm nay (đổi múi giờ giữa ngày cũng không điểm danh lại được).
+    const r = await db.prepare("UPDATE users SET checkin_day = ?, checkin_at = ?, stones = stones + ? WHERE id = ? AND checkin_day != ? AND COALESCE(checkin_at, 0) < ?")
+      .bind(today, t, num(s, 'checkin_stones'), me.id, today, dayStartTs()).run();
     if (!r.meta.changes) return json({ ok: false, error: 'Hôm nay bạn đã điểm danh rồi.' }, 400);
     await walletLog(db, me.id, 'stones', num(s, 'checkin_stones'), 'Điểm danh hằng ngày');
     const rewards = [{ type: 'stones', n: num(s, 'checkin_stones') }, ...await awardExp(db, s, me.id, num(s, 'checkin_exp'), 'Điểm danh hằng ngày')];

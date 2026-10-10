@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '73';
+export const ASSET_V = '74';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -574,17 +574,17 @@ export function profilePage(ctx) {
 }
 
 const BOARD_INFO = {
-  level: { tab: '⚡ Cấp độ', sub: 'nhiều EXP nhất', val: r => `${fmtInt(r.exp)} EXP` },
-  stones: { tab: '💎 Linh Thạch', sub: 'nhiều Linh Thạch nhất', val: r => `${fmtInt(r.stones)} 💎` },
-  comments: { tab: '💬 Bình luận', sub: 'bình luận nhiều nhất', val: r => `${fmtInt(r.comments_n)} bình luận` },
-  hearts: { tab: '❤️ Thả tim', sub: 'nhận nhiều tim nhất trên bình luận', val: r => `${fmtInt(r.hearts)} tim` },
+  level: { tab: '⚡ Cấp độ', sub: 'TOP đạo hữu nhiều EXP nhất', val: r => `${fmtInt(r.exp)} EXP` },
+  stones: { tab: '💎 Linh Thạch', sub: 'TOP đạo hữu nhiều Linh Thạch nhất', val: r => `${fmtInt(r.stones)} 💎` },
+  comments: { tab: '💬 Bình luận', sub: 'TOP đạo hữu bình luận nhiều nhất', val: r => `${fmtInt(r.comments_n)} bình luận` },
+  hearts: { tab: '❤️ Thả tim', sub: 'TOP đạo hữu được thả tim nhiều nhất khi bình luận', val: r => `${fmtInt(r.hearts)} tim` },
 };
 export function leaderboardPage(ctx, rows, kind = 'level') {
   const B = BOARD_INFO[kind] || BOARD_INFO.level;
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Bảng xếp hạng</h1>
     <nav class="lb-tabs">${Object.entries(BOARD_INFO).map(([k, v]) => `<a href="/bang-xep-hang${k === 'level' ? '' : '?top=' + k}" class="${k === kind ? 'on' : ''}">${v.tab}</a>`).join('')}</nav>
-    <p class="sub">Top ${rows.length} đạo hữu ${B.sub} · cập nhật mỗi 5 phút</p>
+    <p class="sub">${B.sub} · cập nhật mỗi 5 phút</p>
     <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
       <span class="lb-rank">${i + 1}</span>
       ${lvAvatar(r.name, r.avatar, r, 'lb-av')}

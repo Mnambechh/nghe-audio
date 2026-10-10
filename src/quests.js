@@ -2,8 +2,8 @@
 // - Nhiệm vụ mở link (vd. quảng cáo TikTok): bấm "Mở" là mở link và nhận thưởng, mỗi ngày 1 lần.
 // - Nghe audio đủ N phút (tính theo thời gian thực đang phát, tua không được tính).
 import { all, first } from './db.js';
-import { json, now, vnDay, secondsToReset } from './util.js';
-import { awardExp, walletLog } from './game.js';
+import { json, now, vnDay, secondsToReset, dayStartTs } from './util.js';
+import { awardExp, walletLog, tooFast } from './game.js';
 
 export const QUEST_DEFAULTS = {
   listen_quest_enabled: '1',
@@ -77,8 +77,10 @@ export async function questStats(db, s, me) {
 
 // Phát thưởng một nhiệm vụ (chỉ một lần mỗi ngày nhờ khóa chính user/quest/day).
 async function grant(db, s, me, questId, stones, exp, note) {
-  const r = await db.prepare('INSERT OR IGNORE INTO quest_done (user_id, quest_id, day, created_at) VALUES (?, ?, ?, ?)')
-    .bind(me.id, questId, vnDay(), now()).run();
+  // Khóa kép: khóa chính (user, quest, ngày) + chưa nhận kể từ 0h hôm nay (đổi múi giờ giữa ngày cũng không nhận lại được).
+  const r = await db.prepare(`INSERT OR IGNORE INTO quest_done (user_id, quest_id, day, created_at)
+      SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM quest_done WHERE user_id = ? AND quest_id = ? AND created_at >= ?)`)
+    .bind(me.id, questId, vnDay(), now(), me.id, questId, dayStartTs()).run();
   if (!r.meta.changes) return null;
   const rewards = [];
   if (stones) {
@@ -91,6 +93,8 @@ async function grant(db, s, me, questId, stones, exp, note) {
 }
 
 export async function handleQuestApi(request, db, s, path, me, input) {
+  // Bấm dồn dập → bỏ qua luôn, không đụng cơ sở dữ liệu.
+  if (tooFast(`q${me.id}`, 8, 10000)) return json({ ok: false, silent: true }, 429);
   // Bấm "Mở" nhiệm vụ link.
   if (path === '/api/quest/open') {
     const q = await first(db, "SELECT * FROM quests WHERE id = ? AND active = 1 AND url != ''", parseInt(input.id, 10) || 0);

@@ -160,6 +160,9 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 26: mốc giờ điểm danh — chống điểm danh 2 lần trong ngày khi đổi múi giờ.
+  try { await db.prepare('SELECT checkin_at FROM users LIMIT 1').first(); }
+  catch { await db.prepare('ALTER TABLE users ADD COLUMN checkin_at INTEGER DEFAULT 0').run(); }
   // Bản 25: EXP bình luận tính theo từng truyện mỗi ngày; thưởng nhiệm vụ bình luận lên 20 Linh Thạch.
   if (await missing(db, 'comment_exp_log')) {
     await db.batch([
