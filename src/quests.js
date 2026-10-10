@@ -110,7 +110,10 @@ export async function handleQuestApi(request, db, s, path, me, input) {
     const elapsed = sameDay && u.listen_at ? t - u.listen_at : 120;
     const credit = Math.max(0, Math.min(Math.floor(+input.sec || 0), elapsed + 5, 120));
     const after = Math.min(L.need, before + credit);
-    await db.prepare('UPDATE users SET listen_day = ?, listen_sec = ?, listen_at = ? WHERE id = ?').bind(today, after, t, me.id).run();
+    // Chỉ ghi nếu chưa có yêu cầu nào khác chen vào (so khớp listen_at cũ) — gửi song song không cộng trùng thời gian.
+    const w = await db.prepare('UPDATE users SET listen_day = ?, listen_sec = ?, listen_at = ? WHERE id = ? AND listen_at = ? AND listen_day = ?')
+      .bind(today, after, t, me.id, u.listen_at, u.listen_day).run();
+    if (!w.meta.changes) return json({ ok: true, sec: before, need: L.need, rewards: [], reached: [] });
     // Phát thưởng mọi mốc vừa đạt (mỗi mốc 1 lần / ngày).
     const rewards = [], reached = [];
     for (const tier of L.tiers) {

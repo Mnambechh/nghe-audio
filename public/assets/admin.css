@@ -159,3 +159,20 @@ a.trow:hover { background: #f7faf8; }
 .wf-hit { color: #c0392b; font-weight: 600; }
 .grid3 { display: grid; gap: 0 14px; }
 @media (min-width: 640px) { .grid3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+/* Tổng quan */
+.ov-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 16px 0; }
+@media (min-width: 640px) { .ov-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .ov-grid { grid-template-columns: repeat(3, 1fr); } }
+.ov-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 128px; padding: 22px 22px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.04); color: var(--text); transition: box-shadow .15s, transform .15s; }
+a.ov-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(-1px); }
+.ov-card > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ov-label { font-size: 12.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.ov-value { font-size: 30px; line-height: 1.1; font-weight: 800; color: var(--c); }
+.ov-card small { font-size: 12px; color: var(--muted); }
+.ov-ico { flex: none; width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fff); }
+.ov-ico svg { width: 22px; height: 22px; }
+.ov-blue { --c: #1f2937; } .ov-blue .ov-ico { --c: #4f46e5; }
+.ov-green { --c: #16a34a; } .ov-indigo { --c: #4f46e5; } .ov-purple { --c: #9333ea; }
+.ov-orange { --c: #f97316; } .ov-red { --c: #e11d48; } .ov-teal { --c: #0d9488; } .ov-emerald { --c: #059669; }

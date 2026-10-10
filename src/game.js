@@ -85,10 +85,10 @@ export async function awardExp(db, s, userId, amount, note = '') {
 // Gọi khi một bình luận được hiện (tự duyệt hoặc admin duyệt).
 export async function onCommentApproved(db, s, c) {
   const today = vnDay();
-  const u = await first(db, 'SELECT cexp_day, cexp_n FROM users WHERE id = ?', c.user_id);
-  const n = u && u.cexp_day === today ? u.cexp_n : 0;
-  await db.prepare('UPDATE users SET comments_n = comments_n + 1, cexp_day = ?, cexp_n = ? WHERE id = ?').bind(today, n + 1, c.user_id).run();
-  const rewards = n < num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp'), `Bình luận được duyệt #${c.id}`) : [];
+  // Tăng bộ đếm trong một câu lệnh nguyên tử; giá trị trả về quyết định có được cộng EXP không.
+  const u = await first(db, `UPDATE users SET comments_n = comments_n + 1, cexp_n = CASE WHEN cexp_day = ? THEN cexp_n + 1 ELSE 1 END, cexp_day = ?
+    WHERE id = ? RETURNING cexp_n`, today, today, c.user_id);
+  const rewards = u && u.cexp_n <= num(s, 'comment_exp_daily') ? await awardExp(db, s, c.user_id, num(s, 'comment_exp'), `Bình luận được duyệt #${c.id}`) : [];
   if (c.parent_id) {
     const p = await first(db, 'SELECT user_id FROM comments WHERE id = ?', c.parent_id);
     if (p) await notify(db, p.user_id, 'reply', { actor: c.user_id, track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });
@@ -173,14 +173,17 @@ export async function handleGameApi(request, db, s, path, me, input) {
     if (await first(db, 'SELECT 1 x FROM ratings WHERE user_id = ? AND track_id = ?', me.id, trackId)) {
       return json({ ok: false, error: 'Bạn đã đánh giá truyện này rồi.' }, 400);
     }
-    const today = vnDay();
-    const used = me.rate_day === today ? me.rate_n : 0;
-    if (used >= num(s, 'rate_daily')) return json({ ok: false, error: `Mỗi ngày chỉ đánh giá được ${num(s, 'rate_daily')} truyện.` }, 429);
-    await db.batch([
-      db.prepare('INSERT INTO ratings (user_id, track_id, stars, created_at) VALUES (?, ?, ?, ?)').bind(me.id, trackId, stars, now()),
-      db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId),
-      db.prepare('UPDATE users SET rate_day = ?, rate_n = ? WHERE id = ?').bind(today, used + 1, me.id),
-    ]);
+    const today = vnDay(), max = num(s, 'rate_daily');
+    // Giữ chỗ 1 lượt trong ngày bằng một câu lệnh nguyên tử (gửi nhiều yêu cầu cùng lúc cũng không vượt giới hạn).
+    const slot = await db.prepare(`UPDATE users SET rate_n = CASE WHEN rate_day = ? THEN rate_n + 1 ELSE 1 END, rate_day = ?
+      WHERE id = ? AND (rate_day != ? OR rate_n < ?)`).bind(today, today, me.id, today, max).run();
+    if (!slot.meta.changes) return json({ ok: false, error: `Mỗi ngày chỉ đánh giá được ${max} truyện.` }, 429);
+    const ins = await db.prepare('INSERT OR IGNORE INTO ratings (user_id, track_id, stars, created_at) VALUES (?, ?, ?, ?)').bind(me.id, trackId, stars, now()).run();
+    if (!ins.meta.changes) {
+      await db.prepare('UPDATE users SET rate_n = MAX(0, rate_n - 1) WHERE id = ? AND rate_day = ?').bind(me.id, today).run();
+      return json({ ok: false, error: 'Bạn đã đánh giá truyện này rồi.' }, 400);
+    }
+    await db.prepare('UPDATE tracks SET rating_sum = rating_sum + ?, rating_count = rating_count + 1 WHERE id = ?').bind(stars, trackId).run();
     const rewards = await awardExp(db, s, me.id, 1, `Đánh giá ${stars} sao: ${track.title}`);
     const tr = await first(db, 'SELECT rating_sum, rating_count FROM tracks WHERE id = ?', trackId);
     return json({ ok: true, mine: stars, sum: tr.rating_sum, count: tr.rating_count, rewards });

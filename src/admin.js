@@ -119,7 +119,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       } else if (safeEqual(str(f, 'user'), s.admin_user) && await verifyPassword(String(f.get('pass') || ''), s.admin_pass)) {
         await logEvent(db, info, 'login_ok', `user=${s.admin_user}`);
         const token = await signToken(s.secret, { u: s.admin_user, exp: now() + SESSION_DAYS * 86400 });
-        return redirect(ADMIN, { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
+        return redirect(ADMIN + '/overview', { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
       } else {
         await logEvent(db, info, 'login_fail', `user=${str(f, 'user')}`, { hits: 10, hours: 24 });
         await new Promise(r => setTimeout(r, 600)); // làm chậm dò mật khẩu
@@ -143,6 +143,26 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     if (flash) headers['Set-Cookie'] = setCookie(FLASH_COOKIE, '', { maxAge: 0, path: ADMIN });
     return html(V.adminLayout(s, path, flash, content), status, headers);
   };
+
+  // Tổng quan: thành viên, Linh Thạch, bình luận chờ duyệt, yêu cầu rút.
+  if (path === '/admin/overview') {
+    const day0 = Math.floor(Date.parse(vnDay() + 'T00:00:00+07:00') / 1000);
+    const QUEST = "kind = 'stones' AND amount > 0 AND (note LIKE 'Nhiệm vụ:%' OR note = 'Điểm danh hằng ngày')";
+    const LEVEL = "kind = 'stones' AND amount > 0 AND note LIKE 'Thưởng đột phá%'";
+    const [users, wallet, cmt, wd, live] = await Promise.all([
+      first(db, `SELECT COUNT(*) total, SUM(created_at >= ?) today, COALESCE(SUM(stones), 0) stones, SUM(stones > 0) holders,
+        SUM(locked = 1) locked FROM users`, day0),
+      first(db, `SELECT COALESCE(SUM(CASE WHEN ${QUEST} THEN amount END), 0) quest, COALESCE(SUM(CASE WHEN ${QUEST} AND created_at >= ? THEN amount END), 0) quest_today,
+        COALESCE(SUM(CASE WHEN ${LEVEL} THEN amount END), 0) level, COALESCE(SUM(CASE WHEN ${LEVEL} AND created_at >= ? THEN amount END), 0) level_today
+        FROM wallet_log`, day0, day0),
+      first(db, "SELECT SUM(status = 'pending') pending, SUM(created_at >= ?) today, COUNT(*) total FROM comments", day0),
+      first(db, `SELECT COUNT(*) total, SUM(status = 'pending') pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN vnd END), 0) pending_vnd,
+        SUM(status = 'paid') paid, COALESCE(SUM(CASE WHEN status = 'paid' THEN vnd END), 0) paid_vnd, SUM(created_at >= ?) today FROM withdrawals`, day0),
+      liveCounts(db),
+    ]);
+    const listening = Object.values(live).reduce((a, b) => a + b, 0);
+    return view(V.overviewView({ users, wallet, cmt, wd, listening }));
+  }
 
   // Danh sách audio
   if (path === '/admin') {
@@ -384,7 +404,9 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
       const approve = async cid => {
         const c = await first(db, "SELECT id, user_id, parent_id, track_id, body FROM comments WHERE id = ? AND status != 'approved'", cid);
         if (!c) return;
-        await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(cid).run();
+        // Chỉ thưởng nếu chính lần bấm này chuyển trạng thái (bấm 2 lần / 2 tab không cộng trùng).
+        const r = await db.prepare("UPDATE comments SET status = 'approved' WHERE id = ? AND status != 'approved'").bind(cid).run();
+        if (!r.meta.changes) return;
         await onCommentApproved(db, s, c);
         await onCommentQuest(db, s, c.user_id);
         await notify(db, c.user_id, 'approved', { track: c.track_id, comment: c.id, text: c.body.slice(0, 120) });

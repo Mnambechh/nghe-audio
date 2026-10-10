@@ -242,8 +242,11 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     // Chứa từ trong bộ lọc của admin cũng phải chờ duyệt.
     const flagged = !hasLink && s.comment_moderation !== '1' && matchWords(body, s.comment_words).length > 0;
     const status = s.comment_moderation === '1' || hasLink || flagged ? 'pending' : 'approved';
-    const r = await db.prepare('INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(trackId, me.id, parent, body, status, t, info.ip).run();
+    // Chèn có điều kiện: nếu vừa có bình luận khác trong MIN_GAP giây (gửi nhiều yêu cầu cùng lúc) thì bỏ.
+    const r = await db.prepare(`INSERT INTO comments (track_id, user_id, parent_id, body, status, created_at, ip)
+      SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM comments WHERE user_id = ? AND created_at > ?)`)
+      .bind(trackId, me.id, parent, body, status, t, info.ip, me.id, t - MIN_GAP).run();
+    if (!r.meta.changes) return json({ ok: false, error: 'Bạn bình luận nhanh quá, đợi vài giây nhé.' }, 429);
     const rewards = status === 'approved'
       ? [...await onCommentApproved(db, s, { id: r.meta.last_row_id, user_id: me.id, parent_id: parent, track_id: trackId, body }), ...await onCommentQuest(db, s, me.id)]
       : [];

@@ -34,6 +34,13 @@
   const api = (path, data) => fetch(APP.base + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true,
   }).then(r => r.json()).catch(() => null);
+  // Chặn gửi trùng: một thao tác nhận thưởng chỉ chạy một lần tại một thời điểm (máy chủ vẫn kiểm tra lại).
+  const busy = new Set();
+  const once = (key, run) => {
+    if (busy.has(key)) return;
+    busy.add(key);
+    Promise.resolve().then(run).finally(() => busy.delete(key));
+  };
   const beacon = (path, data) => {
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     if (!(navigator.sendBeacon && navigator.sendBeacon(APP.base + path, blob))) api(path, data);
@@ -711,13 +718,14 @@
     const a = e.target.closest('[data-quest]');
     if (!a) return;
     if (!me) { e.preventDefault(); openLogin(); return; }
-    api('/api/quest/open', { id: +a.dataset.quest }).then(r => {
+    const x = game && game.quests && game.quests.links.find(v => v.id === +a.dataset.quest);
+    if (x && x.done) return; // đã nhận hôm nay: chỉ mở link
+    once('quest' + a.dataset.quest, () => api('/api/quest/open', { id: +a.dataset.quest }).then(r => {
       if (!r || !r.ok) { toast((r && r.error) || 'Chưa ghi nhận được nhiệm vụ'); return; }
-      const x = game && game.quests && game.quests.links.find(v => v.id === +a.dataset.quest);
       if (x) x.done = true;
       if (!r.already) showRewards(r.rewards, `Bạn đã hoàn thành nhiệm vụ "${esc(r.title)}"`, '🎯');
       loadQuests(); fetchMe();
-    });
+    }));
   });
 
   // Đếm thời gian nghe thật (đồng hồ) khi audio đang phát; tua không cộng thêm. Gửi máy chủ mỗi ~30 giây.
@@ -861,11 +869,11 @@
       const d = Object.fromEntries(new FormData(f));
       const amount = parseInt(String(d.amount).replace(/\D/g, ''), 10) || 0;
       if (!confirm(`Rút ${nf(amount)} Linh Thạch?`)) return;
-      api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
+      once('withdraw', () => api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
         rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)}</b> Linh Thạch. Admin sẽ duyệt sớm.`, '💎', 6000);
         loadWithdraw(); fetchMe();
-      });
+      }));
     }
   });
 
@@ -1071,7 +1079,7 @@
   }
 
   function doCheckin() {
-    api('/api/checkin', {}).then(r => {
+    once('checkin', () => api('/api/checkin', {}).then(r => {
       if (r && r.ok) {
         showRewards(r.rewards, 'Bạn đã điểm danh thành công', '📅');
         ckNotified = false;
@@ -1081,7 +1089,7 @@
         toast((r && r.error) || 'Chưa điểm danh được');
         tickCk();
       }
-    });
+    }));
   }
 
   function setMe(m, g) {
@@ -1233,7 +1241,7 @@
     const box = b.closest('.rating');
     if (!me) { openLogin(); return; }
     if (box.classList.contains('rated')) { toast('Bạn đã đánh giá truyện này rồi'); return; }
-    api('/api/rate', { track_id: +box.dataset.track, stars: +b.dataset.star }).then(r => {
+    once('rate', () => api('/api/rate', { track_id: +box.dataset.track, stars: +b.dataset.star }).then(r => {
       if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được đánh giá'); return; }
       const avg = r.sum / r.count, pct = Math.round(avg * 10);
       $('.stars', box).style.setProperty('--pct', pct + '%');
@@ -1241,7 +1249,7 @@
       showMine(box, r.mine);
       showRewards(r.rewards, `Bạn đã đánh giá <b>${r.mine}★</b>`, '⭐');
       fetchMe();
-    });
+    }));
   });
 
   // ---------- Thông tin tài khoản: đổi ảnh, đổi tên ----------

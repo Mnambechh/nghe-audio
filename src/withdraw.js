@@ -91,13 +91,24 @@ export async function handleWithdrawApi(request, db, s, path, me, input, info) {
     if (amount < c.min) return json({ ok: false, error: `Rút tối thiểu ${c.min.toLocaleString('vi-VN')} Linh Thạch.` }, 400);
     const acc = await first(db, 'SELECT * FROM payout_accounts WHERE id = ? AND user_id = ?', parseInt(input.account_id, 10) || 0, me.id);
     if (!acc) return json({ ok: false, error: 'Chọn tài khoản nhận tiền.' }, 400);
-    // Trừ (tạm giữ) Linh Thạch trước; chỉ thành công nếu đủ số dư.
+    if (u.stones < amount) return json({ ok: false, error: 'Số Linh Thạch không đủ.' }, 400);
+    const vnd = Math.floor(amount * c.rate), today = vnDay();
+    // 1) Tạo yêu cầu có điều kiện (không có yêu cầu chờ duyệt, chưa vượt số lần/ngày) trong MỘT câu lệnh:
+    //    gửi nhiều yêu cầu cùng lúc thì chỉ một cái được tạo.
+    const ins = await db.prepare(`INSERT INTO withdrawals (user_id, amount, vnd, method, bank, number, holder, status, day, ip, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM withdrawals WHERE user_id = ? AND status = 'pending')
+        AND (? = 0 OR (SELECT COUNT(*) FROM withdrawals WHERE user_id = ? AND day = ? AND status != 'rejected') < ?)`)
+      .bind(me.id, amount, vnd, acc.method, acc.bank, acc.number, acc.holder, today, info.ip, now(), me.id, c.daily, me.id, today, c.daily).run();
+    if (!ins.meta.changes) return json({ ok: false, error: 'Bạn đang có yêu cầu chờ duyệt hoặc đã hết lượt rút hôm nay.' }, 400);
+    const wid = ins.meta.last_row_id;
+    // 2) Trừ Linh Thạch có điều kiện đủ số dư; không đủ thì hủy yêu cầu vừa tạo.
     const r = await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(amount, me.id, amount).run();
-    if (!r.meta.changes) return json({ ok: false, error: 'Số Linh Thạch không đủ.' }, 400);
-    const vnd = Math.floor(amount * c.rate);
+    if (!r.meta.changes) {
+      await db.prepare('DELETE FROM withdrawals WHERE id = ?').bind(wid).run();
+      return json({ ok: false, error: 'Số Linh Thạch không đủ.' }, 400);
+    }
     await db.batch([
-      db.prepare(`INSERT INTO withdrawals (user_id, amount, vnd, method, bank, number, holder, status, day, ip, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`).bind(me.id, amount, vnd, acc.method, acc.bank, acc.number, acc.holder, vnDay(), info.ip, now()),
       db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
         .bind(me.id, 'withdraw', -amount, `Yêu cầu rút về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''} ${acc.number}`, now()),
       walletStmt(db, me.id, 'stones', -amount, `Rút Linh Thạch về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''}`),

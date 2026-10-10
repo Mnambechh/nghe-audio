@@ -22,7 +22,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -658,4 +658,39 @@ ${quests.map(q => `<form method="post" class="form card">
   </div>
   <div class="row-actions"><button class="btn">Lưu</button></div>
 </form>`;
+}
+
+// ---------- Tổng quan ----------
+
+const ICONS = {
+  users: '<path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="4"/><path d="M22 19v-1a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  live: '<path d="M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><circle cx="12" cy="12" r="2"/>',
+  gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
+  quest: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 13l2 2 4-4"/>',
+  level: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  comment: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/><path d="M8 11h8M8 14h5"/>',
+  wallet: '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><path d="M21 9h-6a3 3 0 0 0 0 6h6z"/>',
+  paid: '<path d="M22 7 13.5 15.5l-5-5L2 17"/><path d="M16 7h6v6"/>',
+};
+
+export function overviewView({ users, wallet, cmt, wd, listening }) {
+  const money = n => fmtInt(n) + 'đ';
+  const card = (color, icon, label, value, subs = [], href = '') => `<${href ? `a href="${href}"` : 'div'} class="ov-card ov-${color}">
+    <div><span class="ov-label">${label}</span><b class="ov-value">${value}</b>${subs.map(x => `<small>${x}</small>`).join('')}</div>
+    <span class="ov-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[icon]}</svg></span>
+  </${href ? 'a' : 'div'}>`;
+  return `
+<h1>Tổng quan</h1>
+<p class="muted">Số liệu thành viên, Linh Thạch, bình luận và yêu cầu rút tiền.</p>
+<div class="ov-grid">
+  ${card('blue', 'users', 'Thành viên', fmtInt(users.total || 0), [`Đăng ký mới hôm nay: <b>${fmtInt(users.today || 0)}</b>`], `${ADMIN}/members`)}
+  ${card('green', 'live', 'Đang nghe', fmtInt(listening), ['Cả khách và thành viên, trong vài phút qua'])}
+  ${card('indigo', 'gem', 'Tổng Linh Thạch hệ thống', fmtInt(users.stones || 0), [`Trong ví của ${fmtInt(users.holders || 0)} thành viên`])}
+  ${card('purple', 'quest', 'Linh Thạch từ nhiệm vụ', fmtInt(wallet.quest), [`Hôm nay: +${fmtInt(wallet.quest_today)}`, 'Điểm danh, nghe audio, bình luận, mở link'], `${ADMIN}/quests`)}
+  ${card('orange', 'level', 'Linh Thạch từ lên cấp', fmtInt(wallet.level), [`Hôm nay: +${fmtInt(wallet.level_today)}`])}
+  ${card('red', 'comment', 'Bình luận cần duyệt', fmtInt(cmt.pending || 0), [`Bình luận hôm nay: ${fmtInt(cmt.today || 0)} · Tổng: ${fmtInt(cmt.total || 0)}`], `${ADMIN}/comments?status=pending`)}
+  ${card('teal', 'wallet', 'Yêu cầu rút tiền', fmtInt(wd.total || 0), [`Chờ duyệt: <b>${fmtInt(wd.pending || 0)}</b> · ${money(wd.pending_vnd)}`, `Hôm nay: ${fmtInt(wd.today || 0)} yêu cầu`], `${ADMIN}/withdrawals`)}
+  ${card('emerald', 'paid', 'Đã rút thành công', money(wd.paid_vnd), [`${fmtInt(wd.paid || 0)} lần chuyển`], `${ADMIN}/withdrawals?status=paid`)}
+</div>
+<p class="muted"><small>Linh Thạch từ nhiệm vụ / lên cấp được tính từ khi có lịch sử Linh Thạch (các bản cập nhật gần đây).</small></p>`;
 }
