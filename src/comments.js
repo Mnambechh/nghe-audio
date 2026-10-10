@@ -4,6 +4,7 @@ import { json, now, getCookie, setCookie, signToken, readToken, randomId, imageT
 import { verifyGoogleToken } from './google.js';
 import { logEvent } from './security.js';
 import { gameStats, handleGameApi, onCommentApproved, notify } from './game.js';
+import { handleQuestApi, questStats } from './quests.js';
 import { badge } from './levels.js';
 import { matchWords } from './wordfilter.js';
 import { handleWithdrawApi } from './withdraw.js';
@@ -34,7 +35,7 @@ export async function currentUser(request, db) {
   const p = await readToken(await userSecret(db), tok);
   if (!p) return null;
   const u = await first(db, `SELECT id, name, email, avatar, banned, avatar_locked, name_changed_at, created_at, exp, stones, comments_n,
-    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver FROM users WHERE id = ?`, p.uid);
+    checkin_day, seen_day, seen_at, rate_day, rate_n, cexp_day, cexp_n, locked, session_ver, listen_day, listen_sec FROM users WHERE id = ?`, p.uid);
   // Tài khoản bị khóa, hoặc admin đã "đăng xuất mọi thiết bị" (session_ver tăng) thì phiên cũ hết hiệu lực.
   if (!u || u.locked || (p.v || 0) !== (u.session_ver || 0)) return null;
   return u;
@@ -88,7 +89,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   // Thông tin người đang đăng nhập (cho thanh đầu trang).
   if (path === '/api/me') {
     const me = await currentUser(request, db);
-    return json({ ok: true, me: selfUser(me), game: me ? await gameStats(db, s, me) : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
+    return json({ ok: true, me: selfUser(me), game: me ? { ...await gameStats(db, s, me), quests: await questStats(db, s, me) } : null, clientId: s.google_client_id || '', avatarMaxMb: +s.avatar_max_mb || 5 });
   }
 
   if (request.method === 'GET' && path === '/api/withdraw') {
@@ -171,6 +172,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   const me = await currentUser(request, db);
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
   if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
+  if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
   if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate') {
     return handleGameApi(request, db, s, path, me, input);
   }

@@ -4,6 +4,7 @@ import { GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS } from './withdraw.js';
 import { setLevelBase } from './levels.js';
 import { DEFAULT_WORDS } from './wordfilter.js';
+import { QUEST_DEFAULTS } from './quests.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`,
@@ -159,6 +160,22 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wd_user ON withdrawals(user_id, created_at)`,
     ].map(q => db.prepare(q)));
   }
+  // Bản 11: nhiệm vụ hằng ngày (mở link, nghe đủ phút).
+  if (await missing(db, 'quests')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS quests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', stones INTEGER NOT NULL DEFAULT 0,
+        exp INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS quest_done (
+        user_id INTEGER NOT NULL, quest_id INTEGER NOT NULL, day TEXT NOT NULL, created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, quest_id, day))`,
+      `CREATE INDEX IF NOT EXISTS idx_quest_done_day ON quest_done(day, quest_id)`,
+      `ALTER TABLE users ADD COLUMN listen_day TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN listen_sec INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN listen_at INTEGER NOT NULL DEFAULT 0`,
+      `INSERT INTO quests (title, url, stones, exp, active, pos, created_at) VALUES ('Mở quảng cáo TikTok', '', 5, 0, 1, 0, ${Math.floor(Date.now() / 1000)})`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 10: bộ lọc từ. Lần đầu có bộ lọc thì tắt duyệt toàn bộ (chỉ bình luận chứa từ lọc / link mới phải duyệt).
   if (!(await db.prepare("SELECT 1 x FROM settings WHERE k = 'comment_words'").first())) {
     const st = db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v');
@@ -204,7 +221,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 export async function loadSettings(db) {
-  const s = { ...DEFAULT_SETTINGS, ...GAME_DEFAULTS, ...WITHDRAW_DEFAULTS };
+  const s = { ...DEFAULT_SETTINGS, ...GAME_DEFAULTS, ...WITHDRAW_DEFAULTS, ...QUEST_DEFAULTS };
   const { results } = await db.prepare('SELECT k, v FROM settings').all();
   for (const r of results) s[r.k] = r.v;
   setLevelBase(s.level_base_exp);

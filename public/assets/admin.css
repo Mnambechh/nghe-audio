@@ -157,3 +157,5 @@ a.trow:hover { background: #f7faf8; }
 .wl-amt.neg { color: #c0392b; }
 .pager span { padding: 6px 4px; }
 .wf-hit { color: #c0392b; font-weight: 600; }
+.grid3 { display: grid; gap: 0 14px; }
+@media (min-width: 640px) { .grid3 { grid-template-columns: 1fr 1fr 1fr; } }

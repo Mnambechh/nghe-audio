@@ -679,10 +679,78 @@
     box.innerHTML = `<h2 class="h2">Hằng ngày</h2>
       ${q('🎁', 'Điểm danh', ckLeft && !g.checkedIn ? `Online thêm ${fmt(ckLeft)} để điểm danh` : 'Điểm danh mỗi ngày', g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
+      ${listenQuest(q)}
+      ${((g.quests && g.quests.links) || []).map(x => q('🎯', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
+        rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`)).join('')}
+      <p class="c-note">Nhiệm vụ hằng ngày làm mới lúc 0h.</p>
       <h2 class="h2">Tu luyện</h2>
       ${q('⚡', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} 💎`, '')}
       <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
   }
+
+  const rewardText = (stones, exp) => [stones && `+${nf(stones)} 💎`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
+
+  // Nhiệm vụ nghe audio: tiến độ tính bằng phút:giây đã nghe hôm nay.
+  function listenQuest(q) {
+    const L = game && game.quests && game.quests.listen;
+    if (!L) return '';
+    const sec = Math.min(L.need, L.sec + (L.done ? 0 : lq.pending));
+    const mins = Math.round(L.need / 60);
+    return q('🎧', `Nghe audio ${mins} phút`, L.done ? 'Đã nghe đủ hôm nay' : `Đã nghe ${fmt(sec)} / ${mins}:00 · tua không được tính`,
+      L.done ? 1 : Math.floor(sec / 60), L.done ? 1 : mins, rewardText(L.stones, L.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)
+      .replace(/<small class="q-prog">[^<]*<\/small>/, `<small class="q-prog">${L.done ? '✓' : Math.floor(sec / 60) + '/' + mins + ' phút'}</small>`);
+  }
+
+  // Bấm "Mở" nhiệm vụ link: trình duyệt mở link (tab mới), máy chủ ghi nhận và phát thưởng.
+  document.addEventListener('click', e => {
+    const a = e.target.closest('[data-quest]');
+    if (!a) return;
+    if (!me) { e.preventDefault(); openLogin(); return; }
+    api('/api/quest/open', { id: +a.dataset.quest }).then(r => {
+      if (!r || !r.ok) { toast((r && r.error) || 'Chưa ghi nhận được nhiệm vụ'); return; }
+      const x = game && game.quests && game.quests.links.find(v => v.id === +a.dataset.quest);
+      if (x) x.done = true;
+      if (!r.already) showRewards(r.rewards, `Bạn đã hoàn thành nhiệm vụ "${esc(r.title)}"`, '🎯');
+      loadQuests(); fetchMe();
+    });
+  });
+
+  // Đếm thời gian nghe thật (đồng hồ) khi audio đang phát; tua không cộng thêm. Gửi máy chủ mỗi ~30 giây.
+  const lq = { pending: 0, since: 0, sending: false };
+  function lqActive() {
+    const L = game && game.quests && game.quests.listen;
+    return !!(me && L && !L.done);
+  }
+  function lqStop() {
+    if (lq.since) { lq.pending += Math.min(120, (Date.now() - lq.since) / 1000); lq.since = 0; }
+  }
+  function lqFlush(force) {
+    lqStop();
+    if (!audio.paused && lqActive()) lq.since = Date.now();
+    if (!lqActive() || lq.sending) return;
+    const L = game.quests.listen;
+    const sec = Math.floor(lq.pending);
+    if (sec < 1 || (!force && sec < 30 && L.sec + sec < L.need)) return;
+    lq.sending = true;
+    lq.pending -= sec;
+    api('/api/quest/listen', { sec }).then(r => {
+      if (r && r.ok) {
+        L.sec = r.sec;
+        if (r.completed) {
+          L.done = true;
+          showRewards(r.rewards, `Bạn đã nghe đủ ${r.minutes} phút hôm nay`, '🎧');
+          fetchMe();
+        }
+      } else lq.pending += sec;
+      if ($('#quests')) loadQuests();
+    }).catch(() => { lq.pending += sec; }).finally(() => { lq.sending = false; });
+  }
+  audio.addEventListener('playing', () => { if (lqActive() && !lq.since) lq.since = Date.now(); });
+  audio.addEventListener('pause', () => lqFlush(true));
+  audio.addEventListener('waiting', lqStop);
+  audio.addEventListener('ended', () => lqFlush(true));
+  setInterval(() => { lqFlush(false); if ($('#quests') && lq.since) loadQuests(); }, 5000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) lqFlush(true); });
 
   // ---------- Rút Linh Thạch ----------
   let wd = null;

@@ -9,6 +9,7 @@ import { ADMIN, logEvent, recentHits, blockIp, unblockIp } from './security.js';
 import { onCommentApproved, notify, awardExp, walletLog, walletStmt, GAME_DEFAULTS } from './game.js';
 import { WITHDRAW_DEFAULTS, METHODS } from './withdraw.js';
 import { parseWords } from './wordfilter.js';
+import { QUEST_DEFAULTS, listenConfig } from './quests.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -419,6 +420,49 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
     return view(V.commentsView({ rows, count, status, page, per, banned, moderation: s.comment_moderation === '1', clientId: s.google_client_id, words: s.comment_words }));
   }
 
+  // Nhiệm vụ: nghe đủ phút + nhiệm vụ mở link (quảng cáo TikTok…)
+  if (path === '/admin/quests') {
+    const back = ADMIN + '/quests';
+    if (isPost) {
+      const f = await request.formData();
+      const act = f.getAll('action').pop(); // nút Xóa ghi đè action của form
+      const int = k => Math.max(0, Math.min(1000000, Math.round(parseFloat(str(f, k).replace(/[.\s]/g, '').replace(',', '.')) || 0)));
+      const cleanUrl = u => /^https?:\/\/\S+$/i.test(u) ? u.slice(0, 1000) : '';
+      if (act === 'listen') {
+        await saveSettings(db, {
+          listen_quest_enabled: f.get('listen_quest_enabled') ? '1' : '0',
+          listen_quest_minutes: String(Math.max(1, Math.min(600, int('listen_quest_minutes') || 20))),
+          listen_quest_stones: String(int('listen_quest_stones')),
+          listen_quest_exp: String(int('listen_quest_exp')),
+        });
+        return go(back, ['ok', 'Đã lưu nhiệm vụ nghe audio.']);
+      }
+      if (act === 'add' || act === 'save') {
+        const title = str(f, 'title').slice(0, 80);
+        const link = cleanUrl(str(f, 'url'));
+        if (!title) return go(back, ['err', 'Nhập tên nhiệm vụ.']);
+        if (str(f, 'url') && !link) return go(back, ['err', 'Link phải bắt đầu bằng http:// hoặc https://']);
+        const vals = [title, link, int('stones'), int('exp'), f.get('active') ? 1 : 0, int('pos')];
+        if (act === 'add') await db.prepare('INSERT INTO quests (title, url, stones, exp, active, pos, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(...vals, now()).run();
+        else await db.prepare('UPDATE quests SET title = ?, url = ?, stones = ?, exp = ?, active = ?, pos = ? WHERE id = ?').bind(...vals, parseInt(f.get('id'), 10) || 0).run();
+        return go(back, ['ok', act === 'add' ? 'Đã thêm nhiệm vụ.' : 'Đã lưu nhiệm vụ.']);
+      }
+      if (act === 'delete') {
+        const id = parseInt(f.get('id'), 10) || 0;
+        await db.batch([db.prepare('DELETE FROM quests WHERE id = ?').bind(id), db.prepare('DELETE FROM quest_done WHERE quest_id = ?').bind(id)]);
+        return go(back, ['ok', 'Đã xóa nhiệm vụ.']);
+      }
+      return go(back);
+    }
+    const today = vnDay();
+    const [quests, doneToday] = await Promise.all([
+      all(db, 'SELECT * FROM quests ORDER BY pos, id'),
+      all(db, 'SELECT quest_id, COUNT(*) n FROM quest_done WHERE day = ? GROUP BY quest_id', today),
+    ]);
+    const counts = Object.fromEntries(doneToday.map(r => [r.quest_id, r.n]));
+    return view(V.questsView({ quests, counts, listen: listenConfig(s) }));
+  }
+
   // Rút Linh Thạch: duyệt yêu cầu
   if (path === '/admin/withdrawals') {
     if (isPost) {
@@ -563,6 +607,7 @@ export async function handleAdmin(request, env, db, s, path, url, info) {
           db.prepare('DELETE FROM notifications WHERE user_id = ? OR actor_id = ?').bind(uid, uid),
           db.prepare('DELETE FROM member_log WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM wallet_log WHERE user_id = ?').bind(uid),
+          db.prepare('DELETE FROM quest_done WHERE user_id = ?').bind(uid),
           db.prepare('DELETE FROM users WHERE id = ?').bind(uid),
         ]);
         await clearCache(db);

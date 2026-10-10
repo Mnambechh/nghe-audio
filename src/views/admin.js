@@ -21,7 +21,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -586,4 +586,48 @@ export function withdrawalsView({ rows, counts, status }) {
   </div>`;
   }).join('') || '<p class="muted pad">Không có yêu cầu nào.</p>'}
 </div>`;
+}
+
+// ---------- Nhiệm vụ ----------
+
+export function questsView({ quests, counts, listen }) {
+  const fields = (q = {}) => `
+    <label>Tên nhiệm vụ<input name="title" value="${h(q.title || '')}" maxlength="80" placeholder="Mở quảng cáo TikTok" required></label>
+    <label>Link mở khi bấm<input name="url" value="${h(q.url || '')}" placeholder="https://vt.tiktok.com/..." inputmode="url"></label>
+    <div class="grid3">
+      <label>Linh Thạch thưởng<input name="stones" inputmode="numeric" value="${q.stones ?? 5}"></label>
+      <label>EXP thưởng<input name="exp" inputmode="numeric" value="${q.exp ?? 0}"></label>
+      <label>Thứ tự<input name="pos" inputmode="numeric" value="${q.pos ?? 0}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="active" value="1"${q.active === 0 ? '' : ' checked'}> Đang bật</label>`;
+  return `
+<h1>Nhiệm vụ</h1>
+<p class="muted">Mọi nhiệm vụ làm được <b>1 lần mỗi ngày</b>, tự làm mới lúc 0h (giờ Việt Nam). Thưởng được ghi vào lịch sử Linh Thạch / EXP của thành viên.</p>
+
+<form method="post" class="form card"><input type="hidden" name="action" value="listen">
+  <h2>🎧 Nghe audio</h2>
+  <label class="check"><input type="checkbox" name="listen_quest_enabled" value="1"${listen.enabled ? ' checked' : ''}> Bật nhiệm vụ nghe audio</label>
+  <div class="grid3">
+    <label>Số phút cần nghe<input name="listen_quest_minutes" inputmode="numeric" value="${listen.minutes}"></label>
+    <label>Linh Thạch thưởng<input name="listen_quest_stones" inputmode="numeric" value="${listen.stones}"></label>
+    <label>EXP thưởng<input name="listen_quest_exp" inputmode="numeric" value="${listen.exp}"></label>
+  </div>
+  <small class="muted">Tính theo thời gian thật đang phát (nghe 1.5× hay 2× vẫn cần đủ số phút đồng hồ); tua không được cộng thời gian. Máy chủ kiểm tra lại để chống gửi khống. Hôm nay đã có <b>${fmtInt(counts[0] || 0)}</b> người hoàn thành.</small>
+  <div class="row-actions"><button class="btn">Lưu</button></div>
+</form>
+
+<h2>🔗 Nhiệm vụ mở link</h2>
+<p class="muted">Thành viên bấm <b>Mở</b> → mở link trong tab mới và nhận thưởng ngay. Nhiệm vụ chưa có link sẽ không hiện cho thành viên.</p>
+${quests.map(q => `<form method="post" class="form card">
+  <input type="hidden" name="action" value="save"><input type="hidden" name="id" value="${q.id}">
+  <p>${q.active && q.url ? '<em class="pill ok">Đang hiện</em>' : '<em class="pill">Đang ẩn</em>'} <small class="muted">Hôm nay: ${fmtInt(counts[q.id] || 0)} lượt hoàn thành</small></p>
+  ${fields(q)}
+  <div class="row-actions"><button class="btn">Lưu</button>
+    <button class="btn ghost danger-txt" name="action" value="delete" formnovalidate data-confirm="Xóa nhiệm vụ ${h(q.title)}?">Xóa</button></div>
+</form>`).join('')}
+<form method="post" class="form card"><input type="hidden" name="action" value="add">
+  <h2>➕ Thêm nhiệm vụ mở link</h2>
+  ${fields()}
+  <div class="row-actions"><button class="btn">Thêm</button></div>
+</form>`;
 }
