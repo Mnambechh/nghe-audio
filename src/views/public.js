@@ -1,7 +1,7 @@
 // Giao diện người nghe.
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 
-export const ASSET_V = '57';
+export const ASSET_V = '58';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -237,6 +237,7 @@ function row(t) {
 
 function shelf(title, body, extra = '') {
   return `<section class="shelf"><div class="shelf-head"><h2>${h(title)}</h2>${extra}`
+    + '<span class="swipe-hint" aria-hidden="true">Vuốt <i>›</i><i>›</i></span>'
     + '<span class="arrows"><button type="button" data-scroll="-1" aria-label="Trước">‹</button>'
     + '<button type="button" data-scroll="1" aria-label="Sau">›</button></span></div>' + body + '</section>';
 }

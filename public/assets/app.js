@@ -432,6 +432,7 @@
     markMenu();
     initRating();
     initHeart();
+    initRailDots();
     refreshLive();
   }
 
@@ -1292,7 +1293,7 @@
       avatarMaxMb = r.avatarMaxMb || 5;
       editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); });
+    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadNotifPage(); initRating(); initHeart(); initRailDots(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1379,6 +1380,30 @@
   }
 
   let rateWarnAt = 0;
+  // Kệ cuộn ngang trên điện thoại: chấm trang bên dưới để biết còn kéo sang được.
+  function initRailDots() {
+    $$('.rail').forEach(rail => {
+      const old = rail.nextElementSibling;
+      if (old && old.classList.contains('rail-dots')) old.remove();
+      const pages = Math.ceil((rail.scrollWidth - 4) / Math.max(1, rail.clientWidth));
+      if (pages < 2) { rail.closest('.shelf') && rail.closest('.shelf').classList.add('no-swipe'); return; }
+      const dots = document.createElement('div');
+      dots.className = 'rail-dots';
+      dots.innerHTML = Array.from({ length: Math.min(pages, 8) }, (_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('');
+      rail.after(dots);
+      if (rail.dataset.dotsBound) return;
+      rail.dataset.dotsBound = '1';
+      rail.addEventListener('scroll', () => {
+        const d = rail.nextElementSibling;
+        if (!d || !d.classList.contains('rail-dots')) return;
+        const max = rail.scrollWidth - rail.clientWidth, n = d.children.length;
+        const i = max > 0 ? Math.round(rail.scrollLeft / max * (n - 1)) : 0;
+        Array.from(d.children).forEach((x, k) => x.classList.toggle('on', k === i));
+        if (rail.scrollLeft > 20) { const sh = rail.closest('.shelf'); if (sh) sh.classList.add('swiped'); }
+      }, { passive: true });
+    });
+  }
+  window.addEventListener('resize', () => initRailDots());
   // ---------- Bắn tim truyện (mỗi tài khoản 1 lần / truyện, không bỏ được) ----------
   function initHeart() {
     const box = $('.heart-box');

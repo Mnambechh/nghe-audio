@@ -1092,3 +1092,19 @@ body.has-player .rewards { bottom: calc(148px + var(--safe-b)); }
 .lb-tabs a.on { color: #fff; background: var(--brand); border-color: var(--brand); }
 .lb-val { flex: none; margin-left: auto; padding-left: 8px; font-size: 14px; color: var(--brand); white-space: nowrap; }
 .desc-label { color: var(--brand); font-weight: 800; letter-spacing: .3px; margin-right: 4px; }
+
+/* Điện thoại: gợi ý vuốt ngang + chấm trang dưới kệ */
+.swipe-hint { display: none; margin-left: auto; align-items: center; gap: 3px; font-size: 13px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.swipe-hint i { font-style: normal; font-size: 18px; line-height: 1; margin-left: 2px; animation: swipeNudge 1.4s ease-in-out infinite; }
+.swipe-hint i + i { animation-delay: .15s; opacity: .55; }
+@keyframes swipeNudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+.rail-dots { display: none; justify-content: center; gap: 6px; margin: 2px 0 4px; }
+.rail-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--dh-pink-line, #F6BCC6); transition: width .2s, background .2s; }
+.rail-dots i.on { width: 20px; background: var(--brand); }
+@media (max-width: 719px) {
+  .swipe-hint { display: inline-flex; }
+  .shelf.swiped .swipe-hint, .shelf.no-swipe .swipe-hint { display: none; }
+  .rail-dots { display: flex; }
+  .shelf-head .tabs + .swipe-hint { margin-left: 8px; }
+}
+@media (max-width: 719px) { .shelf-head .tabs ~ .swipe-hint { display: none; } }
