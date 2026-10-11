@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '97';
+export const ASSET_V = '98';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -63,7 +63,7 @@ ${meta.noindex ? '<meta name="robots" content="noindex">' : '<meta name="robots"
 <meta name="twitter:title" content="${h(title)}">
 <meta name="twitter:description" content="${h(desc)}">
 ${meta.extraHead || ''}
-<meta name="theme-color" content="#FFF6F0">
+<meta name="theme-color" content="#090b0d">
 <meta property="og:type" content="${meta.ogType || 'website'}">
 <meta property="og:site_name" content="${h(s.site_name)}">
 <meta property="og:title" content="${h(title)}">
@@ -78,10 +78,11 @@ ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="${asset('app.css')}">
 <link rel="stylesheet" href="${asset('noir.css')}">
+<link rel="stylesheet" href="${asset('player-noir.css')}">
 <style>:root{--brand:${h(s.theme_color)}}</style>
 ${safeHeadCode(s.head_code)}
 </head>
-<body${meta.listenPage ? '' : ' class="site-noir"'}>
+<body class="site-noir">
 <header class="topbar">
   <a class="brand" href="/" aria-label="${h(s.site_name)}" title="${h(s.site_name)}">
     ${s.logo ? `<img src="${h(s.logo)}" alt="" height="34">` : '<span class="brand-dot"></span>'}
@@ -342,19 +343,29 @@ function searchBox(q = '') {
 
 // ---------- Trang ----------
 
-function featuredStory(t) {
+function featuredStory(t, i = 0, count = 1) {
   if (!t) return '';
   const link = '/track/' + h(t.slug);
   const description = String(t.description || '').replace(/\s+/g, ' ').trim();
   const title = String(t.title).normalize('NFC');
-  return `<section class="noir-feature" aria-label="Audio nổi bật">
-    <a class="noir-book" href="${link}" aria-label="Nghe ${h(title)}">${t.cover ? `<img src="${h(t.cover)}" alt="${h(title)}" fetchpriority="high">` : `<span class="noir-book-fallback">${ICON_HEADPHONES}<b>${h(title)}</b></span>`}${coverGenres(t)}</a>
+  const score = t.rating_count > 0 ? `${(t.rating_sum / t.rating_count).toFixed(1).replace('.', ',')}/10 · ${fmtInt(t.rating_count)} đánh giá` : 'Chưa có đánh giá';
+  return `<section class="noir-feature" role="group" aria-roledescription="slide" aria-label="${i + 1}/${count}: ${h(title)}">
+    <a class="noir-book" href="${link}" aria-label="Nghe ${h(title)}">${t.cover ? `<img src="${h(t.cover)}" alt="${h(title)}" ${i ? 'loading="lazy" decoding="async"' : 'fetchpriority="high"'}>` : `<span class="noir-book-fallback">${ICON_HEADPHONES}<b>${h(title)}</b></span>`}${coverGenres(t)}</a>
     <div class="noir-feature-copy"><p class="noir-eyebrow">AUDIO NỔI BẬT</p><h2 title="${h(title)}">${h(title)}</h2>
       <div class="noir-feature-tags">${trackTags(t, false)}</div>
       ${description ? `<p class="noir-feature-desc">${h(description)}</p>` : ''}
-      <div class="noir-feature-meta"><span>${ICON_HEADPHONES} ${fmtNum(t.views)} lượt nghe</span>${t.duration ? `<span>◷ ${fmtTime(t.duration)}</span>` : ''}</div>
+      <div class="noir-feature-meta"><span>★ ${h(score)}</span><span>${ICON_HEADPHONES} ${fmtNum(t.views)} lượt nghe</span>${t.duration ? `<span>◷ ${fmtTime(t.duration)}</span>` : ''}</div>
       <a class="noir-listen" href="${link}">${ICON_PLAY} Nghe ngay</a>
     </div>
+  </section>`;
+}
+
+function featuredStories(tracks) {
+  if (!tracks || !tracks.length) return '';
+  return `<section class="noir-carousel" role="region" aria-roledescription="carousel" aria-label="Truyện được đánh giá cao">
+    <div class="noir-slides" tabindex="0" aria-label="Truyện nổi bật, dùng phím trái hoặc phải để chuyển">${tracks.map((t, i) => featuredStory(t, i, tracks.length)).join('')}</div>
+    ${tracks.length > 1 ? `<button class="noir-prev" type="button" data-feature-step="-1" aria-label="Truyện nổi bật trước">‹</button><button class="noir-next" type="button" data-feature-step="1" aria-label="Truyện nổi bật tiếp theo">›</button>
+    <div class="noir-feature-dots">${tracks.map((t, i) => `<button type="button" data-feature-index="${i}" aria-label="Xem truyện ${i + 1}: ${h(String(t.title).normalize('NFC'))}" aria-current="${i === 0}"></button>`).join('')}</div>` : ''}
   </section>`;
 }
 
@@ -367,7 +378,7 @@ export function homePage(ctx, d) {
       + (d.results.length ? '' : '<p class="empty">Không tìm thấy audio nào. Thử từ khóa khác nhé.</p>');
   } else {
     if (d.page === 1) {
-      body += featuredStory(d.latest[0] || d.hot[0]);
+      body += featuredStories(d.featured);
       body += `<h1 class="h1">Nghe gì hôm nay?</h1><p class="sub">${fmtInt(d.total)} audio · ${h(s.site_tagline)}</p>` + searchBox();
       if (d.latest.length) body += shelf('Mới cập nhật', rail(d.latest));
       if (d.hot.length) body += shelf('Đang nghe nhiều', rail(d.hot, { ranked: true }));
@@ -446,7 +457,7 @@ export function trackPage(ctx, t, related) {
     ld.aggregateRating = { '@type': 'AggregateRating', ratingValue: +(t.rating_sum / t.rating_count).toFixed(1), bestRating: 10, worstRating: 1, ratingCount: t.rating_count };
   }
 
-  const body = `<div class="wrap narrow">
+  const body = `<div class="wrap narrow listen-wrap">
   <a class="back" href="/">← Trang chủ</a>
   <article class="hero">
     <div class="hero-art${t.cover ? ' has-cover' : ''}">
@@ -455,7 +466,7 @@ export function trackPage(ctx, t, related) {
       ${t.duration > 0 ? `<span class="dur">${fmtTime(t.duration)}</span>` : ''}
     </div>
     <div class="hero-body">
-      <h1>${h(t.title)}</h1>
+      <h1 title="${h(t.title)}">${h(String(t.title).normalize('NFC'))}</h1>
       <div class="hero-meta">
         ${trackTags(t)}
         <span class="meta">${ICON_HEADPHONES}${fmtNum(t.views)} lượt nghe</span>
@@ -489,7 +500,7 @@ export function trackPage(ctx, t, related) {
     <div class="c-compose"></div>
     <div class="c-list"><p class="c-note">Đang tải bình luận…</p></div>
   </section>` : ''}
-  ${related.length ? shelf('Có lẽ bạn sẽ thích', rail(related, { overlayGenres: false })) : ''}
+  ${related.length ? shelf('Có lẽ bạn sẽ thích', rail(related)) : ''}
 </div>
 <script type="application/json" id="track-data">${jsonScript(data)}</script>
 <script type="application/ld+json">${jsonScript(ld)}</script>`;
@@ -501,7 +512,7 @@ export function trackPage(ctx, t, related) {
 <meta property="article:published_time" content="${new Date(t.created_at * 1000).toISOString()}">
 <meta property="article:modified_time" content="${new Date((t.updated_at || t.created_at) * 1000).toISOString()}">
 <script type="application/ld+json">${jsonScript(crumbs)}</script>`;
-  return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead, image: t.cover ? ctx.origin + t.cover : '', listenPage: true }, body);
+  return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead, image: t.cover ? ctx.origin + t.cover : '' }, body);
 }
 
 export function staticPage(ctx, p) {

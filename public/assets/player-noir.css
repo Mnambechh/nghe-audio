@@ -1,0 +1,36 @@
+/* Thanh phát đen–vàng thống nhất ở mọi trang có trình phát, gồm trang nghe. */
+.player {
+  --brand: #e6b85f;
+  --surface: #141719;
+  --surface2: #1b1d20;
+  --line: #30302c;
+  --text: #eee9df;
+  --dh-petal2: #e6b85f;
+  --dh-yellow: #e6b85f;
+  --dh-pink-line: #55442b;
+  --mono: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: #101214f5;
+  border: 1px solid #705933;
+  border-radius: 8px;
+  color: #eee3cc;
+  box-shadow: 0 -8px 25px #0003;
+  padding: 8px 10px 6px;
+  font-family: var(--mono);
+}
+.player .pl-title { font-family: inherit; font-size: 14px; line-height: 1.5; }
+.player .pl-sub { font-family: inherit; font-size: 11px; color: #c6b897; }
+.player .pl-btn { width: 42px; height: 42px; font-size: 18px; background: #e6b85f; color: #211809; box-shadow: none; }
+.player .pl-speed, .player .pl-moon { height: 36px; font-size: 11px; color: #e8cc98; border-color: #645333; }
+.player .pl-speed.on { color: #e6b85f; border-color: #e6b85f; }
+.player .pl-moon.on { color: #211809; background: #e6b85f; border-color: #e6b85f; }
+.player .pl-seek span { font-family: inherit; color: #c6b897; }
+.player .seek-range::-webkit-slider-thumb { background: #e6b85f; border-color: #101214; }
+.player .seek-range::-moz-range-thumb { background: #e6b85f; border-color: #101214; }
+body .player .timer-pop { background: #141719; color: #eee9df; border: 1px solid #5a492f; border-radius: 8px; }
+body .player .timer-grid button { background: #20221e; border-color: #66502e; }
+body .player .timer-grid button.on { background: #3c2f1a; color: #f3d58f; }
+.player button:focus-visible { outline: 2px solid #f1c875; outline-offset: 4px; }
+body.has-player { padding-bottom: calc(112px + var(--safe-b)); }
+@media (max-width: 560px) {
+  .player { left: 8px; right: 8px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}

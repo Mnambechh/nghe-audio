@@ -202,7 +202,14 @@ async function homeData(db, s, url) {
   const d = { q: '', page, pages, total, all: await withLive(db, list, live) };
   if (page !== 1) return d;
 
-  d.latest = await withLive(db, await all(db, 'SELECT * FROM tracks WHERE published = 1 ORDER BY created_at DESC LIMIT 10'), live);
+  const [latest, featured] = await Promise.all([
+    all(db, 'SELECT * FROM tracks WHERE published = 1 ORDER BY created_at DESC LIMIT 10'),
+    all(db, `SELECT * FROM tracks WHERE published = 1
+      ORDER BY CASE WHEN rating_count > 0 THEN 1.0 * rating_sum / rating_count ELSE 0 END DESC,
+        rating_count DESC, views DESC, created_at DESC, id DESC LIMIT 5`),
+  ]);
+  d.latest = await withLive(db, latest, live);
+  d.featured = featured;
 
   // Đang nghe nhiều: ưu tiên số người đang nghe, bù bằng audio nhiều lượt nghe nhất.
   const liveIds = Object.entries(live).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id]) => +id);

@@ -566,8 +566,6 @@
 
   function initPage() {
     pageTrack = readTrack();
-    // Chỉ đổi giao diện; trang nghe giữ kiểu cũ khi chuyển trang mà audio vẫn đang phát.
-    body.classList.toggle('site-noir', !pageTrack);
     initComments();
     if (pageTrack) {
       updateResume();
@@ -586,6 +584,7 @@
     initHeart();
     loadReferral();
     initRailDots();
+    initFeatureCarousel();
     refreshLive();
   }
 
@@ -1750,6 +1749,75 @@
   }
 
   let rateWarnAt = 0;
+  function initFeatureCarousel() {
+    const box = $('.noir-carousel');
+    if (!box || box.dataset.bound) return;
+    box.dataset.bound = '1';
+    const slides = $('.noir-slides', box), count = slides.children.length;
+    const index = () => Math.round(slides.scrollLeft / Math.max(1, slides.clientWidth));
+    const go = i => slides.scrollTo({ left: ((i + count) % count) * slides.clientWidth,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    box.addEventListener('click', e => {
+      const btn = e.target.closest('[data-feature-step],[data-feature-index]');
+      if (!btn) return;
+      go(btn.hasAttribute('data-feature-index') ? +btn.dataset.featureIndex : index() + +btn.dataset.featureStep);
+    });
+    slides.addEventListener('scroll', () => {
+      const current = index();
+      $$('[data-feature-index]', box).forEach((btn, i) => btn.setAttribute('aria-current', String(i === current)));
+    }, { passive: true });
+    slides.addEventListener('keydown', e => {
+      if (e.target !== slides || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      go(index() + (e.key === 'ArrowLeft' ? -1 : 1));
+    });
+  }
+  // Kéo kệ bằng chuột; thao tác chạm vẫn dùng cuộn tự nhiên của trình duyệt.
+  let railDrag = null, railClickBlock = null;
+  function endRailDrag() {
+    const drag = railDrag;
+    if (!drag) return;
+    railDrag = null;
+    drag.rail.classList.remove('is-dragging');
+    if (drag.active) {
+      railClickBlock = { rail: drag.rail, until: performance.now() + 500 };
+      if (drag.rail.hasPointerCapture(drag.id)) drag.rail.releasePointerCapture(drag.id);
+    }
+  }
+  document.addEventListener('pointerdown', e => {
+    railClickBlock = null;
+    if (e.pointerType !== 'mouse' || e.button !== 0 || !e.isPrimary || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const rail = e.target.closest('.rail,.noir-slides');
+    if (!rail || rail.scrollWidth <= rail.clientWidth + 1 || e.target.closest('button,input,textarea,select')) return;
+    railDrag = { rail, id: e.pointerId, x: e.clientX, y: e.clientY, left: rail.scrollLeft, active: false };
+  });
+  document.addEventListener('pointermove', e => {
+    const drag = railDrag;
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.active) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+      if (Math.abs(dy) > Math.abs(dx)) { railDrag = null; return; }
+      drag.active = true;
+      drag.rail.classList.add('is-dragging');
+      drag.rail.setPointerCapture(drag.id);
+    }
+    e.preventDefault();
+    drag.rail.scrollLeft = drag.left - dx;
+  }, { passive: false });
+  document.addEventListener('pointerup', e => { if (railDrag && e.pointerId === railDrag.id) endRailDrag(); });
+  document.addEventListener('pointercancel', e => { if (railDrag && e.pointerId === railDrag.id) endRailDrag(); });
+  document.addEventListener('lostpointercapture', e => { if (railDrag && e.pointerId === railDrag.id) endRailDrag(); });
+  window.addEventListener('blur', endRailDrag);
+  document.addEventListener('click', e => {
+    if (railClickBlock && e.detail && performance.now() < railClickBlock.until && railClickBlock.rail.contains(e.target)) {
+      railClickBlock = null;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+  document.addEventListener('dragstart', e => { if (e.target.closest('.rail,.noir-slides')) e.preventDefault(); });
+
   // Kệ cuộn ngang trên điện thoại: chấm trang bên dưới để biết còn kéo sang được.
   function initRailDots() {
     $$('.rail').forEach(rail => {
