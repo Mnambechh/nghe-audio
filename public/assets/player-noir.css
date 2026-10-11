@@ -31,8 +31,6 @@
 .player .pl-volume-pop { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 32; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 76px; padding: 12px; border: 1px solid #645333; border-radius: 8px; background: #141719; box-shadow: 0 8px 24px #0006; }
 .player .volume-range { writing-mode: vertical-lr; direction: rtl; width: 32px; height: 112px; margin: 0; accent-color: #e6b85f; touch-action: none; }
 .player .volume-range:focus-visible { outline: 2px solid #e6b85f; outline-offset: 3px; border-radius: 4px; }
-.player .volume-range:disabled { opacity: .4; }
-.player .pl-volume-note { color: #c6b897; font-size: 10px; text-align: center; }
 .player .pl-vol-value { min-width: 30px; text-align: center; font-size: 10px; color: #c6b897; font-variant-numeric: tabular-nums; }
 .player .pl-sub { font-family: inherit; font-size: 11px; color: #c6b897; }
 .player .pl-btn { width: 48px; height: 48px; font-size: 20px; background: #e6b85f; color: #211809; box-shadow: none; }

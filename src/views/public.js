@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '106';
+export const ASSET_V = '107';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -150,7 +150,6 @@ ${body}
       <output class="pl-vol-value" aria-label="Mức âm lượng" aria-live="polite">100%</output>
       <span class="pl-volume-pop" id="volume-panel" hidden>
         <input class="volume-range" type="range" min="0" max="100" value="100" step="1" orient="vertical" aria-label="Âm lượng audio">
-        <small class="pl-volume-note" hidden>Dùng phím âm lượng của máy</small>
       </span>
     </span></span>
     <span class="pl-transport"><button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
@@ -203,8 +202,7 @@ ${body}
     var speed = +JSON.parse(localStorage.getItem('aw_speed'));
     if ([0.75, 1, 1.25, 1.5, 1.75, 2].indexOf(speed) !== -1) p.querySelector('.speed-val').textContent = speed + '×';
     var volume = localStorage.getItem('aw_volume'), level = volume === null ? 1 : +JSON.parse(volume);
-    var device = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    p.querySelector('.pl-vol-value').textContent = device ? 'Máy' : Math.round(Math.max(0, Math.min(1, isFinite(level) ? level : 1)) * 100) + '%';
+    p.querySelector('.pl-vol-value').textContent = Math.round(Math.max(0, Math.min(1, isFinite(level) ? level : 1)) * 100) + '%';
     p.hidden = false;
     document.body.classList.add('has-player');
   } catch (e) { /* Bộ nhớ bị chặn: app.js vẫn khởi động bình thường. */ }

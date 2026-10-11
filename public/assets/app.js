@@ -165,29 +165,22 @@
   let lastSave = 0, lastPing = 0, lastPos = 0, lastMs = 0;
   let speed = SPEEDS.includes(store.get('speed')) ? store.get('speed') : DEFAULT_SPEED;
   audio.defaultPlaybackRate = audio.playbackRate = speed;
-  let deviceVolume = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const savedVolume = Number(store.get('volume', 1));
-  if (!deviceVolume && Number.isFinite(savedVolume)) {
-    try { audio.volume = Math.max(0, Math.min(1, savedVolume)); } catch { deviceVolume = true; }
+  if (Number.isFinite(savedVolume)) {
+    try { audio.volume = Math.max(0, Math.min(1, savedVolume)); } catch {}
   }
   function renderVolume() {
     const value = $('.pl-vol-value', player);
     if (!value) return;
-    value.textContent = deviceVolume ? 'Máy' : Math.round(audio.volume * 100) + '%';
-    value.title = deviceVolume ? 'Dùng phím âm lượng của máy' : 'Âm lượng audio';
+    value.textContent = Math.round(audio.volume * 100) + '%';
+    value.title = 'Âm lượng audio';
     const range = $('.volume-range', player);
     range.value = Math.round(audio.volume * 100);
-    range.disabled = deviceVolume;
-    range.setAttribute('aria-valuetext', deviceVolume ? 'Dùng phím âm lượng của máy' : value.textContent);
-    $('.pl-volume-note', player).hidden = !deviceVolume;
+    range.setAttribute('aria-valuetext', value.textContent);
   }
   function changeVolume(level) {
-    if (deviceVolume) { toast('Trên iPhone/iPad, dùng phím âm lượng bên cạnh máy.'); return; }
     const volume = Math.max(0, Math.min(1, level / 100));
-    try { audio.volume = volume; } catch { deviceVolume = true; }
-    if (Math.abs(audio.volume - volume) > 0.01) deviceVolume = true;
-    if (deviceVolume) toast('Trình duyệt này yêu cầu dùng phím âm lượng của máy.');
-    else store.set('volume', audio.volume);
+    try { audio.volume = volume; store.set('volume', audio.volume); } catch {}
     renderVolume();
   }
   audio.addEventListener('volumechange', renderVolume);
@@ -789,7 +782,7 @@
         const panel = $('#volume-panel');
         panel.hidden = !panel.hidden;
         t.setAttribute('aria-expanded', String(!panel.hidden));
-        if (!panel.hidden && !deviceVolume) $('.volume-range', panel).focus();
+        if (!panel.hidden) $('.volume-range', panel).focus();
         return;
       }
       case 'expand': openSheet(); return;
