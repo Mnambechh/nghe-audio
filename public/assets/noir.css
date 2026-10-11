@@ -22,11 +22,22 @@ body.site-noir {
   --dh-yellow: #e6b85f;
   color-scheme: dark;
   color: var(--text);
-  background: radial-gradient(ellipse at 90% 0, #3a2c142b, transparent 38%), var(--bg);
+  background: var(--bg);
+  isolation: isolate;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 400;
 }
-body.site-noir::before { display: none; }
+body.site-noir::before {
+  content: "";
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(#090b0d26, #090b0d59), url("./noir-background.webp") center / cover no-repeat;
+}
 body.site-noir .topbar {
   background: #0b0d0fee;
   border-bottom: 1px solid #ba945a38;
@@ -103,9 +114,9 @@ body.site-noir .footer { border-top: 1px solid #e6b85f26; color: #9d988d; backgr
 body.site-noir .footer nav a { color: #c1aa7d; }
 
 /* Banner trang chủ dùng đúng ảnh bìa, tên và đường dẫn truyện đang có. */
-body.site-noir .noir-feature { position: relative; isolation: isolate; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 42px; align-items: center; min-height: 360px; padding: 32px 48px; overflow: hidden; border: 1px solid #b58d4338; border-radius: 8px; background: radial-gradient(ellipse at 90% 20%, #91682c66, transparent 65%), #12130f; }
+body.site-noir .noir-feature { position: relative; isolation: isolate; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 42px; align-items: center; min-height: 360px; padding: 32px 48px; overflow: hidden; border: 1px solid #b58d4338; border-radius: 8px; background: #12130f url("./noir-background.webp") center / cover no-repeat; }
 body.site-noir .noir-backdrop { position: absolute; z-index: -2; right: 0; top: 0; width: 65%; height: 100%; object-fit: cover; opacity: .62; filter: saturate(.65) sepia(.25); }
-body.site-noir .noir-feature::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #0b0d0ee8 8%, #0b0d0ecd 47%, #0b0d0e40 100%); pointer-events: none; }
+body.site-noir .noir-feature::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #0b0d0e66 8%, #0b0d0ecd 47%, #0b0d0e40 100%); pointer-events: none; }
 body.site-noir .noir-book { display: block; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid #d2b171; border-radius: 3px; box-shadow: 0 10px 30px #0008, 0 0 0 4px #d2b1710c; }
 body.site-noir .noir-book > img { width: 100%; height: 100%; object-fit: cover; }
 body.site-noir .noir-book-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 20px; height: 100%; color: #e8c885; text-align: center; background: linear-gradient(135deg, #45381d, #12150f); }
@@ -172,6 +183,7 @@ body.site-noir a:focus-visible, body.site-noir button:focus-visible { outline: 2
   body.site-noir .rail { grid-auto-columns: 165px; gap: 12px; }
 }
 @media (max-width: 560px) {
+  body.site-noir::before { background-position: center, left center; }
   body.site-noir .topbar { padding: 10px 14px; gap: 8px; }
   body.site-noir .brand { font-size: 19px; }
   body.site-noir .brand img { max-width: 132px; }

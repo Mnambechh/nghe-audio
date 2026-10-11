@@ -3,7 +3,20 @@ html.admin-noir { color-scheme: dark; background: #0a0c0e; }
 html.admin-noir body {
   --brand: #d9b467; --bg: #0a0c0e; --surface: #141719; --line: #34342f;
   --text: #e9e6dd; --muted: #aaa79e; --danger: #ef9191;
-  background: radial-gradient(ellipse at 80% 0, #59431a20, transparent 55%), var(--bg);
+  background: var(--bg);
+  min-height: 100vh;
+  isolation: isolate;
+}
+html.admin-noir body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(#0a0c0e59, #0a0c0e80), url("./noir-background.webp") center / cover no-repeat;
+}
+@media (max-width: 560px) {
+  html.admin-noir body::before { background-position: center, left center; }
 }
 .admin-noir .qt-top { background: #101214f5; border-bottom: 1px solid #765c303f; padding: 12px 20px; }
 .admin-noir .qt-brand { color: #eccc8e; font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
