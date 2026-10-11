@@ -12,7 +12,7 @@ export const GAME_DEFAULTS = {
   comment_exp_daily: '10',  // số bình luận mỗi ngày được cộng EXP
   rate_daily: '15',         // số truyện được đánh giá mỗi ngày
   rate_stones: '10',        // Linh Thạch mỗi lần đánh giá truyện
-  rate_exp: '5',            // EXP mỗi lần đánh giá truyện
+  rate_exp: '2',            // EXP mỗi lần đánh giá truyện
   heart_stones: '1',        // Linh Thạch mỗi lần thả tim truyện
   heart_exp: '1',           // EXP mỗi lần thả tim truyện
   heart_daily: '50',        // số truyện được thả tim mỗi ngày

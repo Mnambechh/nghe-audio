@@ -164,7 +164,7 @@ async function guideData(db, s) {
     checkinStones: num('checkin_stones'), checkinExp: num('checkin_exp'), checkinWait: num('checkin_wait', 180),
     listen, comment, links, dailyMax,
     cmtExp: num('comment_exp'), cmtDaily: num('comment_exp_daily'), rateDaily: num('rate_daily'),
-    rateStones: num('rate_stones', 10), rateExp: num('rate_exp', 5),
+    rateStones: num('rate_stones', 10), rateExp: num('rate_exp', 2),
     heartStones: num('heart_stones', 1), heartExp: num('heart_exp', 1), heartDaily: num('heart_daily', 50),
     base: Math.max(1, Math.round(num('level_base_exp', 100))), levelTiers: tiers, levelTotal, levels, maxLevel: MAX_LEVEL,
     wdMin: W.min, wdDaily: W.daily, wdEnabled: W.enabled, wdMethods: Object.values(METHODS).join(', '),

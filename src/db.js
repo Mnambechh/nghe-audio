@@ -194,6 +194,14 @@ export async function migrate(db) {
       'ALTER TABLE users ADD COLUMN frame_until INTEGER NOT NULL DEFAULT 0',
     ].map(q => db.prepare(q)));
   }
+  // Bản 30: EXP đánh giá truyện đổi thành 2 (chạy 1 lần; sau đó admin vẫn chỉnh được trong Cài đặt).
+  if (!(await db.prepare("SELECT 1 x FROM settings WHERE k = 'mig_rate_exp2'").first())) {
+    await db.batch([
+      "INSERT INTO settings (k, v) VALUES ('rate_exp', '2') ON CONFLICT(k) DO UPDATE SET v = '2'",
+      "INSERT INTO settings (k, v) VALUES ('mig_rate_exp2', '1') ON CONFLICT(k) DO NOTHING",
+    ].map(q => db.prepare(q)));
+    try { await db.prepare('DELETE FROM cache').run(); } catch (e) { /* bỏ qua */ }
+  }
   // Bản 29: gói Promax VIP (users.vip_until) + đếm lượt bán từng gói trong cửa hàng.
   try { await db.prepare('SELECT vip_until FROM users LIMIT 1').first(); }
   catch {
