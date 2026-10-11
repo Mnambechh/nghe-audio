@@ -16,6 +16,8 @@
   box-shadow: 0 -8px 25px #0003;
   padding: 8px 10px 6px;
   font-family: var(--mono);
+  animation: none;
+  transition: none;
 }
 .player .pl-title { font-family: inherit; font-size: 14px; line-height: 1.5; }
 .player .pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: center; }

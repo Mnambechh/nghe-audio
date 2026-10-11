@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '103';
+export const ASSET_V = '104';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -174,6 +174,39 @@ ${body}
   </div>
 </div>
 
+<script>
+// Giữ thanh phát ở đúng vị trí ngay khi dựng trang, trước khi app.js tải xong.
+(function () {
+  try {
+    var last = JSON.parse(localStorage.getItem('aw_last'));
+    if (!last || !last.track || !Array.isArray(last.track.parts) || !last.track.parts.length) return;
+    var p = document.getElementById('player'), t = last.track;
+    var i = Math.min(Math.max(0, Math.floor(+last.idx || 0)), t.parts.length - 1);
+    var part = t.parts[i];
+    if (!part || !part.url) return;
+    var duration = Math.max(0, +part.duration || 0);
+    var position = Math.max(0, +JSON.parse(localStorage.getItem('aw_pos_' + t.id + '_' + i)) || 0);
+    if (duration && position > duration - 8) position = 0;
+    function time(n) {
+      n = isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+      var h = Math.floor(n / 3600), m = Math.floor(n % 3600 / 60), s = ('0' + n % 60).slice(-2);
+      return h ? h + ':' + ('0' + m).slice(-2) + ':' + s : m + ':' + s;
+    }
+    p.querySelector('.pl-title').textContent = String(t.title || 'Audio');
+    p.querySelector('.pl-sub').textContent = (t.parts.length > 1 ? 'Tập ' + (i + 1) + '/' + t.parts.length + ' · ' : '') + 'Tạm dừng';
+    p.querySelector('.t-cur').textContent = time(position);
+    p.querySelector('.t-dur').textContent = time(duration);
+    p.querySelector('.seek-range').value = duration ? Math.min(1000, position / duration * 1000) : 0;
+    var speed = +JSON.parse(localStorage.getItem('aw_speed'));
+    if ([0.75, 1, 1.25, 1.5, 1.75, 2].indexOf(speed) !== -1) p.querySelector('.speed-val').textContent = speed + '×';
+    var volume = localStorage.getItem('aw_volume'), level = volume === null ? 1 : +JSON.parse(volume);
+    var device = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    p.querySelector('.pl-vol-value').textContent = device ? 'Máy' : Math.round(Math.max(0, Math.min(1, isFinite(level) ? level : 1)) * 100) + '%';
+    p.hidden = false;
+    document.body.classList.add('has-player');
+  } catch (e) { /* Bộ nhớ bị chặn: app.js vẫn khởi động bình thường. */ }
+})();
+</script>
 <div id="sheet" class="sheet" hidden>
   <div class="sheet-panel" role="dialog" aria-label="Trình phát">
     <button class="sheet-grip" type="button" data-act="collapse" aria-label="Thu nhỏ"><span></span></button>

@@ -781,15 +781,22 @@
   const sameSite = u => u.origin === location.origin && u.pathname.indexOf(APP.base + '/admin') !== 0
     && u.pathname.indexOf(APP.base + '/api/') !== 0 && !/\.(xml|txt|mp3|m4a|jpg|png|webp)$/i.test(u.pathname);
 
+  let navSequence = 0, navController = null;
   async function navigate(href, push = true) {
+    const sequence = ++navSequence;
+    if (navController) navController.abort();
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    navController = controller;
+    const currentMain = $('#main');
+    currentMain.setAttribute('aria-busy', 'true');
     try {
-      $('#main').style.opacity = '.55';
-      const res = await fetch(href, { headers: { 'X-Requested-With': 'nav' } });
+      const res = await fetch(href, { headers: { 'X-Requested-With': 'nav' }, ...(controller ? { signal: controller.signal } : {}) });
       const ctype = res.headers.get('Content-Type') || '';
       if (!ctype.includes('text/html')) throw new Error('not html');
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
       const main = doc.querySelector('#main');
       if (!main) throw new Error('no main');
+      if (sequence !== navSequence) return;
       $('#main').replaceWith(main);
       document.title = doc.title;
       ['meta[name="description"]', 'link[rel="canonical"]'].forEach(sel => {
@@ -799,10 +806,18 @@
       if (push) history.pushState({}, '', href);
       window.scrollTo(0, 0);
       closeTopSearch();
+      const menu = $('#mainmenu');
+      if (menu) menu.hidden = true;
       initPage();
       focusSearchFromHash();
     } catch (err) {
+      if (sequence !== navSequence || (err && err.name === 'AbortError')) return;
       location.href = href;
+    } finally {
+      if (sequence === navSequence) {
+        currentMain.removeAttribute('aria-busy');
+        navController = null;
+      }
     }
   }
   document.addEventListener('click', e => {
@@ -1194,13 +1209,16 @@
   });
 
   // ---------- Cửa hàng: hiệu ứng tên ----------
-  let shop = null;
+  let shop = null, shopUserId = null;
   function loadShop() {
     const box = $('#shop');
     if (!box || !meLoaded) return;
+    const userId = me ? me.id : 0;
+    if (shop && shopUserId === userId) renderShop();
     fetch(`${APP.base}/api/shop`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
-      if (!r || !r.ok || $('#shop') !== box) return;
+      if (!r || !r.ok || $('#shop') !== box || userId !== (me ? me.id : 0)) return;
       shop = r;
+      shopUserId = userId;
       renderShop();
     }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
   }
