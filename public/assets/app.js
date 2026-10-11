@@ -1041,7 +1041,7 @@
     if (g.quests && g.quests.resetIn != null && !questResetAt) questResetAt = Date.now() + g.quests.resetIn * 1000;
     updatePanel(box, `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">${navIcon('rotate')} Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
       ${q('gift', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left" data-waiting="${ckLeft > 0}">${checkinHint(ckLeft, !pageActive())}</span>`, g.checkedIn ? 1 : 0, 1,
-        `+${nf(g.ckStones)} ${navIcon('diamond')} · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
+        rewardText(g.ckStones, g.ckExp), `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
       ${(c => c ? q('comments', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
         `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
@@ -1049,7 +1049,7 @@
         rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`, null, 'link-' + x.id)).join('')}
       <p class="c-note">Nhiệm vụ hằng ngày làm mới lúc 0h.</p>
       <h2 class="h2">Tu luyện</h2>
-      ${q('bolt', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} ${navIcon('diamond')}`, '')}
+      ${q('bolt', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, rewardText(g.levelStones, 0), '')}
       <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> ${navIcon('diamond')}</p>`);
   }
 
@@ -1063,7 +1063,11 @@
     $$('#quests .q-reset').forEach(e => { e.textContent = fmtClock(left); });
     if (!left) { questResetAt = 0; fetchMe(); } // qua 0h: tải lại tiến độ mới
   }, 1000);
-  const rewardText = (stones, exp) => [stones && `+${nf(stones)} ${navIcon('diamond')}`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
+  const rewardText = (stones, exp) => {
+    // Chỉ nhân mức thưởng dự kiến; số dư và phần thưởng đã nhận do máy chủ trả về.
+    const mul = me && me.vipUntil * 1000 > Date.now() ? 2 : 1;
+    return [stones && `+${nf(stones * mul)} ${navIcon('diamond')}`, exp && `+${nf(exp * mul)} EXP`].filter(Boolean).join(' · ') || '';
+  };
 
   // Nhiệm vụ nghe audio: mỗi mốc (20 phút, 30 phút…) một dòng, tiến độ chung là thời gian đã nghe hôm nay.
   const listenSeconds = L => Math.floor(Math.min(L.need, L.sec + lq.pending + (lq.since ? Math.min(120, (Date.now() - lq.since) / 1000) : 0)));
@@ -1332,7 +1336,7 @@
       <div class="vip-card" data-render-key="vip-card">
         <div class="vip-head"><b>Promax VIP</b>${VIP_TICK}${shop.vipUntil ? `<em class="vip-on">Đang dùng · ${vipLeft(shop.vipUntil)}</em>` : ''}</div>
         <ul class="vip-perks"><li>🚫 Bỏ quảng cáo toàn web</li><li>${VIP_TICK} Tích xanh xác thực khi bình luận và ở trang cá nhân</li>
-          <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ trong ${vipDays} ngày</li><li>💎 x2 Linh Thạch kiếm được trong ${vipDays} ngày khi mua</li></ul>
+          <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ trong suốt ${vipDays} ngày VIP</li><li>💎 x2 Linh Thạch kiếm được trong suốt ${vipDays} ngày VIP</li></ul>
         <p class="vip-count">👥 ${nf(shop.vipCount)} người đang sở hữu</p>
         <div class="vip-buy">${vipItems.map(i => `<button type="button" class="sh-buy" data-buy="${i.id}">${shop.vipUntil ? 'Gia hạn' : 'Mua'} ${esc(i.name)} · ${nf(i.price)} 💎</button><small class="sh-sold">🔥 Đã bán ${nf(i.sold)} · ${Math.max(1, i.days)} ngày${shop.vipUntil ? ', cộng dồn thêm' : ''}</small>`).join('')}</div>
       </div>` : '';
