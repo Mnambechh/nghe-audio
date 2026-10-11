@@ -40,7 +40,7 @@ body.site-noir::before {
   height: auto;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(#090b0d26, #090b0d59), var(--noir-background) center / cover no-repeat;
+  background: linear-gradient(#090b0d66, #090b0d99), var(--noir-background) center / cover no-repeat;
 }
 body.site-noir .topbar {
   background: #0b0d0fee;
@@ -56,6 +56,19 @@ body.site-noir .top-nav::-webkit-scrollbar-thumb { background: #66512d; }
 body.site-noir .top-nav a { padding: 7px 9px; color: #c7c6c2; font-size: 12px; font-weight: 500; border-radius: 0; }
 body.site-noir .nav-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
 body.site-noir .top-nav a.on { color: #f3cd7f; background: transparent; box-shadow: inset 0 -2px #e6b85f; }
+body.site-noir .genre-menu { position: relative; display: inline-flex; align-items: center; }
+body.site-noir .genre-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 0; background: transparent; color: #c7c6c2; font: 500 12px var(--dh-display); cursor: pointer; white-space: nowrap; }
+body.site-noir .genre-toggle.on { color: #f3cd7f; box-shadow: inset 0 -2px #e6b85f; }
+body.site-noir .genre-toggle:hover { color: #f7d99d; }
+body.site-noir .genre-chevron { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+body.site-noir .genre-toggle[aria-expanded=true] .genre-chevron { transform: rotate(180deg); }
+body.site-noir .genre-options { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 152px; padding: 5px; border: 1px solid #55442b; border-radius: 6px; background: #141719; box-shadow: 0 8px 24px #0006; }
+body.site-noir .genre-options a { display: flex; align-items: center; gap: 8px; padding: 9px 10px; font-size: 13px; }
+body.site-noir .main-menu .genre-menu { display: block; flex: 1 0 100%; }
+body.site-noir .main-menu .genre-toggle { width: 100%; padding: 8px 10px; gap: 8px; font-size: 14px; }
+body.site-noir .main-menu .genre-toggle.on { background: #302719; box-shadow: none; border-radius: 5px; }
+body.site-noir .main-menu .genre-chevron { margin-left: auto; }
+body.site-noir .main-menu .genre-options { position: static; margin: 4px 0 4px 24px; min-width: 0; padding: 0; border: 0; border-left: 1px solid #55442b; border-radius: 0; background: transparent; box-shadow: none; }
 body.site-noir .top-nav a:hover, body.site-noir .main-menu a:hover { color: #f7d99d; background: #e6b85f0c; }
 body.site-noir .main-menu { background: #111315; border-bottom: 1px solid var(--line); }
 body.site-noir .main-menu a { color: var(--text); border-radius: 5px; padding: 8px 10px; font-size: 14px; }
@@ -219,6 +232,8 @@ body.site-noir .lg-form input, body.site-noir .ref-link input, body.site-noir .w
 body.site-noir .quest.promax, body.site-noir .gd-promax, body.site-noir .ref-card, body.site-noir .wd-balance, body.site-noir .vip-card { background: linear-gradient(130deg, #302718, #151718); color: #efd7a4; border: 1px solid #7b6135; border-radius: 8px; box-shadow: none; }
 body.site-noir .quest { padding: 11px; gap: 10px; margin-bottom: 8px; }
 body.site-noir .q-ico { width: 38px; height: 38px; font-size: 20px; background: #2b2418; border-radius: 7px; }
+body.site-noir .q-ico { color: #c7c6c2; }
+body.site-noir .q-ico .nav-icon { width: 22px; height: 22px; }
 body.site-noir .q-body small, body.site-noir .q-reward { font-size: 11px; }
 body.site-noir .q-btn { padding: 6px 11px; font-size: 12px; }
 body.site-noir .q-reward, body.site-noir .sh-chip.on, body.site-noir .ref-big b { color: #e9bf6c; }
@@ -239,6 +254,7 @@ body.site-noir .prof-form input { height: 42px; background: #0e1012; border-colo
 body.site-noir .lb-row { padding: 10px 12px; gap: 10px; }
 body.site-noir .lb .av-wrap { padding: 0; background: none; }
 body.site-noir .lb .av-wrap > .lb-av { border: 0; box-shadow: none; }
+body.site-noir .lb .vtick circle { fill: #9e9c95; }
 body.site-noir .sh-item, body.site-noir .vip-card, body.site-noir .wd-form, body.site-noir .wd-add { padding: 12px; }
 body.site-noir .wd-balance { padding: 16px; }
 body.site-noir .sheet-art { background: radial-gradient(circle, #554126, #171a1b); border-radius: 50%; }

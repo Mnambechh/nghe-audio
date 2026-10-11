@@ -218,6 +218,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   let input = {};
   try { input = await request.json(); } catch (e) { /* bỏ qua */ }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return json({ ok: false, error: 'Dữ liệu không hợp lệ.' }, 400);
 
   // Đăng nhập bằng Google: nhận ID token từ nút Google, xác minh rồi tạo phiên.
   if (path === '/api/auth/google') {
@@ -386,8 +387,10 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const trackId = parseInt(input.track_id, 10) || 0;
     if (trackId <= 0) return json({ ok: false }, 400);
     const part = Math.max(0, parseInt(input.part, 10) || 0);
-    const pos = Math.max(0, Math.floor(+input.pos || 0));
-    const dur = Math.max(0, Math.floor(+input.dur || 0));
+    const rawPos = +input.pos || 0, rawDur = +input.dur || 0;
+    if (!Number.isFinite(rawPos) || !Number.isFinite(rawDur)) return json({ ok: false, error: 'Thời gian không hợp lệ.' }, 400);
+    const pos = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(rawPos)));
+    const dur = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(rawDur)));
     await db.prepare(`INSERT INTO history (user_id, track_id, part, pos, dur, updated_at)
       SELECT ?, id, ?, ?, ?, ? FROM tracks WHERE id = ? AND published = 1
       ON CONFLICT(user_id, track_id) DO UPDATE SET part = excluded.part, pos = excluded.pos, dur = excluded.dur, updated_at = excluded.updated_at`)

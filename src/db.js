@@ -202,6 +202,15 @@ export async function migrate(db) {
     ].map(q => db.prepare(q)));
     try { await db.prepare('DELETE FROM cache').run(); } catch (e) { /* bỏ qua */ }
   }
+  // Lịch sử phải có trước bản 29, vì bản đó dùng nó để tính lượt bán.
+  if (await missing(db, 'wallet_log')) {
+    await db.batch([
+      `CREATE TABLE IF NOT EXISTS wallet_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL,
+        balance INTEGER NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`,
+      `CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_log(user_id, kind, id DESC)`,
+    ].map(q => db.prepare(q)));
+  }
   // Bản 29: gói Promax VIP (users.vip_until) + đếm lượt bán từng gói trong cửa hàng.
   try { await db.prepare('SELECT vip_until FROM users LIMIT 1').first(); }
   catch {
@@ -354,15 +363,6 @@ export async function migrate(db) {
   if (!(await db.prepare("SELECT 1 x FROM settings WHERE k = 'comment_words'").first())) {
     const st = db.prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v');
     await db.batch([st.bind('comment_words', DEFAULT_WORDS), st.bind('comment_moderation', '0')]);
-  }
-  // Bản 9: lịch sử EXP / Linh Thạch của từng thành viên.
-  if (await missing(db, 'wallet_log')) {
-    await db.batch([
-      `CREATE TABLE IF NOT EXISTS wallet_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL,
-        balance INTEGER NOT NULL DEFAULT 0, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)`,
-      `CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_log(user_id, kind, id DESC)`,
-    ].map(q => db.prepare(q)));
   }
   migrated = true;
 }

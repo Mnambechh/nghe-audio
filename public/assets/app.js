@@ -39,6 +39,13 @@
     history: 'M3 11a9 9 0 1 1 2 7 M3 4v7h7 M12 7v5l3 2',
     bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
     trophy: 'M8 3h8v7a4 4 0 0 1-8 0z M8 5H4v3a4 4 0 0 0 4 4 M16 5h4v3a4 4 0 0 1-4 4 M12 14v7 M8 21h8',
+    gift: 'M3 8h18v4H3z M5 12v9h14v-9 M12 8v13 M12 8H8a3 3 0 1 1 3-3z M12 8h4a3 3 0 1 0-3-3z',
+    headphones: 'M3 14v-3a9 9 0 0 1 18 0v3 M3 13h4v8H3z M17 13h4v8h-4z',
+    comments: 'M3 3h18v14H8l-5 4z M7 8h10 M7 12h6',
+    target: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10 M12 11v2 M11 12h2',
+    bolt: 'm13 2-9 12h7l-1 8 10-13h-8z',
+    rotate: 'M20 7a9 9 0 0 0-15-2L2 8 M2 3v5h5 M4 17a9 9 0 0 0 15 2l3-3 M22 21v-5h-5',
+    diamond: 'm3 8 4-5h10l4 5-9 13z M3 8h18 M7 3l5 18 5-18',
   };
   const navIcon = name => `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${NAV_PATHS[name]}"/></svg>`;
 
@@ -132,8 +139,9 @@
   const AUDIO_TYPES = { m4a: ['audio/mp4', 'audio/x-m4a', 'audio/aac'], mp4: ['audio/mp4'], aac: ['audio/aac', 'audio/mp4'], mp3: ['audio/mpeg', 'audio/mp3'],
     ogg: ['audio/ogg'], oga: ['audio/ogg'], opus: ['audio/ogg; codecs=opus', 'audio/opus'], wav: ['audio/wav', 'audio/wave'], flac: ['audio/flac'] };
   const extOf = url => { const m = String(url || '').split(/[?#]/)[0].match(/\.([a-z0-9]{2,4})$/i); return m ? m[1].toLowerCase() : ''; };
-  let srcType = '', srcMaybeUnsupported = false, lastT = 0;
+  let srcType = '', srcMaybeUnsupported = false, lastT = 0, sourceVersion = 0;
   function setSource(url) {
+    sourceVersion++;
     const types = AUDIO_TYPES[extOf(url)] || [];
     srcType = types[0] || '';
     // canPlayType trả '' = chắc chắn không hỗ trợ; 'maybe'/'probably' = phát được. Một số máy cũ trả sai nên vẫn thử phát.
@@ -144,6 +152,7 @@
   }
 
   function load(track, i, opts = {}) {
+    clearStall(); errRetry = 0;
     cur = track; idx = Math.min(Math.max(0, i), track.parts.length - 1);
     const p = part();
     const saved = store.get(posKey(cur.id, idx), 0);
@@ -178,9 +187,11 @@
     audio.muted = false;
     body.classList.add('is-loading');
     watchStall();
+    const version = sourceVersion;
     let pr;
     try { pr = audio.play(); } catch (e) { pr = null; body.classList.remove('is-loading'); }
     if (pr && pr.catch) pr.catch(err => {
+      if (version !== sourceVersion) return;
       body.classList.remove('is-loading');
       const name = err && err.name;
       // Trình duyệt di động chặn tự phát khi chưa có thao tác bấm/chạm: chỉ phát lại khi người dùng bấm ▶.
@@ -471,8 +482,9 @@
     if (!fatal && errRetry < 2 && navigator.onLine !== false) {
       errRetry++; errAt = Date.now();
       body.classList.add('is-loading');
+      const version = sourceVersion;
       setTimeout(() => {
-        if (!cur) return;
+        if (!cur || version !== sourceVersion) return;
         pendingSeek = at;
         setSource(part().url);
         audio.load();
@@ -675,6 +687,13 @@
       case 'bell': openNotifs(); return;
       case 'nf-more': moreNotifs(); return;
       case 'menu': { const mm = $('#mainmenu'); mm.hidden = !mm.hidden; markMenu(); return; }
+      case 'genres': {
+        const options = $('.genre-options', t.closest('.genre-menu')), open = options.hidden;
+        closeGenreMenus();
+        options.hidden = !open;
+        t.setAttribute('aria-expanded', String(open));
+        return;
+      }
       case 'checkin': doCheckin(); return;
       case 'hist-del': {
         const row = t.closest('[data-hid]');
@@ -725,6 +744,7 @@
   });
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeGenreMenus(true);
     if (e.key === 'Escape') { closeTopSearch(); const mm = $('#mainmenu'); if (mm) mm.hidden = true; }
     if (e.key === 'Escape') { ['.acct-card', '.notif-panel', '#timerpop'].forEach(sel => { const el = $(sel); if (el) el.hidden = true; }); }
     if (e.key === 'Escape') { if (!$('#unlockbox').hidden) $('#unlockbox').hidden = true; else if (!sheet.hidden) closeSheet(); }
@@ -875,6 +895,7 @@
     }
     const menu = $('#mainmenu');
     if (menu && !menu.hidden && (!e.target.closest('#mainmenu, .menu-btn') || e.target.closest('#mainmenu a'))) menu.hidden = true;
+    if (!e.target.closest('.genre-menu')) closeGenreMenus();
     ['.acct-card', '.notif-panel'].forEach(sel => {
       const el = $(sel);
       if (el && !el.hidden && (!e.target.closest('.acct') || e.target.closest(sel + ' a'))) el.hidden = true;
@@ -885,10 +906,24 @@
     if (!e.target.closest('.searchbox')) hideSuggest();
   });
 
-  // Menu 3 gạch: tô hồng mục đang xem.
+  function closeGenreMenus(returnFocus = false) {
+    $$('.genre-toggle').forEach(btn => {
+      if (returnFocus && btn.getAttribute('aria-expanded') === 'true') {
+        const focus = btn.closest('#mainmenu') ? $('.menu-btn') : btn;
+        if (focus) focus.focus();
+      }
+      btn.setAttribute('aria-expanded', 'false');
+      $('.genre-options', btn.closest('.genre-menu')).hidden = true;
+    });
+  }
+  document.addEventListener('focusin', e => { if (!e.target.closest('.genre-menu')) closeGenreMenus(); });
+
+  // Tô sáng mục đang xem, gồm nhóm thể loại.
   function markMenu() {
     const p = location.pathname.replace(/\/+$/, '') || '/';
     $$('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === p));
+    $$('.genre-menu').forEach(menu => $('.genre-toggle', menu).classList.toggle('on', !!$('[data-nav].on', menu)));
+    closeGenreMenus();
   }
 
   // Trang nhiệm vụ: tiến độ hôm nay.
@@ -902,24 +937,24 @@
     const g = game, ckLeft = Math.max(0, Math.ceil(ckLeftSec));
     const q = (icon, title, desc, done, total, reward, btn, listenMin = null) => {
       const pct = total ? Math.min(100, done / total * 100) : 0, fin = done >= total;
-      return `<div class="quest${fin ? ' done' : ''}"${listenMin !== null ? ` data-listen-min="${listenMin}"` : ''}><span class="q-ico">${icon}</span>
+      return `<div class="quest${fin ? ' done' : ''}"${listenMin !== null ? ` data-listen-min="${listenMin}"` : ''}><span class="q-ico">${navIcon(icon)}</span>
         <span class="q-body"><b>${title}</b><small>${desc}</small>
           <span class="q-bar"><span style="width:${pct}%"></span></span><small class="q-prog">${done}/${total}</small></span>
         <span class="q-side"><span class="q-reward">${reward}</span>${fin ? `<span class="q-ok">✓ Xong</span><small class="q-again">làm lại sau <b class="q-reset">${fmtClock(questLeft())}</b></small>` : btn || ''}</span></div>`;
     };
     if (g.quests && g.quests.resetIn != null && !questResetAt) questResetAt = Date.now() + g.quests.resetIn * 1000;
-    box.innerHTML = `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">🔄 Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
-      ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left" data-waiting="${ckLeft > 0}">${checkinHint(ckLeft, !pageActive())}</span>`, g.checkedIn ? 1 : 0, 1,
-        `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
+    box.innerHTML = `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">${navIcon('rotate')} Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
+      ${q('gift', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left" data-waiting="${ckLeft > 0}">${checkinHint(ckLeft, !pageActive())}</span>`, g.checkedIn ? 1 : 0, 1,
+        `+${nf(g.ckStones)} ${navIcon('diamond')} · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
-      ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
+      ${(c => c ? q('comments', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
         `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
-      ${((g.quests && g.quests.links) || []).map(x => q('🎯', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
+      ${((g.quests && g.quests.links) || []).map(x => q('target', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
         rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`)).join('')}
       <p class="c-note">Nhiệm vụ hằng ngày làm mới lúc 0h.</p>
       <h2 class="h2">Tu luyện</h2>
-      ${q('⚡', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} 💎`, '')}
-      <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> 💎</p>`;
+      ${q('bolt', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} ${navIcon('diamond')}`, '')}
+      <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> ${navIcon('diamond')}</p>`;
   }
 
   // Đếm ngược tới 0h (múi giờ của web) — lúc đó nhiệm vụ hằng ngày làm mới.
@@ -932,7 +967,7 @@
     $$('#quests .q-reset').forEach(e => { e.textContent = fmtClock(left); });
     if (!left) { questResetAt = 0; fetchMe(); } // qua 0h: tải lại tiến độ mới
   }, 1000);
-  const rewardText = (stones, exp) => [stones && `+${nf(stones)} 💎`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
+  const rewardText = (stones, exp) => [stones && `+${nf(stones)} ${navIcon('diamond')}`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
 
   // Nhiệm vụ nghe audio: mỗi mốc (20 phút, 30 phút…) một dòng, tiến độ chung là thời gian đã nghe hôm nay.
   const listenSeconds = L => Math.floor(Math.min(L.need, L.sec + lq.pending + (lq.since ? Math.min(120, (Date.now() - lq.since) / 1000) : 0)));
@@ -942,7 +977,7 @@
     const sec = listenSeconds(L);
     return L.tiers.map(t => {
       const need = t.min * 60, s2 = Math.min(sec, need);
-      return q('🎧', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Tua không được tính · Đã nghe <b class="q-listen-time">${fmt(s2)}</b> / ${t.min}:00`,
+      return q('headphones', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Tua không được tính · Đã nghe <b class="q-listen-time">${fmt(s2)}</b> / ${t.min}:00`,
         t.done ? 1 : Math.floor(s2 / 60), t.done ? 1 : t.min, rewardText(t.stones, t.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`, t.min)
         .replace(/<small class="q-prog">[^<]*<\/small>/, `<small class="q-prog">${t.done ? '✓' : Math.floor(s2 / 60) + '/' + t.min + ' phút'}</small>`);
     }).join('');
@@ -1300,7 +1335,7 @@
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Bảng xếp hạng</a></nav>`;
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av', me);
     updateBell();

@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '101';
+export const ASSET_V = '102';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -24,8 +24,17 @@ const NAV_PATHS = {
   friends: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M22 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8',
   trophy: 'M8 3h8v7a4 4 0 0 1-8 0z M8 5H4v3a4 4 0 0 0 4 4 M16 5h4v3a4 4 0 0 1-4 4 M12 14v7 M8 21h8',
   book: 'M12 5C9 3 5 3 2 4v16c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1z M12 5v16',
+  genres: 'M3 3h18v5H3z M3 16h18v5H3z M7 5.5h.1 M7 18.5h.1 M3 12h18',
+  bolt: 'm13 2-9 12h7l-1 8 10-13h-8z',
+  comments: 'M3 3h18v14H8l-5 4z M7 8h10 M7 12h6',
+  rocket: 'M14 3c3-1 6-1 7 0 1 1 1 4 0 7l-8 8-7-7z M6 11l-3 1-1 5 6-1 M13 18l-1 4 5-1 1-5 M6 18l-3 3 M16 7h1',
 };
 const navIcon = name => `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${NAV_PATHS[name]}"/></svg>`;
+
+function genreMenu(id) {
+  return `<span class="genre-menu"><button class="genre-toggle" type="button" data-act="genres" aria-expanded="false" aria-controls="${id}">${navIcon('genres')}Thể loại<svg class="genre-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <span class="genre-options" id="${id}" hidden>${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${navIcon('heart')} ${g.name}</a>`).join('')}</span></span>`;
+}
 
 // Chỉ giữ các thẻ hợp lệ trong <head> (script, style, noscript, meta, link).
 // Chữ thường dán nhầm vào ô này sẽ bị bỏ, tránh hiện lên đầu trang.
@@ -84,10 +93,6 @@ ${meta.extraHead || ''}
 ${meta.image ? `<meta property="og:image" content="${h(meta.image)}">
 <meta name="twitter:image" content="${h(meta.image)}">` : s.logo ? `<meta property="og:image" content="${h(abs(ctx.origin, s.logo))}">` : ''}
 ${favicon ? `<link rel="icon" href="${h(favicon)}">` : ''}
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="${asset('app.css')}">
 <link rel="stylesheet" href="${asset('noir.css')}">
 <link rel="stylesheet" href="${asset('player-noir.css')}">
@@ -102,12 +107,12 @@ ${safeHeadCode(s.head_code)}
   </a>
   <nav class="top-nav">
   <a href="/" data-nav="/">${navIcon('home')}Trang chủ</a>
-  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${navIcon('heart')} ${g.name}</a>`).join('\n')}
+  ${genreMenu('genres-top')}
   <a href="/cua-hang" data-nav="/cua-hang">${navIcon('shop')} Cửa hàng</a>
-  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">${navIcon('diamond')} Rút Linh Thạch</a>
   <a href="/gioi-thieu" data-nav="/gioi-thieu">${navIcon('friends')} Giới thiệu bạn bè</a>
-  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Bảng xếp hạng</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Xếp hạng</a>
   <a href="/huong-dan" data-nav="/huong-dan">${navIcon('book')} Hướng dẫn</a>
   </nav>
   <span class="top-right">
@@ -118,12 +123,12 @@ ${safeHeadCode(s.head_code)}
 </header>
 <nav class="main-menu" id="mainmenu" hidden>
   <a href="/" data-nav="/">${navIcon('home')}Trang chủ</a>
-  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${navIcon('heart')} ${g.name}</a>`).join('\n')}
+  ${genreMenu('genres-main')}
   <a href="/cua-hang" data-nav="/cua-hang">${navIcon('shop')} Cửa hàng</a>
-  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">${navIcon('diamond')} Rút Linh Thạch</a>
   <a href="/gioi-thieu" data-nav="/gioi-thieu">${navIcon('friends')} Giới thiệu bạn bè</a>
-  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Bảng xếp hạng</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Xếp hạng</a>
   <a href="/huong-dan" data-nav="/huong-dan">${navIcon('book')} Hướng dẫn tích Linh Thạch</a>
 </nav>
 <main id="main" data-title="${h(title)}">
@@ -140,11 +145,11 @@ ${body}
       <span class="eq"><i></i><i></i><i></i><i></i></span>
       <span class="pl-text"><b class="pl-title"></b><small class="pl-sub"></small></span>
     </button>
-    <button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+    <span class="pl-transport"><button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
     <button class="pl-btn pl-play" type="button" data-act="toggle" aria-label="Phát / Tạm dừng"></button>
-    <button class="pl-icon wide-only" type="button" data-act="next" aria-label="Tập sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
-    <button class="pl-speed" type="button" data-act="speed" aria-label="Tốc độ nghe"><span class="speed-val">1.5×</span></button>
-    <button class="pl-moon" type="button" data-act="timer-pop" aria-label="Hẹn giờ tắt">${ICON_MOON}</button>
+    <button class="pl-icon wide-only" type="button" data-act="next" aria-label="Tập sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button></span>
+    <span class="pl-tools"><button class="pl-speed" type="button" data-act="speed" aria-label="Tốc độ nghe"><span class="speed-val">1.5×</span></button>
+    <button class="pl-moon" type="button" data-act="timer-pop" aria-label="Hẹn giờ tắt">${ICON_MOON}</button></span>
   </div>
   <div class="pl-seek">
     <span class="t-cur">0:00</span>
@@ -662,39 +667,39 @@ export function profilePage(ctx) {
 }
 
 const BOARD_INFO = {
-  level: { tab: '⚡ Cấp độ', sub: 'TOP đạo hữu nhiều EXP nhất', val: r => `${fmtInt(r.exp)} EXP` },
-  stones: { tab: '💎 Linh Thạch', sub: 'TOP đạo hữu nhiều Linh Thạch nhất', val: r => `${fmtInt(r.stones)} 💎` },
-  comments: { tab: '💬 Bình luận', sub: 'TOP đạo hữu bình luận nhiều nhất', val: r => `${fmtInt(r.comments_n)} bình luận` },
-  hearts: { tab: '❤️ Thả tim', sub: 'TOP đạo hữu được thả tim nhiều nhất khi bình luận', val: r => `${fmtInt(r.hearts)} tim` },
+  level: { icon: 'bolt', tab: 'Cấp độ', sub: 'TOP đạo hữu nhiều EXP nhất', val: r => `${fmtInt(r.exp)} EXP` },
+  stones: { icon: 'diamond', tab: 'Linh Thạch', sub: 'TOP đạo hữu nhiều Linh Thạch nhất', val: r => `${fmtInt(r.stones)} ${navIcon('diamond')}` },
+  comments: { icon: 'comments', tab: 'Bình luận', sub: 'TOP đạo hữu bình luận nhiều nhất', val: r => `${fmtInt(r.comments_n)} bình luận` },
+  hearts: { icon: 'heart', tab: 'Thả tim', sub: 'TOP đạo hữu được thả tim nhiều nhất khi bình luận', val: r => `${fmtInt(r.hearts)} tim` },
 };
 export function leaderboardPage(ctx, rows, kind = 'level') {
   const B = BOARD_INFO[kind] || BOARD_INFO.level;
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Bảng xếp hạng</h1>
-    <nav class="lb-tabs">${Object.entries(BOARD_INFO).map(([k, v]) => `<a href="/bang-xep-hang${k === 'level' ? '' : '?top=' + k}" class="${k === kind ? 'on' : ''}">${v.tab}</a>`).join('')}</nav>
+    <nav class="lb-tabs">${Object.entries(BOARD_INFO).map(([k, v]) => `<a href="/bang-xep-hang${k === 'level' ? '' : '?top=' + k}" class="${k === kind ? 'on' : ''}">${navIcon(v.icon)} ${v.tab}</a>`).join('')}</nav>
     <p class="sub">${B.sub} · cập nhật mỗi 5 phút</p>
     <div class="lb">${rows.map((r, i) => `<div class="lb-row${i < 3 ? ' top' + (i + 1) : ''}">
       <span class="lb-rank">${i + 1}</span>
       ${lvAvatar(r.name, r.avatar, r, 'lb-av')}
       <span class="lb-body"><span class="lb-name"><b${fxOf(r) ? ` class="nfx nfx-${fxOf(r)}"` : ''}>${h(r.name)}</b>${vipActive(r) ? VIP_TICK : ''}${realmBadge(r)}</span>
-        <span class="meta">Cấp ${r.lvl} · ☆ ${fmtInt(r.exp)} EXP · 💬 ${fmtInt(r.comments_n)}</span></span>
+        <span class="meta">Cấp ${r.lvl} · ☆ ${fmtInt(r.exp)} EXP · ${navIcon('comments')} ${fmtInt(r.comments_n)}</span></span>
       <b class="lb-val">${B.val(r)}</b>
     </div>`).join('') || '<p class="c-note">Chưa có ai trên bảng này. Đăng nhập, điểm danh, bình luận và thả tim để lên bảng!</p>'}</div></div>`;
-  return layout(ctx, { title: `Bảng xếp hạng ${B.tab.replace(/^\S+\s/, '')} - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' + (kind === 'level' ? '' : '?top=' + kind) }, body);
+  return layout(ctx, { title: `Bảng xếp hạng ${B.tab} - ${ctx.s.site_name}`, canonical: ctx.origin + '/bang-xep-hang' + (kind === 'level' ? '' : '?top=' + kind) }, body);
 }
 
 // Nhiệm vụ Promax: luôn ở cuối trang, hiện cả khi chưa đăng nhập, chỉ mở link (không cộng Linh Thạch).
 function promaxQuest(s) {
   if (s.promax_enabled === '0' || !/^https?:\/\//i.test(s.promax_url || '')) return '';
   return `<h2 class="h2">Nhiệm vụ Promax</h2>
-    <div class="quest promax"><span class="q-ico">🚀</span>
+    <div class="quest promax"><span class="q-ico">${navIcon('rocket')}</span>
       <span class="q-body"><b>${h(s.promax_title)} <em class="pm-tag">PROMAX</em></b><small>${h(s.promax_desc)}</small></span>
       <span class="q-side"><a class="q-btn" href="${h(s.promax_url)}" target="_blank" rel="noopener">${h(s.promax_button || 'Mở')}</a></span></div>`;
 }
 
 export function questsPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
-    <h1 class="h1">Nhiệm vụ kiếm Linh Thạch</h1>
+    <h1 class="h1">Nhiệm vụ</h1>
     <p class="sub">Làm nhiệm vụ mỗi ngày để nhận Linh Thạch và EXP tu luyện</p>
     <div id="quests"><p class="c-note">Đang tải…</p></div>
     ${promaxQuest(ctx.s)}</div>`;

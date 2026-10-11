@@ -103,7 +103,8 @@ export function redirect(location, headers = {}) {
 
 export function getCookie(request, name) {
   const m = (request.headers.get('Cookie') || '').match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-  return m ? decodeURIComponent(m[1]) : null;
+  try { return m ? decodeURIComponent(m[1]) : null; }
+  catch { return null; }
 }
 
 export function setCookie(name, value, { maxAge, path = '/', sameSite = 'Lax', httpOnly = true } = {}) {
@@ -158,7 +159,9 @@ export async function signToken(secret, payload) {
 
 export async function readToken(secret, token) {
   if (!token || !secret) return null;
-  const [body, sig] = token.split('.');
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [body, sig] = parts;
   if (!body || !sig || !safeEqual(sig, await hmac(secret, body))) return null;
   try {
     const p = JSON.parse(unb64url(body));

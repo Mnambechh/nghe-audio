@@ -32,6 +32,26 @@ export async function handleApi(request, db, path, ctx, info) {
   const len = +(request.headers.get('Content-Length') || 0);
   if (post && path !== '/api/profile/avatar' && len > 64 * 1024) return json({ ok: false, error: 'Dữ liệu quá lớn.' }, 413);
   if (post && len > 3 * 1024 * 1024) return json({ ok: false, error: 'Dữ liệu quá lớn.' }, 413);
+  // Content-Length có thể thiếu hoặc sai: kiểm tra số byte thực trước khi phân tích JSON/multipart.
+  if (post && request.body) {
+    const limit = path === '/api/profile/avatar' ? 3 * 1024 * 1024 : 64 * 1024;
+    const reader = request.body.getReader(), chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return json({ ok: false, error: 'Dữ liệu quá lớn.' }, 413);
+      }
+      chunks.push(value);
+    }
+    const body = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+    request = new Request(request, { body });
+  }
   if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path.startsWith('/api/profile') || path === '/api/me'
     || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/heart' || path === '/api/referral' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/') || path === '/api/shop' || path.startsWith('/api/shop/')) return handleCommentsApi(request, db, path, info, ctx);
 
@@ -50,6 +70,7 @@ export async function handleApi(request, db, path, ctx, info) {
   if (request.method !== 'POST') return json({ ok: false }, 405);
   let input = {};
   try { input = await request.json(); } catch (e) { /* bỏ qua */ }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return json({ ok: false, error: 'Dữ liệu không hợp lệ.' }, 400);
   const sid = String(input.sid || '');
   const validSid = /^[A-Za-z0-9]{12,40}$/.test(sid);
   const trackId = parseInt(input.track_id, 10) || 0;

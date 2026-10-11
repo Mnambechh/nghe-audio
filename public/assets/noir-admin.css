@@ -16,7 +16,7 @@ html.admin-noir body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(#0a0c0e59, #0a0c0e80), var(--noir-background) center / cover no-repeat;
+  background: linear-gradient(#0a0c0e80, #0a0c0ea6), var(--noir-background) center / cover no-repeat;
 }
 @media (max-width: 560px) {
   html.admin-noir body { --noir-background: url("./noir-background-mobile.webp"); }

@@ -18,6 +18,9 @@
   font-family: var(--mono);
 }
 .player .pl-title { font-family: inherit; font-size: 14px; line-height: 1.5; }
+.player .pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: center; }
+.player .pl-transport, .player .pl-tools { display: flex; align-items: center; gap: 8px; }
+.player .pl-tools { justify-self: end; }
 .player .pl-sub { font-family: inherit; font-size: 11px; color: #c6b897; }
 .player .pl-btn { width: 48px; height: 48px; font-size: 20px; background: #e6b85f; color: #211809; box-shadow: none; }
 .player .pl-speed, .player .pl-moon { height: 36px; font-size: 11px; color: #e8cc98; border-color: #645333; }
@@ -33,4 +36,5 @@ body .player .timer-grid button.on { background: #3c2f1a; color: #f3d58f; }
 body.has-player { padding-bottom: calc(112px + var(--safe-b)); }
 @media (max-width: 560px) {
   .player { left: 8px; right: 8px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .player .pl-row { gap: 8px; }
 }
