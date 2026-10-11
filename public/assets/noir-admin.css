@@ -3,6 +3,9 @@ html.admin-noir { color-scheme: dark; background: #0a0c0e; }
 html.admin-noir body {
   --brand: #d9b467; --bg: #0a0c0e; --surface: #141719; --line: #34342f;
   --text: #e9e6dd; --muted: #aaa79e; --danger: #ef9191;
+  --noir-background: url("./noir-background.webp");
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
   background: var(--bg);
   min-height: 100vh;
   isolation: isolate;
@@ -13,23 +16,26 @@ html.admin-noir body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(#0a0c0e59, #0a0c0e80), url("./noir-background.webp") center / cover no-repeat;
+  background: linear-gradient(#0a0c0e59, #0a0c0e80), var(--noir-background) center / cover no-repeat;
 }
 @media (max-width: 560px) {
+  html.admin-noir body { --noir-background: url("./noir-background-mobile.webp"); }
   html.admin-noir body::before { background-position: center, left center; }
 }
-.admin-noir .qt-top { background: #101214f5; border-bottom: 1px solid #765c303f; padding: 12px 20px; }
-.admin-noir .qt-brand { color: #eccc8e; font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+.admin-noir .qt-top { background: #101214f5; border-bottom: 1px solid #765c303f; padding: 8px 16px; }
+.admin-noir .qt-brand { color: #eccc8e; font-family: inherit; font-size: 18px; font-weight: 600; }
 .admin-noir .qt-brand small { color: #bda578; font-family: system-ui, sans-serif; font-size: 12px; }
-.admin-noir .qt-nav a { color: #b9b6ae; border-radius: 4px; }
+.admin-noir .qt-nav a { color: #b9b6ae; border-radius: 4px; padding: 6px 10px; font-size: 13px; }
 .admin-noir .qt-nav a.on { color: #f1d59a; background: #2b2419; }
 .admin-noir .qt-nav a:hover { background: #25221b; color: #efd5a1; }
-.admin-noir .qt-main { padding-top: 30px; }
-.admin-noir h1, .admin-noir h2 { font-family: Georgia, "Times New Roman", serif; color: #eed2a0; font-weight: 400; }
-.admin-noir h1 { font-size: 27px; }
+.admin-noir .qt-main { padding-top: 20px; }
+.admin-noir h1, .admin-noir h2 { font-family: inherit; color: #eed2a0; font-weight: 600; }
+.admin-noir h1 { font-size: 22px; }
+.admin-noir h2 { font-size: 17px; }
+.admin-noir .card { padding: 12px; margin-bottom: 14px; }
 .admin-noir .card, .admin-noir .table, .admin-noir .stats div, .admin-noir .auth-box { background: #141719; border: 1px solid #39372d; border-radius: 8px; box-shadow: 0 6px 28px #0002; }
 .admin-noir .stats b { color: #efd49b; }
-.admin-noir .btn { color: #211809; background: linear-gradient(110deg, #edcb7c, #bb8d42); border: 1px solid #d8ad5d; border-radius: 5px; }
+.admin-noir .btn { height: 38px; padding: 0 14px; font-size: 13px; color: #211809; background: linear-gradient(110deg, #edcb7c, #bb8d42); border: 1px solid #d8ad5d; border-radius: 5px; }
 .admin-noir .btn.ghost { color: #e4d2ac; background: #1a1d1e; border-color: #625135; }
 .admin-noir .row-actions.sticky { background: #141719f5; border-top-color: #54452e; }
 .admin-noir .form input:not([type=checkbox]):not([type=color]):not([type=file]), .admin-noir .form textarea, .admin-noir .bar input, .admin-noir #bulkText, .admin-noir select { background: #0d1012; color: var(--text); border: 1px solid #494538; border-radius: 5px; }
@@ -38,7 +44,13 @@ html.admin-noir body::before {
 .admin-noir .form input:focus, .admin-noir .form textarea:focus { outline: 2px solid #b7964e55; border-color: #cba251; }
 .admin-noir .trow { color: var(--text); }
 .admin-noir a.trow:hover { background: #211f19; }
-.admin-noir .tmain b { font-family: Georgia, serif; font-size: 16px; font-weight: 400; }
+.admin-noir .tmain b { font-family: inherit; font-size: 14px; font-weight: 600; }
+.admin-noir .trow { padding: 10px 12px; gap: 10px; }
+.admin-noir .form label, .admin-noir .form .field { margin-bottom: 10px; font-size: 13px; }
+.admin-noir .form input:not([type=checkbox]):not([type=color]):not([type=file]), .admin-noir .form textarea, .admin-noir .bar input, .admin-noir #bulkText, .admin-noir .pfields input { padding: 8px 10px; }
+.admin-noir .part-row { padding: 10px; }
+.admin-noir .stats div { padding: 10px 12px; }
+.admin-noir .stats b { font-size: 20px; }
 .admin-noir .tedit { background: #252117; border-color: #73603c; }
 .admin-noir .part-row, .admin-noir .seo-box, .admin-noir .cover-prev, .admin-noir .cover-box, .admin-noir .serp { background: #101416; border-color: #3c3a30; border-radius: 7px; }
 .admin-noir .pfields input { background: #0d1012; border-color: #494538; color: var(--text); }
@@ -70,3 +82,8 @@ html.admin-noir body::before {
 .admin-noir .mi-red:hover { background: #351f20; }
 .admin-noir .serp-desc { color: #c0bfb5; }
 .admin-noir a:focus-visible, .admin-noir button:focus-visible { outline: 2px solid #ebc97e; outline-offset: 3px; }
+@media (max-width: 560px) {
+  .admin-noir .qt-top { padding: 8px 12px; }
+  .admin-noir .qt-main { padding: 16px 12px 48px; }
+  .admin-noir h1 { font-size: 20px; }
+}

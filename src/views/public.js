@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '96';
+export const ASSET_V = '97';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -256,30 +256,39 @@ function liveBadge(t) {
 
 const genreNames = GENRES.map(g => g.name);
 
-function trackTags(t) {
+function trackTags(t, includeGenres = true) {
   if (!t.tag) return '';
   const genres = genresOf(t);
   if (!genres.length) return `<span class="tag">${h(t.tag)}</span>`;
   const other = String(t.tag).split(',').map(tag => tag.trim()).filter(tag => tag && !genreNames.includes(tag)).join(', ');
+  if (!includeGenres) return other ? `<span class="tag">${h(other)}</span>` : '';
   return `<span class="track-tags">${other ? `<span class="tag">${h(other)}</span>` : ''}`
     + genres.map(g => `<span class="tag genre-${g === 'Đam mỹ' ? 'dam-my' : 'ngon-tinh'}" aria-label="Thể loại: ${g}">${g}</span>`).join('')
     + '</span>';
 }
 
-function card(t, rank = null, views = null) {
+function coverGenres(t) {
+  const genres = genresOf(t);
+  return genres.length ? `<span class="cover-genres">${genres.map(g => `<span class="tag genre-${g === 'Đam mỹ' ? 'dam-my' : 'ngon-tinh'}" aria-label="Thể loại: ${g}">${g}</span>`).join('')}</span>` : '';
+}
+
+function card(t, rank = null, views = null, overlayGenres = true) {
+  const title = overlayGenres ? String(t.title).normalize('NFC') : t.title;
   return `<a class="card${t.cover ? ' has-cover' : ''}" href="/track/${h(t.slug)}">`
     + (t.cover ? `<img class="card-cover" src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : '')
+    + (overlayGenres ? coverGenres(t) : '')
     + (rank !== null ? `<span class="rank r${rank}">${rank}</span>` : '')
-    + `<span class="card-body"><b class="card-title">${h(t.title)}</b>`
-    + trackTags(t)
+    + `<span class="card-body"><b class="card-title"${overlayGenres ? ` title="${h(title)}"` : ''}>${h(title)}</b>`
+    + trackTags(t, !overlayGenres)
     + `<span class="meta">${ICON_HEADPHONES}${fmtNum(views ?? t.views)} lượt nghe</span>`
     + liveBadge(t) + '</span></a>';
 }
 
 function row(t) {
+  const title = String(t.title).normalize('NFC');
   return `<a class="row${genresOf(t).length ? ' has-genres' : ''}" href="/track/${h(t.slug)}">`
-    + `<span class="row-icon${t.cover ? ' has-cover' : ''}">${t.cover ? `<img src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : ''}${ICON_PLAY}</span>`
-    + `<span class="row-body"><span class="row-head"><b>${h(t.title)}</b>${trackTags(t)}</span>`
+    + `<span class="row-icon${t.cover ? ' has-cover' : ''}">${t.cover ? `<img src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : ''}${ICON_PLAY}${coverGenres(t)}</span>`
+    + `<span class="row-body"><span class="row-head"><b title="${h(title)}">${h(title)}</b>${trackTags(t, false)}</span>`
     + `<span class="row-meta"><span class="meta">${ICON_HEADPHONES}${fmtNum(t.views)} lượt nghe</span>${liveBadge(t)}</span></span>`
     + (t.duration > 0 ? `<span class="dur">${fmtTime(t.duration)}</span>` : '')
     + '</a>';
@@ -292,8 +301,8 @@ function shelf(title, body, extra = '') {
     + '<button type="button" data-scroll="1" aria-label="Sau">›</button></span></div>' + body + '</section>';
 }
 
-function rail(tracks, { ranked = false, periodKey = '', attrs = '' } = {}) {
-  return `<div class="rail"${attrs}>` + tracks.map((t, i) => card(t, ranked ? i + 1 : null, periodKey ? t[periodKey] : null)).join('') + '</div>';
+function rail(tracks, { ranked = false, periodKey = '', attrs = '', overlayGenres = true } = {}) {
+  return `<div class="rail"${attrs}>` + tracks.map((t, i) => card(t, ranked ? i + 1 : null, periodKey ? t[periodKey] : null, overlayGenres)).join('') + '</div>';
 }
 
 // Đánh giá 10 sao: lớp sao hồng phủ theo điểm trung bình; bấm sao để chấm (cần đăng nhập).
@@ -337,11 +346,11 @@ function featuredStory(t) {
   if (!t) return '';
   const link = '/track/' + h(t.slug);
   const description = String(t.description || '').replace(/\s+/g, ' ').trim();
+  const title = String(t.title).normalize('NFC');
   return `<section class="noir-feature" aria-label="Audio nổi bật">
-    ${t.cover ? `<img class="noir-backdrop" src="${h(t.cover)}" alt="" aria-hidden="true">` : ''}
-    <a class="noir-book" href="${link}" aria-label="Nghe ${h(t.title)}">${t.cover ? `<img src="${h(t.cover)}" alt="${h(t.title)}" fetchpriority="high">` : `<span class="noir-book-fallback">${ICON_HEADPHONES}<b>${h(t.title)}</b></span>`}</a>
-    <div class="noir-feature-copy"><p class="noir-eyebrow">AUDIO NỔI BẬT</p><h2>${h(t.title)}</h2>
-      <div class="noir-feature-tags">${trackTags(t)}</div>
+    <a class="noir-book" href="${link}" aria-label="Nghe ${h(title)}">${t.cover ? `<img src="${h(t.cover)}" alt="${h(title)}" fetchpriority="high">` : `<span class="noir-book-fallback">${ICON_HEADPHONES}<b>${h(title)}</b></span>`}${coverGenres(t)}</a>
+    <div class="noir-feature-copy"><p class="noir-eyebrow">AUDIO NỔI BẬT</p><h2 title="${h(title)}">${h(title)}</h2>
+      <div class="noir-feature-tags">${trackTags(t, false)}</div>
       ${description ? `<p class="noir-feature-desc">${h(description)}</p>` : ''}
       <div class="noir-feature-meta"><span>${ICON_HEADPHONES} ${fmtNum(t.views)} lượt nghe</span>${t.duration ? `<span>◷ ${fmtTime(t.duration)}</span>` : ''}</div>
       <a class="noir-listen" href="${link}">${ICON_PLAY} Nghe ngay</a>
@@ -480,7 +489,7 @@ export function trackPage(ctx, t, related) {
     <div class="c-compose"></div>
     <div class="c-list"><p class="c-note">Đang tải bình luận…</p></div>
   </section>` : ''}
-  ${related.length ? shelf('Có lẽ bạn sẽ thích', rail(related)) : ''}
+  ${related.length ? shelf('Có lẽ bạn sẽ thích', rail(related, { overlayGenres: false })) : ''}
 </div>
 <script type="application/json" id="track-data">${jsonScript(data)}</script>
 <script type="application/ld+json">${jsonScript(ld)}</script>`;
