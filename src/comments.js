@@ -6,7 +6,7 @@ import { deviceOf, logEvent, recentHits } from './security.js';
 import { checkIp, hostingByAsn } from './proxycheck.js';
 import { mailConfig, sendMail, resetMailHtml } from './mailer.js';
 import { attachReferrer, handleReferralApi } from './referral.js';
-import { gameStats, handleGameApi, onCommentApproved, notify, vipActive } from './game.js';
+import { gameStats, handleGameApi, onCommentApproved, notify, vipActive, tooFast } from './game.js';
 import { handleQuestApi, questStats, onCommentQuest } from './quests.js';
 import { handleShopApi, shopData, fxOf, frameOf } from './shop.js';
 import { badge } from './levels.js';
@@ -194,6 +194,8 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (path === '/api/profile/avatar') {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
+    if (tooFast('av' + me.id, 5, 60000)) return json({ ok: false, error: 'Bạn đổi ảnh quá nhanh, thử lại sau 1 phút.' }, 429);
     const maxMb = Math.max(0.2, parseFloat(s.avatar_max_mb) || 5);
     const len = parseInt(request.headers.get('Content-Length'), 10) || 0;
     if (len > maxMb * 1024 * 1024 + 4096) return json({ ok: false, error: `Ảnh tối đa ${maxMb}MB.` }, 413);
@@ -351,7 +353,10 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập để bình luận.' }, 401);
   // Chế độ xem thử của admin: chặn mọi thao tác ghi (nhận thưởng, rút, bình luận, đổi tên…).
   if (me.demo) return json({ ok: false, error: 'Đang ở chế độ xem thử của admin, không thể thao tác.' }, 403);
-  if (path.startsWith('/api/withdraw')) return handleWithdrawApi(request, db, s, path, me, input, info);
+  if (path.startsWith('/api/withdraw')) {
+    if (tooFast('wd' + me.id, 6, 10000)) return json({ ok: false, silent: true, error: 'Thao tác quá nhanh.' }, 429);
+    return handleWithdrawApi(request, db, s, path, me, input, info);
+  }
   if (path.startsWith('/api/quest/')) return handleQuestApi(request, db, s, path, me, input);
   if (path.startsWith('/api/shop/')) return handleShopApi(request, db, s, path, me, input);
   if (path === '/api/notifications' || path === '/api/checkin' || path === '/api/rate' || path === '/api/online' || path === '/api/heart') {

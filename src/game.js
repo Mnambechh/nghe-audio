@@ -232,7 +232,8 @@ export async function handleGameApi(request, db, s, path, me, input) {
     if (u.checkin_day === today) return json({ ok: true, sec: need, need, left: 0 });
     const same = u.seen_day === today;
     const before = same ? u.online_sec : 0;
-    const gap = same && u.online_at ? t - u.online_at + 2 : 20;
+    // Không cộng dư: tối đa đúng số giây thật đã trôi qua kể từ lần ghi trước (gửi dồn dập không tăng nhanh hơn thời gian thật).
+    const gap = same && u.online_at ? Math.max(0, t - u.online_at) : 20;
     const credit = Math.max(0, Math.min(Math.floor(+input.sec || 0), 20, gap));
     const after = Math.min(need, before + credit);
     const w = await db.prepare(`UPDATE users SET seen_day = ?, seen_at = CASE WHEN seen_day = ? THEN seen_at ELSE ? END, online_sec = ?, online_at = ?

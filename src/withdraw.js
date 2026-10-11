@@ -71,10 +71,11 @@ export async function handleWithdrawApi(request, db, s, path, me, input, info) {
   if (path === '/api/withdraw/account') {
     const a = cleanAccount(input);
     if (a.error) return json({ ok: false, error: a.error }, 400);
-    const n = await first(db, 'SELECT COUNT(*) c FROM payout_accounts WHERE user_id = ?', me.id);
-    if (n.c >= MAX_ACCOUNTS) return json({ ok: false, error: `Tối đa ${MAX_ACCOUNTS} tài khoản, hãy xóa bớt.` }, 400);
-    await db.prepare('INSERT INTO payout_accounts (user_id, method, bank, number, holder, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(me.id, a.method, a.bank, a.number, a.holder, now()).run();
+    // Thêm có điều kiện trong một câu lệnh: gửi nhiều yêu cầu cùng lúc cũng không vượt quá số tài khoản tối đa.
+    const r = await db.prepare(`INSERT INTO payout_accounts (user_id, method, bank, number, holder, created_at)
+      SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM payout_accounts WHERE user_id = ?) < ?`)
+      .bind(me.id, a.method, a.bank, a.number, a.holder, now(), me.id, MAX_ACCOUNTS).run();
+    if (!r.meta.changes) return json({ ok: false, error: `Tối đa ${MAX_ACCOUNTS} tài khoản, hãy xóa bớt.` }, 400);
     return json({ ok: true });
   }
 
