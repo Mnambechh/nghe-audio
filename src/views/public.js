@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '102';
+export const ASSET_V = '103';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -141,10 +141,15 @@ ${body}
 
 <div id="player" class="player" hidden>
   <div class="pl-row">
-    <button class="pl-info" type="button" data-act="expand" aria-label="Mở trình phát">
+    <span class="pl-left"><button class="pl-info" type="button" data-act="expand" aria-label="Mở trình phát">
       <span class="eq"><i></i><i></i><i></i><i></i></span>
       <span class="pl-text"><b class="pl-title"></b><small class="pl-sub"></small></span>
     </button>
+    <span class="pl-volume" role="group" aria-label="Âm lượng">
+      <button class="pl-vol-btn" type="button" data-act="volume-down" aria-label="Giảm âm lượng" title="Giảm âm lượng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+      <output class="pl-vol-value" aria-label="Mức âm lượng" aria-live="polite">100%</output>
+      <button class="pl-vol-btn" type="button" data-act="volume-up" aria-label="Tăng âm lượng" title="Tăng âm lượng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14 M12 5v14"/></svg></button>
+    </span></span>
     <span class="pl-transport"><button class="pl-icon wide-only" type="button" data-act="prev" aria-label="Tập trước"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
     <button class="pl-btn pl-play" type="button" data-act="toggle" aria-label="Phát / Tạm dừng"></button>
     <button class="pl-icon wide-only" type="button" data-act="next" aria-label="Tập sau"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button></span>

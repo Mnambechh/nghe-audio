@@ -127,6 +127,30 @@
   let lastSave = 0, lastPing = 0, lastPos = 0, lastMs = 0;
   let speed = SPEEDS.includes(store.get('speed')) ? store.get('speed') : DEFAULT_SPEED;
   audio.defaultPlaybackRate = audio.playbackRate = speed;
+  let deviceVolume = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const savedVolume = Number(store.get('volume', 1));
+  if (!deviceVolume && Number.isFinite(savedVolume)) {
+    try { audio.volume = Math.max(0, Math.min(1, savedVolume)); } catch { deviceVolume = true; }
+  }
+  function renderVolume() {
+    const value = $('.pl-vol-value', player);
+    if (!value) return;
+    value.textContent = deviceVolume ? 'Máy' : Math.round(audio.volume * 100) + '%';
+    value.title = deviceVolume ? 'Dùng phím âm lượng của máy' : 'Âm lượng audio';
+    $('[data-act="volume-down"]', player).disabled = !deviceVolume && audio.volume <= 0;
+    $('[data-act="volume-up"]', player).disabled = !deviceVolume && audio.volume >= 1;
+  }
+  function changeVolume(delta) {
+    if (deviceVolume) { toast('Trên iPhone/iPad, dùng phím âm lượng bên cạnh máy.'); return; }
+    const volume = Math.max(0, Math.min(1, Math.round((audio.volume + delta) * 10) / 10));
+    try { audio.volume = volume; } catch { deviceVolume = true; }
+    if (Math.abs(audio.volume - volume) > 0.01) deviceVolume = true;
+    if (deviceVolume) toast('Trình duyệt này yêu cầu dùng phím âm lượng của máy.');
+    else store.set('volume', audio.volume);
+    renderVolume();
+  }
+  audio.addEventListener('volumechange', renderVolume);
+  renderVolume();
   let timer = null;        // {end: ms} hoặc {part: true}
   let dragging = false;
   const counted = new Set();
@@ -715,6 +739,8 @@
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
       case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
       case 'toggle': toggle(); return;
+      case 'volume-down': changeVolume(-0.1); return;
+      case 'volume-up': changeVolume(0.1); return;
       case 'expand': openSheet(); return;
       case 'collapse': closeSheet(); return;
       case 'back': seekBy(-15); return;

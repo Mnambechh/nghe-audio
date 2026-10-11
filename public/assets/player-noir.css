@@ -21,6 +21,13 @@
 .player .pl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: center; }
 .player .pl-transport, .player .pl-tools { display: flex; align-items: center; gap: 8px; }
 .player .pl-tools { justify-self: end; }
+.player .pl-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.player .pl-info { min-width: 0; }
+.player .pl-volume { display: flex; align-items: center; gap: 2px; flex: none; }
+.player .pl-vol-btn { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 1px solid #645333; border-radius: 50%; color: #e8cc98; background: #1b1d20; }
+.player .pl-vol-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.player .pl-vol-btn:disabled { opacity: .4; cursor: default; }
+.player .pl-vol-value { min-width: 30px; text-align: center; font-size: 10px; color: #c6b897; font-variant-numeric: tabular-nums; }
 .player .pl-sub { font-family: inherit; font-size: 11px; color: #c6b897; }
 .player .pl-btn { width: 48px; height: 48px; font-size: 20px; background: #e6b85f; color: #211809; box-shadow: none; }
 .player .pl-speed, .player .pl-moon { height: 36px; font-size: 11px; color: #e8cc98; border-color: #645333; }
@@ -37,4 +44,15 @@ body.has-player { padding-bottom: calc(112px + var(--safe-b)); }
 @media (max-width: 560px) {
   .player { left: 8px; right: 8px; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .player .pl-row { gap: 8px; }
+  .player .pl-left { display: contents; }
+  .player .pl-info { grid-column: 1 / -1; grid-row: 1; }
+  .player .pl-text { flex: 1; flex-direction: row; align-items: center; gap: 8px; }
+  .player .pl-title { flex: 1; min-width: 0; font-size: 13px; }
+  .player .pl-sub { flex: none; max-width: 45%; font-size: 10px; }
+  .player .pl-volume { grid-column: 1; grid-row: 2; }
+  .player .pl-transport { grid-column: 2; grid-row: 2; }
+  .player .pl-tools { grid-column: 3; grid-row: 2; }
+  .player .pl-vol-btn { width: 34px; height: 34px; }
+  .player .pl-row { row-gap: 4px; }
+  body.has-player { padding-bottom: calc(140px + var(--safe-b)); }
 }
