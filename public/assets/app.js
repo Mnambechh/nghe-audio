@@ -1749,27 +1749,49 @@
   }
 
   let rateWarnAt = 0;
+  let featureCarousel = null;
   function initFeatureCarousel() {
     const box = $('.noir-carousel');
-    if (!box || box.dataset.bound) return;
+    if (!box) { featureCarousel = null; return; }
+    if (box.dataset.bound) return;
     box.dataset.bound = '1';
     const slides = $('.noir-slides', box), count = slides.children.length;
-    const index = () => Math.round(slides.scrollLeft / Math.max(1, slides.clientWidth));
-    const go = i => slides.scrollTo({ left: ((i + count) % count) * slides.clientWidth,
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    let target = null, settleTimer = null, width = slides.clientWidth;
+    const index = () => Math.round(slides.scrollLeft / Math.max(1, width));
+    const go = (i, instant = false) => {
+      clearTimeout(settleTimer);
+      target = ((i % count) + count) % count;
+      slides.scrollTo({ left: target * width,
+        behavior: instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    };
+    // Tính từ đích đang chuyển để bấm nhanh không mất lượt chuyển.
+    const step = n => go((target === null ? index() : target) + n);
+    featureCarousel = { resize() {
+      const current = target === null ? index() : target;
+      width = slides.clientWidth;
+      go(current, true);
+    } };
     box.addEventListener('click', e => {
       const btn = e.target.closest('[data-feature-step],[data-feature-index]');
       if (!btn) return;
-      go(btn.hasAttribute('data-feature-index') ? +btn.dataset.featureIndex : index() + +btn.dataset.featureStep);
+      if (btn.hasAttribute('data-feature-index')) go(+btn.dataset.featureIndex);
+      else step(+btn.dataset.featureStep);
     });
     slides.addEventListener('scroll', () => {
       const current = index();
       $$('[data-feature-index]', box).forEach((btn, i) => btn.setAttribute('aria-current', String(i === current)));
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => { target = null; }, 150);
+    }, { passive: true });
+    slides.addEventListener('pointerdown', () => {
+      clearTimeout(settleTimer);
+      target = null;
+      slides.scrollTo({ left: slides.scrollLeft, behavior: 'instant' });
     }, { passive: true });
     slides.addEventListener('keydown', e => {
       if (e.target !== slides || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       e.preventDefault();
-      go(index() + (e.key === 'ArrowLeft' ? -1 : 1));
+      step(e.key === 'ArrowLeft' ? -1 : 1);
     });
   }
   // Kéo kệ bằng chuột; thao tác chạm vẫn dùng cuộn tự nhiên của trình duyệt.
@@ -1841,7 +1863,7 @@
       }, { passive: true });
     });
   }
-  window.addEventListener('resize', () => initRailDots());
+  window.addEventListener('resize', () => { initRailDots(); if (featureCarousel) featureCarousel.resize(); });
   // ---------- Bắn tim truyện (mỗi tài khoản 1 lần / truyện, không bỏ được) ----------
   function initHeart() {
     const box = $('.heart-box');

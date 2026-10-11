@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '98';
+export const ASSET_V = '99';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -364,21 +364,21 @@ function featuredStories(tracks) {
   if (!tracks || !tracks.length) return '';
   return `<section class="noir-carousel" role="region" aria-roledescription="carousel" aria-label="Truyện được đánh giá cao">
     <div class="noir-slides" tabindex="0" aria-label="Truyện nổi bật, dùng phím trái hoặc phải để chuyển">${tracks.map((t, i) => featuredStory(t, i, tracks.length)).join('')}</div>
-    ${tracks.length > 1 ? `<button class="noir-prev" type="button" data-feature-step="-1" aria-label="Truyện nổi bật trước">‹</button><button class="noir-next" type="button" data-feature-step="1" aria-label="Truyện nổi bật tiếp theo">›</button>
+    ${tracks.length > 1 ? `<button class="noir-prev" type="button" data-feature-step="-1" aria-label="Truyện nổi bật trước"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button><button class="noir-next" type="button" data-feature-step="1" aria-label="Truyện nổi bật tiếp theo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
     <div class="noir-feature-dots">${tracks.map((t, i) => `<button type="button" data-feature-index="${i}" aria-label="Xem truyện ${i + 1}: ${h(String(t.title).normalize('NFC'))}" aria-current="${i === 0}"></button>`).join('')}</div>` : ''}
   </section>`;
 }
 
 export function homePage(ctx, d) {
   const s = ctx.s;
-  let body = '<div class="wrap noir-home">';
+  let body = !d.q && d.page === 1 ? featuredStories(d.featured) : '';
+  body += '<div class="wrap noir-home">';
   if (d.q) {
     body += searchBox(d.q) + `<h1 class="h1 results-h">Kết quả cho “${h(d.q)}”</h1><p class="sub">${d.results.length} audio</p>`
       + `<div class="list">${d.results.map(row).join('')}</div>`
       + (d.results.length ? '' : '<p class="empty">Không tìm thấy audio nào. Thử từ khóa khác nhé.</p>');
   } else {
     if (d.page === 1) {
-      body += featuredStories(d.featured);
       body += `<h1 class="h1">Nghe gì hôm nay?</h1><p class="sub">${fmtInt(d.total)} audio · ${h(s.site_tagline)}</p>` + searchBox();
       if (d.latest.length) body += shelf('Mới cập nhật', rail(d.latest));
       if (d.hot.length) body += shelf('Đang nghe nhiều', rail(d.hot, { ranked: true }));

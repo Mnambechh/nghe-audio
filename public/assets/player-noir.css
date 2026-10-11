@@ -19,7 +19,7 @@
 }
 .player .pl-title { font-family: inherit; font-size: 14px; line-height: 1.5; }
 .player .pl-sub { font-family: inherit; font-size: 11px; color: #c6b897; }
-.player .pl-btn { width: 42px; height: 42px; font-size: 18px; background: #e6b85f; color: #211809; box-shadow: none; }
+.player .pl-btn { width: 48px; height: 48px; font-size: 20px; background: #e6b85f; color: #211809; box-shadow: none; }
 .player .pl-speed, .player .pl-moon { height: 36px; font-size: 11px; color: #e8cc98; border-color: #645333; }
 .player .pl-speed.on { color: #e6b85f; border-color: #e6b85f; }
 .player .pl-moon.on { color: #211809; background: #e6b85f; border-color: #e6b85f; }
