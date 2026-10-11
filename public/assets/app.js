@@ -137,12 +137,15 @@
     if (!value) return;
     value.textContent = deviceVolume ? 'Máy' : Math.round(audio.volume * 100) + '%';
     value.title = deviceVolume ? 'Dùng phím âm lượng của máy' : 'Âm lượng audio';
-    $('[data-act="volume-down"]', player).disabled = !deviceVolume && audio.volume <= 0;
-    $('[data-act="volume-up"]', player).disabled = !deviceVolume && audio.volume >= 1;
+    const range = $('.volume-range', player);
+    range.value = Math.round(audio.volume * 100);
+    range.disabled = deviceVolume;
+    range.setAttribute('aria-valuetext', deviceVolume ? 'Dùng phím âm lượng của máy' : value.textContent);
+    $('.pl-volume-note', player).hidden = !deviceVolume;
   }
-  function changeVolume(delta) {
+  function changeVolume(level) {
     if (deviceVolume) { toast('Trên iPhone/iPad, dùng phím âm lượng bên cạnh máy.'); return; }
-    const volume = Math.max(0, Math.min(1, Math.round((audio.volume + delta) * 10) / 10));
+    const volume = Math.max(0, Math.min(1, level / 100));
     try { audio.volume = volume; } catch { deviceVolume = true; }
     if (Math.abs(audio.volume - volume) > 0.01) deviceVolume = true;
     if (deviceVolume) toast('Trình duyệt này yêu cầu dùng phím âm lượng của máy.');
@@ -151,6 +154,12 @@
   }
   audio.addEventListener('volumechange', renderVolume);
   renderVolume();
+  $('.volume-range', player).addEventListener('input', e => changeVolume(+e.target.value));
+  function closeVolume() {
+    $('#volume-panel').hidden = true;
+    $('[data-act="volume-open"]', player).setAttribute('aria-expanded', 'false');
+  }
+  document.addEventListener('click', e => { if (!e.target.closest('.pl-volume')) closeVolume(); });
   let timer = null;        // {end: ms} hoặc {part: true}
   let dragging = false;
   const counted = new Set();
@@ -739,8 +748,13 @@
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
       case 'ul-close': $('#unlockbox').hidden = true; adAction = null; return;
       case 'toggle': toggle(); return;
-      case 'volume-down': changeVolume(-0.1); return;
-      case 'volume-up': changeVolume(0.1); return;
+      case 'volume-open': {
+        const panel = $('#volume-panel');
+        panel.hidden = !panel.hidden;
+        t.setAttribute('aria-expanded', String(!panel.hidden));
+        if (!panel.hidden && !deviceVolume) $('.volume-range', panel).focus();
+        return;
+      }
       case 'expand': openSheet(); return;
       case 'collapse': closeSheet(); return;
       case 'back': seekBy(-15); return;
@@ -770,6 +784,7 @@
   });
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('#volume-panel').hidden) { closeVolume(); $('[data-act="volume-open"]', player).focus(); }
     if (e.key === 'Escape') closeGenreMenus(true);
     if (e.key === 'Escape') { closeTopSearch(); const mm = $('#mainmenu'); if (mm) mm.hidden = true; }
     if (e.key === 'Escape') { ['.acct-card', '.notif-panel', '#timerpop'].forEach(sel => { const el = $(sel); if (el) el.hidden = true; }); }
