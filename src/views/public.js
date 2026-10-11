@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '105';
+export const ASSET_V = '106';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -738,11 +738,15 @@ function promaxQuest(s) {
       <span class="q-side"><a class="q-btn" href="${h(s.promax_url)}" target="_blank" rel="noopener">${h(s.promax_button || 'Mở')}</a></span></div>`;
 }
 
+function loadingPanel(id) {
+  return `<div id="${id}" class="service-panel panel-pending" aria-busy="true"><p class="c-note" role="status">Đang tải…</p><div class="panel-placeholder" aria-hidden="true">${'<div><i></i><span></span></div>'.repeat(4)}</div></div>`;
+}
+
 export function questsPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Nhiệm vụ</h1>
     <p class="sub">Làm nhiệm vụ mỗi ngày để nhận Linh Thạch và EXP tu luyện</p>
-    <div id="quests"><p class="c-note">Đang tải…</p></div>
+    ${loadingPanel('quests')}
     ${promaxQuest(ctx.s)}</div>`;
   return layout(ctx, { title: `Nhiệm vụ - ${ctx.s.site_name}`, canonical: ctx.origin + '/nhiem-vu', noindex: true }, body);
 }
@@ -751,14 +755,14 @@ export function shopPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Cửa hàng</h1>
     <p class="sub">Đổi Linh Thạch lấy khung avatar và hiệu ứng tên đa sắc — hiện ở bình luận, bảng xếp hạng và thẻ tài khoản</p>
-    <div id="shop"><p class="c-note">Đang tải…</p></div></div>`;
+    ${loadingPanel('shop')}</div>`;
   return layout(ctx, { title: `Cửa hàng - ${ctx.s.site_name}`, canonical: ctx.origin + '/cua-hang', noindex: true }, body);
 }
 
 export function withdrawPage(ctx) {
   const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
     <h1 class="h1">Rút Linh Thạch</h1>
-    <div id="withdraw"><p class="c-note">Đang tải…</p></div></div>`;
+    ${loadingPanel('withdraw')}</div>`;
   return layout(ctx, { title: `Rút Linh Thạch - ${ctx.s.site_name}`, canonical: ctx.origin + '/rut-linh-thach', noindex: true }, body);
 }
 

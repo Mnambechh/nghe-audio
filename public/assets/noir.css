@@ -243,6 +243,11 @@ body.site-noir .ac-vip { background: #302719; color: #eac77f; border: 1px solid 
 body.site-noir .vip-buy .sh-buy { color: #211809; background: linear-gradient(110deg, #ecc773, #ca984b); }
 body.site-noir .vip-buy .sh-sold { color: #bba578; }
 body.site-noir .wd-warn { background: #30251a; color: #edc984; border: 1px solid #72562f; }
+/* Giữ chỗ ngay lần tải đầu; không có hiệu ứng nhấp nháy/shimmer. */
+body.site-noir .service-panel { min-height: 420px; min-height: min(600px, calc(100svh - 200px)); }
+body.site-noir .panel-placeholder > div { display: flex; align-items: center; gap: 12px; height: 76px; margin: 10px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-sizing: border-box; }
+body.site-noir .panel-placeholder i { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 6px; background: #242526; }
+body.site-noir .panel-placeholder span { width: 52%; height: 9px; background: #292b2c; border-radius: 3px; }
 body.site-noir .gd-card, body.site-noir .prose, body.site-noir .soon { background: var(--surface); border-color: var(--line); border-radius: 8px; }
 body.site-noir .gd-note, body.site-noir .gd-tr:nth-child(odd), body.site-noir .nf-detail .np-ico { background: #1b1d1c; }
 body.site-noir .gd-warn { background: #2b2419; color: #e8cc93; }

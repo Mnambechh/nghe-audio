@@ -27,6 +27,44 @@
   const APP = window.APP || { base: '', ad: null };
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  // Đồng bộ các trang dữ liệu mà không tháo ảnh, hiệu ứng và ô đang nhập khỏi DOM.
+  function updatePanel(box, html) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const fields = $$('input, select, textarea', box).map(el => ({ el, value: el.value, checked: el.checked }));
+    const key = n => n.nodeType === 1 ? n.tagName + ':' + (n.id || n.getAttribute('data-render-key') || '') : '';
+    const compatible = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || a.tagName === b.tagName) && key(a) === key(b);
+    function patch(parent, next) {
+      let cursor = parent.firstChild;
+      Array.from(next.childNodes).forEach(n => {
+        let old = cursor;
+        const keyed = n.nodeType === 1 && (n.id || n.hasAttribute('data-render-key'));
+        if (keyed && (!old || !compatible(old, n))) old = Array.from(parent.childNodes).find(x => compatible(x, n));
+        if (!old || !compatible(old, n)) {
+          parent.insertBefore(n.cloneNode(true), cursor);
+          return;
+        }
+        if (old !== cursor) parent.insertBefore(old, cursor);
+        if (!old.isEqualNode(n)) {
+          if (n.nodeType === 1) {
+            Array.from(old.attributes).forEach(a => { if (!n.hasAttribute(a.name)) old.removeAttribute(a.name); });
+            Array.from(n.attributes).forEach(a => { if (old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value); });
+            patch(old, n);
+          } else if (old.nodeValue !== n.nodeValue) old.nodeValue = n.nodeValue;
+        }
+        cursor = old.nextSibling;
+      });
+      while (cursor) { const next = cursor.nextSibling; parent.removeChild(cursor); cursor = next; }
+    }
+    patch(box, template.content);
+    fields.forEach(({ el, value, checked }) => {
+      if (!box.contains(el)) return;
+      if (el.type === 'radio' || el.type === 'checkbox') el.checked = checked;
+      else if (el.value !== value && (el.tagName !== 'SELECT' || Array.from(el.options).some(o => o.value === value))) el.value = value;
+    });
+    box.classList.remove('panel-pending');
+    box.removeAttribute('aria-busy');
+  }
   const audio = $('#audio');
   const player = $('#player');
   const sheet = $('#sheet');
@@ -630,7 +668,6 @@
     loadProfile();
     loadQuests();
     loadNotifPage();
-    if (me && ($('#quests') || $('#withdraw'))) fetchMe(); // lấy tiến độ / số dư mới nhất khi chuyển trang
     loadWithdraw();
     loadShop();
     markMenu();
@@ -812,6 +849,17 @@
       const main = doc.querySelector('#main');
       if (!main) throw new Error('no main');
       if (sequence !== navSequence) return;
+      // Chuẩn bị ba trang dữ liệu khi trang cũ vẫn đang hiện: không vẽ khung tải
+      // nhỏ rồi mở bung thành danh sách/form sau khi chuyển trang.
+      const quests = main.querySelector('#quests'), withdraw = main.querySelector('#withdraw'), storePage = main.querySelector('#shop');
+      if (quests || withdraw || storePage) {
+        if (!meLoaded || quests || withdraw) await fetchMe();
+        if (sequence !== navSequence) return;
+        if (quests) loadQuests(quests);
+        if (withdraw) await loadWithdraw(withdraw);
+        if (storePage) await loadShop(storePage);
+        if (sequence !== navSequence) return;
+      }
       $('#main').replaceWith(main);
       document.title = doc.title;
       ['meta[name="description"]', 'link[rel="canonical"]'].forEach(sel => {
@@ -983,34 +1031,33 @@
   }
 
   // Trang nhiệm vụ: tiến độ hôm nay.
-  function loadQuests() {
-    const box = $('#quests');
+  function loadQuests(box = $('#quests')) {
     if (!box || !meLoaded) return;
     if (!me || !game) {
-      box.innerHTML = '<div class="c-login"><p>Đăng nhập để làm nhiệm vụ và nhận Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      updatePanel(box, '<div class="c-login"><p>Đăng nhập để làm nhiệm vụ và nhận Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>');
       return;
     }
     const g = game, ckLeft = Math.max(0, Math.ceil(ckLeftSec));
-    const q = (icon, title, desc, done, total, reward, btn, listenMin = null) => {
+    const q = (icon, title, desc, done, total, reward, btn, listenMin = null, renderKey = icon) => {
       const pct = total ? Math.min(100, done / total * 100) : 0, fin = done >= total;
-      return `<div class="quest${fin ? ' done' : ''}"${listenMin !== null ? ` data-listen-min="${listenMin}"` : ''}><span class="q-ico">${navIcon(icon)}</span>
+      return `<div data-render-key="quest-${esc(listenMin !== null ? 'listen-' + listenMin : renderKey)}" class="quest${fin ? ' done' : ''}"${listenMin !== null ? ` data-listen-min="${listenMin}"` : ''}><span class="q-ico">${navIcon(icon)}</span>
         <span class="q-body"><b>${title}</b><small>${desc}</small>
           <span class="q-bar"><span style="width:${pct}%"></span></span><small class="q-prog">${done}/${total}</small></span>
         <span class="q-side"><span class="q-reward">${reward}</span>${fin ? `<span class="q-ok">✓ Xong</span><small class="q-again">làm lại sau <b class="q-reset">${fmtClock(questLeft())}</b></small>` : btn || ''}</span></div>`;
     };
     if (g.quests && g.quests.resetIn != null && !questResetAt) questResetAt = Date.now() + g.quests.resetIn * 1000;
-    box.innerHTML = `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">${navIcon('rotate')} Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
+    updatePanel(box, `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">${navIcon('rotate')} Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
       ${q('gift', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left" data-waiting="${ckLeft > 0}">${checkinHint(ckLeft, !pageActive())}</span>`, g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} ${navIcon('diamond')} · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
       ${(c => c ? q('comments', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
         `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`) : '')(g.quests && g.quests.comment)}
       ${((g.quests && g.quests.links) || []).map(x => q('target', esc(x.title), 'Bấm Mở để xem, mỗi ngày 1 lần', x.done ? 1 : 0, 1,
-        rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`)).join('')}
+        rewardText(x.stones, x.exp), `<a class="q-btn" href="${esc(x.url)}" target="_blank" rel="noopener" data-quest="${x.id}">Mở</a>`, null, 'link-' + x.id)).join('')}
       <p class="c-note">Nhiệm vụ hằng ngày làm mới lúc 0h.</p>
       <h2 class="h2">Tu luyện</h2>
       ${q('bolt', `Đột phá lên cấp ${g.level.lvl + 1}`, `Hiện tại: ${esc(g.level.realm)}`, g.level.cur, g.level.need || 1, `+${nf(g.levelStones)} ${navIcon('diamond')}`, '')}
-      <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> ${navIcon('diamond')}</p>`;
+      <p class="c-note">Linh Thạch hiện có: <b>${nf(g.stones)}</b> ${navIcon('diamond')}</p>`);
   }
 
   // Đếm ngược tới 0h (múi giờ của web) — lúc đó nhiệm vụ hằng ngày làm mới.
@@ -1115,36 +1162,61 @@
 
   // ---------- Rút Linh Thạch ----------
   let wd = null;
+  let accountRevision = 0;
+  const panelData = { withdraw: {}, shop: {} };
+  function requestPanel(kind, force = false) {
+    const state = panelData[kind], userId = me ? me.id : 0, revision = accountRevision;
+    if (!force && state.userId === userId) {
+      if (state.pending) return state.pending;
+      if (state.data && Date.now() - state.updated < 1000) return Promise.resolve(state.data);
+    }
+    const requestId = (state.requestId || 0) + 1;
+    state.requestId = requestId;
+    state.userId = userId;
+    const pending = fetch(`${APP.base}/api/${kind}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => r.json()).then(r => {
+      if (revision !== accountRevision || userId !== (me ? me.id : 0) || state.requestId !== requestId) return null;
+      if (!r || !r.ok) throw new Error('panel unavailable');
+      state.data = r;
+      state.updated = Date.now();
+      if (kind === 'withdraw') wd = r;
+      else { shop = r; shopUserId = userId; }
+      return r;
+    }).finally(() => { if (state.requestId === requestId) state.pending = null; });
+    state.pending = pending;
+    return pending;
+  }
+  function panelError(box) {
+    // Mất mạng khi làm mới: giữ nội dung đã tải, không thu cả trang về một dòng.
+    if (box.classList.contains('panel-pending')) updatePanel(box, '<p class="c-note" role="status">Không tải được, thử lại sau.</p>');
+  }
   const WD_ICON = { bank: '🏦', momo: '🟣', viettelpay: '🔴', zalopay: '🔵' };
   const accLabel = a => `${WD_ICON[a.method] || ''} ${esc(wd.methods[a.method] || a.method)}${a.bank ? ' · ' + esc(a.bank) : ''}`;
 
-  function loadWithdraw() {
-    const box = $('#withdraw');
+  function loadWithdraw(box = $('#withdraw'), force = false) {
     if (!box || !meLoaded) return;
     if (!me) {
-      box.innerHTML = '<div class="c-login"><p>Đăng nhập để rút Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      updatePanel(box, '<div class="c-login"><p>Đăng nhập để rút Linh Thạch.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>');
       return;
     }
-    fetch(`${APP.base}/api/withdraw`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
-      if (!r || !r.ok || $('#withdraw') !== box) return;
-      wd = r;
-      renderWithdraw();
-    }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
+    const userId = me.id;
+    if (wd && panelData.withdraw.userId === userId) renderWithdraw(box);
+    return requestPanel('withdraw', force).then(r => {
+      if (r && userId === (me && me.id)) renderWithdraw(box);
+    }).catch(() => { panelError(box); });
   }
 
-  function renderWithdraw() {
-    const box = $('#withdraw');
+  function renderWithdraw(box = $('#withdraw')) {
     if (!box || !wd) return;
     const c = wd.config, vnd = n => nf(Math.floor(n * c.rate)) + 'đ';
     const STATUS = { pending: ['Chờ duyệt', 'st-pending'], paid: ['Đã chuyển', 'st-paid'], rejected: ['Từ chối, đã hoàn', 'st-rejected'] };
-    box.innerHTML = `
+    updatePanel(box, `
       <div class="wd-balance"><span>Số dư</span><b>${nf(wd.balance)} 💎</b>${c.rate !== 1 ? `<small>≈ ${vnd(wd.balance)}</small>` : ''}</div>
       <p class="wd-rules">Rút tối thiểu <b>${nf(c.min)}</b> Linh Thạch${c.daily ? ` · ${c.daily} lần/ngày` : ''}. Admin duyệt và chuyển khoản thủ công, thường trong 24–48 giờ.</p>
       ${wd.blocked ? `<div class="wd-warn">${esc(wd.blocked)}</div>` : ''}
 
       <h2 class="h2">Tạo yêu cầu rút</h2>
       ${wd.accounts.length ? `<form class="wd-form" id="wdForm">
-        <div class="wd-accs">${wd.accounts.map((a, i) => `<label class="wd-acc"><input type="radio" name="account_id" value="${a.id}"${i === 0 ? ' checked' : ''}>
+        <div class="wd-accs">${wd.accounts.map((a, i) => `<label class="wd-acc" data-render-key="account-${a.id}"><input type="radio" name="account_id" value="${a.id}"${i === 0 ? ' checked' : ''}>
           <span><b>${accLabel(a)}</b><small>${esc(a.number)} · ${esc(a.holder)}</small></span></label>`).join('')}</div>
         <label class="wd-amount">Số Linh Thạch muốn rút
           <input name="amount" inputmode="numeric" placeholder="${nf(c.min)}" autocomplete="off"></label>
@@ -1155,7 +1227,7 @@
       </form>` : '<p class="c-note">Hãy thêm tài khoản nhận tiền bên dưới trước khi rút.</p>'}
 
       <h2 class="h2">Tài khoản nhận tiền <small class="muted">(${wd.accounts.length}/3)</small></h2>
-      <div class="list">${wd.accounts.map(a => `<div class="row wd-row"><span class="row-body"><b>${accLabel(a)}</b>
+      <div class="list">${wd.accounts.map(a => `<div class="row wd-row" data-render-key="account-${a.id}"><span class="row-body"><b>${accLabel(a)}</b>
         <span class="meta">${esc(a.number)} · ${esc(a.holder)}</span></span>
         <button class="hist-del" type="button" data-act="wd-del" data-id="${a.id}" aria-label="Xóa">×</button></div>`).join('')}</div>
       ${wd.accounts.length < 3 ? `<form class="wd-add" id="wdAdd">
@@ -1167,10 +1239,13 @@
       </form>` : ''}
 
       <h2 class="h2">Lịch sử rút</h2>
-      <div class="list">${wd.history.map(w => `<div class="row wd-row"><span class="row-body">
+      <div class="list">${wd.history.map(w => `<div class="row wd-row" data-render-key="withdraw-${w.id}"><span class="row-body">
         <span class="row-head"><b>${nf(w.amount)} 💎 → ${nf(w.vnd)}đ</b><span class="st ${STATUS[w.status][1]}">${STATUS[w.status][0]}</span></span>
         <span class="meta">${esc(wd.methods[w.method] || w.method)}${w.bank ? ' · ' + esc(w.bank) : ''} · ${esc(w.number)} · ${cDate(w.created_at)}</span>
-        ${w.admin_note ? `<span class="meta">Ghi chú: ${esc(w.admin_note)}</span>` : ''}</span></div>`).join('') || '<p class="c-note">Chưa có yêu cầu rút nào.</p>'}</div>`;
+        ${w.admin_note ? `<span class="meta">Ghi chú: ${esc(w.admin_note)}</span>` : ''}</span></div>`).join('') || '<p class="c-note">Chưa có yêu cầu rút nào.</p>'}</div>`);
+    const method = $('#wdAdd [name=method]:checked', box), amount = $('#wdForm [name=amount]', box);
+    if (method) method.dispatchEvent(new Event('change', { bubbles: true }));
+    if (amount) amount.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   document.addEventListener('change', e => {
@@ -1198,7 +1273,7 @@
     }
     const d = e.target.closest('[data-act="wd-del"]');
     if (d) askConfirm('Xóa tài khoản nhận tiền này?', 'Xóa', '🗑️').then(y => {
-      if (y) api('/api/withdraw/account/delete', { id: +d.dataset.id }).then(() => loadWithdraw());
+      if (y) api('/api/withdraw/account/delete', { id: +d.dataset.id }).then(() => loadWithdraw($('#withdraw'), true));
     });
   });
   document.addEventListener('submit', e => {
@@ -1208,7 +1283,7 @@
       const d = Object.fromEntries(new FormData(f));
       api('/api/withdraw/account', d).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không thêm được'); return; }
-        toast('Đã thêm tài khoản nhận tiền'); loadWithdraw();
+        f.reset(); toast('Đã thêm tài khoản nhận tiền'); loadWithdraw($('#withdraw'), true);
       });
     }
     if (f.id === 'wdForm') {
@@ -1218,46 +1293,41 @@
       askConfirm(`Rút <b>${nf(amount)} 💎</b> Linh Thạch?`, 'Rút', '💸').then(y => y && once('withdraw', () => api('/api/withdraw', { account_id: +d.account_id, amount }).then(r => {
         if (!r || !r.ok) { toast((r && r.error) || 'Không gửi được yêu cầu'); return; }
         rewardToast(`Đã gửi yêu cầu rút <b>${nf(r.amount)} 💎</b>`, '💸', 5000);
-        loadWithdraw(); fetchMe();
+        f.reset(); loadWithdraw($('#withdraw'), true); fetchMe();
       })));
     }
   });
 
   // ---------- Cửa hàng: hiệu ứng tên ----------
   let shop = null, shopUserId = null;
-  function loadShop() {
-    const box = $('#shop');
+  function loadShop(box = $('#shop'), force = false) {
     if (!box || !meLoaded) return;
     const userId = me ? me.id : 0;
-    if (shop && shopUserId === userId) renderShop();
-    fetch(`${APP.base}/api/shop`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
-      if (!r || !r.ok || $('#shop') !== box || userId !== (me ? me.id : 0)) return;
-      shop = r;
-      shopUserId = userId;
-      renderShop();
-    }).catch(() => { box.innerHTML = '<p class="c-note">Không tải được, thử lại sau.</p>'; });
+    if (shop && shopUserId === userId) renderShop(box);
+    return requestPanel('shop', force).then(r => {
+      if (r && userId === (me ? me.id : 0)) renderShop(box);
+    }).catch(() => { panelError(box); });
   }
   const fxLeft = until => {
     if (!until) return 'vĩnh viễn';
     const d = Math.floor((until - Date.now() / 1000) / 86400);
     return d >= 1 ? `còn ${d} ngày` : 'còn dưới 1 ngày';
   };
-  function renderShop() {
-    const box = $('#shop');
+  function renderShop(box = $('#shop')) {
     if (!box || !shop) return;
     const name = me ? me.name : 'Tên của bạn';
     const own = {};
     shop.owned.forEach(o => { own[o.key] = o; });
     const fxs = shop.owned.filter(o => o.kind === 'fx'), frs = shop.owned.filter(o => o.kind === 'frame');
     const frPrev = (img, scale) => `<span class="sh-fav">${lvAv(name, me && me.avatar, null, 'c-av', { frame: img, fs: scale })}</span>`;
-    const mine = shop.owned.length ? `<h2 class="h2">Vật phẩm của bạn</h2>
+    const mine = shop.owned.length ? `<h2 class="h2" data-render-key="owned-title">Vật phẩm của bạn</h2>
       ${fxs.length ? `<div class="sh-own">${fxs.map(o => `<button type="button" class="sh-chip${shop.using === o.fx ? ' on' : ''}" data-fx-use="${esc(o.fx)}"><b${fxCls(o.fx)}>${esc(o.name)}</b><small>${shop.using === o.fx ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></button>`).join('')}
         <button type="button" class="sh-chip${shop.using ? '' : ' on'}" data-fx-use=""><b>Tên thường</b><small>Không hiệu ứng</small></button></div>` : ''}
       ${frs.length ? `<div class="sh-own">${frs.map(o => `<button type="button" class="sh-chip sh-chip-fr${shop.frameUsing === o.id ? ' on' : ''}" data-frame-use="${o.id}">${frPrev(o.img, o.scale)}<span><b>${esc(o.name)}</b><small>${shop.frameUsing === o.id ? 'Đang dùng · ' : ''}${fxLeft(o.until)}</small></span></button>`).join('')}
         <button type="button" class="sh-chip${shop.frameUsing ? '' : ' on'}" data-frame-use="0"><b>Không khung</b><small>Avatar thường</small></button></div>` : ''}` : '';
     const card = (i, prev) => {
       const o = own[i.key], perm = !!o && !o.until;
-      return `<div class="sh-item"><div class="sh-prev">${prev}</div>
+      return `<div class="sh-item" data-render-key="item-${i.id}"><div class="sh-prev">${prev}</div>
         <b class="sh-name">${esc(i.name)}</b>
         <small class="sh-dur">${i.days ? `${i.days} ngày` : 'Vĩnh viễn'}${o ? ` · bạn có: ${fxLeft(o.until)}` : ''}</small>
         <small class="sh-sold">🔥 Đã bán ${nf(i.sold)}</small>
@@ -1265,21 +1335,21 @@
     };
     const fxItems = shop.items.filter(i => i.kind === 'fx'), frItems = shop.items.filter(i => i.kind === 'frame'), vipItems = shop.items.filter(i => i.kind === 'vip');
     const vipDays = vipItems.length ? Math.max(1, vipItems[0].days || 7) : 7; // số ngày của gói VIP (admin cài)
-    const vipHtml = vipItems.length ? `<h2 class="h2">👑 Gói Promax VIP</h2>
-      <div class="vip-card">
+    const vipHtml = vipItems.length ? `<h2 class="h2" data-render-key="vip-title">👑 Gói Promax VIP</h2>
+      <div class="vip-card" data-render-key="vip-card">
         <div class="vip-head"><b>Promax VIP</b>${VIP_TICK}${shop.vipUntil ? `<em class="vip-on">Đang dùng · ${vipLeft(shop.vipUntil)}</em>` : ''}</div>
         <ul class="vip-perks"><li>🚫 Bỏ quảng cáo toàn web</li><li>${VIP_TICK} Tích xanh xác thực khi bình luận và ở trang cá nhân</li>
           <li>⚡ x2 kinh nghiệm (EXP) mọi nhiệm vụ trong ${vipDays} ngày</li><li>💎 x2 Linh Thạch kiếm được trong ${vipDays} ngày khi mua</li></ul>
         <p class="vip-count">👥 ${nf(shop.vipCount)} người đang sở hữu</p>
         <div class="vip-buy">${vipItems.map(i => `<button type="button" class="sh-buy" data-buy="${i.id}">${shop.vipUntil ? 'Gia hạn' : 'Mua'} ${esc(i.name)} · ${nf(i.price)} 💎</button><small class="sh-sold">🔥 Đã bán ${nf(i.sold)} · ${Math.max(1, i.days)} ngày${shop.vipUntil ? ', cộng dồn thêm' : ''}</small>`).join('')}</div>
       </div>` : '';
-    box.innerHTML = `${me ? `<div class="wd-balance"><span>Số dư</span><b>${nf(shop.stones)} 💎</b></div>`
+    updatePanel(box, `${me ? `<div class="wd-balance"><span>Số dư</span><b>${nf(shop.stones)} 💎</b></div>`
       : '<div class="c-login"><p>Đăng nhập để mua vật phẩm.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>'}
       ${vipHtml}
       ${mine}
-      ${frItems.length ? `<h2 class="h2">Khung avatar</h2><div class="sh-grid">${frItems.map(i => card(i, frPrev(i.img, i.scale))).join('')}</div>` : ''}
-      <h2 class="h2">Hiệu ứng tên</h2>
-      <div class="sh-grid">${fxItems.map(i => card(i, `<span class="nfx nfx-${esc(i.fx)}">${esc(name)}</span>`)).join('') || '<p class="c-note">Cửa hàng đang cập nhật gói mới.</p>'}</div>`;
+      ${frItems.length ? `<h2 class="h2" data-render-key="frames-title">Khung avatar</h2><div class="sh-grid" data-render-key="frames">${frItems.map(i => card(i, frPrev(i.img, i.scale))).join('')}</div>` : ''}
+      <h2 class="h2" data-render-key="fx-title">Hiệu ứng tên</h2>
+      <div class="sh-grid" data-render-key="fx">${fxItems.map(i => card(i, `<span class="nfx nfx-${esc(i.fx)}">${esc(name)}</span>`)).join('') || '<p class="c-note">Cửa hàng đang cập nhật gói mới.</p>'}</div>`);
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-buy]'), u = e.target.closest('[data-fx-use]'), fu = e.target.closest('[data-frame-use]');
@@ -1296,17 +1366,17 @@
           rewardToast(`Mua thành công <b>${esc(r.name)}</b> · <b>-${nf(r.price)} 💎</b>`, '🛍️', 5000);
           if (r.kind === 'fx' || !r.kind) me.fx = r.fx;
           if (r.kind === 'vip') { me.vipUntil = r.until; store.set('vip_until', r.until); renderGame(); }
-          loadShop(); fetchMe();
+          loadShop($('#shop'), true); fetchMe();
         })));
     } else if (u) {
       once('shop', () => api('/api/shop/use', { fx: u.dataset.fxUse }).then(r => {
         if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
-        me.fx = r.fx; toast(r.fx ? 'Đã đổi hiệu ứng tên' : 'Đã tắt hiệu ứng tên'); loadShop(); renderGame();
+        me.fx = r.fx; toast(r.fx ? 'Đã đổi hiệu ứng tên' : 'Đã tắt hiệu ứng tên'); loadShop($('#shop'), true); renderGame();
       }));
     } else {
       once('shop', () => api('/api/shop/use', { frame: +fu.dataset.frameUse }).then(r => {
         if (!r || !r.ok) { if (!(r && r.silent)) toast((r && r.error) || 'Chưa đổi được'); return; }
-        toast(r.frame ? 'Đã đổi khung avatar' : 'Đã bỏ khung avatar'); loadShop(); fetchMe();
+        toast(r.frame ? 'Đã đổi khung avatar' : 'Đã bỏ khung avatar'); loadShop($('#shop'), true); fetchMe();
       }));
     }
   });
@@ -1647,6 +1717,11 @@
     if (m && g && g.unread > 0) setTimeout(toastNewNotifs, 600);
     const changed = (me && me.id) !== (m && m.id) || !$('.acct-btn') !== !m;
     const prevLvl = !changed && game && game.level ? game.level.lvl : 0;
+    if ((me && me.id) !== (m && m.id)) {
+      accountRevision++;
+      wd = null; shop = null; shopUserId = null;
+      Object.keys(panelData).forEach(k => { panelData[k] = {}; });
+    }
     me = m || null;
     game = me ? (g || game) : null;
     store.set('vip_until', me ? me.vipUntil || 0 : 0); // nhớ VIP để bỏ quảng cáo ngay cả khi chưa tải xong tài khoản
@@ -1664,6 +1739,8 @@
 
   // Biên tập viên: thêm "Đăng truyện" vào menu (đường dẫn /bien-tap, máy chủ chỉ mở cho đúng người có quyền).
   function renderEditorNav() {
+    const existing = $$('.editor-link');
+    if (editorUrl && me && existing.length === 2 && existing.every(a => a.getAttribute('href') === editorUrl)) return;
     $$('.editor-link').forEach(a => a.remove());
     if (!editorUrl || !me) return;
     const html = `<a class="editor-link" href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>`;
@@ -1702,16 +1779,17 @@
     $$('#comments .c-form').forEach(f => { f.firstElementChild.outerHTML = lvAv(me.name, me.avatar, L, 'c-av', me); });
   }
 
-  let meFetchedAt = 0;
+  let meFetchedAt = 0, meSequence = 0;
   function fetchMe() {
+    const sequence = ++meSequence;
     meFetchedAt = Date.now();
     return fetch(`${APP.base}/api/me`, { credentials: 'same-origin' }).then(r => r.json()).then(r => {
-      if (!r || !r.ok) return;
+      if (!r || !r.ok || sequence !== meSequence) return;
       clientId = r.clientId || '';
       avatarMaxMb = r.avatarMaxMb || 5;
       editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadShop(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
+    }).catch(() => {}).finally(() => { if (sequence !== meSequence) return; meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadShop(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1736,11 +1814,13 @@
   }
   function logoutNow() {
     api('/api/auth/logout', {}).then(() => {
+      meSequence++;
       setMe(null);
       toast('Đã đăng xuất');
       loadComments();
       loadHistory();
       loadProfile();
+      loadQuests(); loadWithdraw(); loadShop();
     });
   }
 
