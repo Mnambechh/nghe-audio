@@ -1,0 +1,59 @@
+/* Chỉ đổi giao diện quản trị và biên tập viên, giữ nguyên tất cả form và menu. */
+html.admin-noir { color-scheme: dark; background: #0a0c0e; }
+html.admin-noir body {
+  --brand: #d9b467; --bg: #0a0c0e; --surface: #141719; --line: #34342f;
+  --text: #e9e6dd; --muted: #aaa79e; --danger: #ef9191;
+  background: radial-gradient(ellipse at 80% 0, #59431a20, transparent 55%), var(--bg);
+}
+.admin-noir .qt-top { background: #101214f5; border-bottom: 1px solid #765c303f; padding: 12px 20px; }
+.admin-noir .qt-brand { color: #eccc8e; font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+.admin-noir .qt-brand small { color: #bda578; font-family: system-ui, sans-serif; font-size: 12px; }
+.admin-noir .qt-nav a { color: #b9b6ae; border-radius: 4px; }
+.admin-noir .qt-nav a.on { color: #f1d59a; background: #2b2419; }
+.admin-noir .qt-nav a:hover { background: #25221b; color: #efd5a1; }
+.admin-noir .qt-main { padding-top: 30px; }
+.admin-noir h1, .admin-noir h2 { font-family: Georgia, "Times New Roman", serif; color: #eed2a0; font-weight: 400; }
+.admin-noir h1 { font-size: 27px; }
+.admin-noir .card, .admin-noir .table, .admin-noir .stats div, .admin-noir .auth-box { background: #141719; border: 1px solid #39372d; border-radius: 8px; box-shadow: 0 6px 28px #0002; }
+.admin-noir .stats b { color: #efd49b; }
+.admin-noir .btn { color: #211809; background: linear-gradient(110deg, #edcb7c, #bb8d42); border: 1px solid #d8ad5d; border-radius: 5px; }
+.admin-noir .btn.ghost { color: #e4d2ac; background: #1a1d1e; border-color: #625135; }
+.admin-noir .row-actions.sticky { background: #141719f5; border-top-color: #54452e; }
+.admin-noir .form input:not([type=checkbox]):not([type=color]):not([type=file]), .admin-noir .form textarea, .admin-noir .bar input, .admin-noir #bulkText, .admin-noir select { background: #0d1012; color: var(--text); border: 1px solid #494538; border-radius: 5px; }
+.admin-noir input::placeholder, .admin-noir textarea::placeholder { color: #85837a; }
+.admin-noir input[type=checkbox], .admin-noir input[type=radio] { accent-color: #ddb86b; }
+.admin-noir .form input:focus, .admin-noir .form textarea:focus { outline: 2px solid #b7964e55; border-color: #cba251; }
+.admin-noir .trow { color: var(--text); }
+.admin-noir a.trow:hover { background: #211f19; }
+.admin-noir .tmain b { font-family: Georgia, serif; font-size: 16px; font-weight: 400; }
+.admin-noir .tedit { background: #252117; border-color: #73603c; }
+.admin-noir .part-row, .admin-noir .seo-box, .admin-noir .cover-prev, .admin-noir .cover-box, .admin-noir .serp { background: #101416; border-color: #3c3a30; border-radius: 7px; }
+.admin-noir .pfields input { background: #0d1012; border-color: #494538; color: var(--text); }
+.admin-noir .pbtns button { color: #d8c296; background: #1b1f21; border-color: #54472f; }
+.admin-noir .pno { color: #211809; background: #d5ad5f; }
+.admin-noir .pager a { color: #c9c3b4; background: #171a1c; border-color: #4b4435; border-radius: 4px; }
+.admin-noir .pager a.on { color: #211809; background: #d9b467; }
+.admin-noir .flash.ok { color: #a9d4a2; background: #1c2c22; border: 1px solid #496b48; }
+.admin-noir .flash.err { color: #edb0a4; background: #35221f; border: 1px solid #774e42; }
+.admin-noir .pill { color: #cfcbc2; background: #33332c; }
+.admin-noir .pill.ok { color: #b1dba9; background: #28372b; }
+.admin-noir .muted, .admin-noir small { color: var(--muted); }
+.admin-noir .live-n { color: #9bcc9c; }
+.admin-noir .auth-box { padding: 28px; }
+.admin-noir .pdur.loading { background: #1f221a linear-gradient(90deg, transparent, #6c573033, transparent) 0 0 / 200% 100%; }
+.admin-noir .serp-title { color: #e0c387; }
+.admin-noir .serp-url { color: #a7c798; }
+.admin-noir .form .check { color: var(--text); }
+.admin-noir .wacc, .admin-noir .copy, .admin-noir .mt-head, .admin-noir .mt-row:hover, .admin-noir .mt-ip code, .admin-noir .totp-key, .admin-noir .recovery code, .admin-noir .ipg-head code, .admin-noir .ipcheck { background: #1b1e20; color: var(--text); }
+.admin-noir .mt-row.is-locked { background: #2e1d1d; }
+.admin-noir .st-ok, .admin-noir .totp-key.copied { background: #1e3324; color: #acd6a1; border-color: #426848; }
+.admin-noir .st-warn, .admin-noir .confirm-box, .admin-noir .ipg-hot { background: #302719; color: #e8c78d; border-color: #78603a; }
+.admin-noir .st-bad { background: #351f20; color: #eab0ac; border-color: #794247; }
+.admin-noir .st-admin { background: #252637; color: #bcbde9; border-color: #585975; }
+.admin-noir .st-editor { background: #30202a; color: #e1b0cd; border-color: #725365; }
+.admin-noir .mi:hover { background: #252836; }
+.admin-noir .mi-orange:hover { background: #38271b; }
+.admin-noir .mi-green:hover { background: #1e3324; }
+.admin-noir .mi-red:hover { background: #351f20; }
+.admin-noir .serp-desc { color: #c0bfb5; }
+.admin-noir a:focus-visible, .admin-noir button:focus-visible { outline: 2px solid #ebc97e; outline-offset: 3px; }

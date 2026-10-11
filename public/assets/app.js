@@ -566,6 +566,8 @@
 
   function initPage() {
     pageTrack = readTrack();
+    // Chỉ đổi giao diện; trang nghe giữ kiểu cũ khi chuyển trang mà audio vẫn đang phát.
+    body.classList.toggle('site-noir', !pageTrack);
     initComments();
     if (pageTrack) {
       updateResume();

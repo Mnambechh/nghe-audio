@@ -11,13 +11,14 @@ const asset = f => `/assets/${f}?v=${ASSET_V}`;
 
 function shell(title, body, extraHead = '') {
   return `<!doctype html>
-<html lang="vi">
+<html lang="vi" class="admin-noir">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${h(title)}</title>
 <link rel="stylesheet" href="${asset('admin.css')}">${extraHead}
+<link rel="stylesheet" href="${asset('noir-admin.css')}">
 </head>
 ${body}
 </html>`;
