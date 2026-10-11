@@ -33,6 +33,15 @@
   const body = document.body;
   const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
   const DEFAULT_SPEED = 1.5; // tốc độ nghe mặc định khi người nghe chưa tự chọn
+  const NAV_PATHS = {
+    pencil: 'm16 3 5 5-12 12-6 1 1-6z M14 5l5 5',
+    user: 'M20 21v-2a7 7 0 0 0-14 0v2 M13 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+    history: 'M3 11a9 9 0 1 1 2 7 M3 4v7h7 M12 7v5l3 2',
+    bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
+    trophy: 'M8 3h8v7a4 4 0 0 1-8 0z M8 5H4v3a4 4 0 0 0 4 4 M16 5h4v3a4 4 0 0 1-4 4 M12 14v7 M8 21h8',
+  };
+  const navIcon = name => `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${NAV_PATHS[name]}"/></svg>`;
+
 
   // ---------- Lưu trữ cục bộ (an toàn khi bị chặn) ----------
   const store = {
@@ -1291,7 +1300,7 @@
       <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">👤 Thông tin tài khoản</a><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a><a href="${APP.base}/thong-bao">🔔 Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">✏️ Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">🏆 Bảng xếp hạng</a></nav>`;
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Bảng xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av', me);
     updateBell();
@@ -1563,7 +1572,7 @@
   function renderEditorNav() {
     $$('.editor-link').forEach(a => a.remove());
     if (!editorUrl || !me) return;
-    const html = `<a class="editor-link" href="${esc(editorUrl)}" target="_self">✏️ Đăng truyện</a>`;
+    const html = `<a class="editor-link" href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>`;
     const mm = $('#mainmenu'), tn = $('.top-nav');
     if (mm) mm.insertAdjacentHTML('beforeend', html);
     if (tn) tn.insertAdjacentHTML('beforeend', html);
@@ -1996,7 +2005,7 @@
         ${joined ? `<dt>Tham gia</dt><dd>${esc(joined)}</dd>` : ''}
         <dt>Đăng nhập bằng</dt><dd>Google</dd>
       </dl>
-      <p class="prof-links"><a href="${APP.base}/lich-su">🕘 Lịch sử nghe</a> · <button type="button" class="link-btn" data-act="logout">Đăng xuất</button></p>
+      <p class="prof-links"><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a> · <button type="button" class="link-btn" data-act="logout">Đăng xuất</button></p>
     </div>`;
   }
 

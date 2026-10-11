@@ -5,7 +5,7 @@ import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '100';
+export const ASSET_V = '101';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -14,6 +14,18 @@ const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.
 const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 1 0 9.6 13A8 8 0 0 1 12.3 2z"/></svg>';
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+
+const NAV_PATHS = {
+  home: 'm3 10 9-7 9 7v10H3z M9 20v-7h6v7',
+  heart: 'M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.4a5.5 5.5 0 0 0 0-7.8Z',
+  shop: 'M4 8h16l1 13H3z M8 8V6a4 4 0 0 1 8 0v2',
+  quests: 'M6 3h12v18H6z M9 7h6 M9 11h6 M9 15h3',
+  diamond: 'm3 8 4-5h10l4 5-9 13z M3 8h18 M7 3l5 18 5-18',
+  friends: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M22 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8',
+  trophy: 'M8 3h8v7a4 4 0 0 1-8 0z M8 5H4v3a4 4 0 0 0 4 4 M16 5h4v3a4 4 0 0 1-4 4 M12 14v7 M8 21h8',
+  book: 'M12 5C9 3 5 3 2 4v16c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1z M12 5v16',
+};
+const navIcon = name => `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${NAV_PATHS[name]}"/></svg>`;
 
 // Chỉ giữ các thẻ hợp lệ trong <head> (script, style, noscript, meta, link).
 // Chữ thường dán nhầm vào ô này sẽ bị bỏ, tránh hiện lên đầu trang.
@@ -89,14 +101,14 @@ ${safeHeadCode(s.head_code)}
     ${s.header_show_name === '1' ? `<span>${h(s.site_name)}</span>` : ''}
   </a>
   <nav class="top-nav">
-  <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
-  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${g.name === 'Ngôn tình' ? '💕' : '💜'} ${g.name}</a>`).join('\n')}
-  <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
-  <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
-  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
-  <a href="/gioi-thieu" data-nav="/gioi-thieu">🤝 Giới thiệu bạn bè</a>
-  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
-  <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn</a>
+  <a href="/" data-nav="/">${navIcon('home')}Trang chủ</a>
+  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${navIcon('heart')} ${g.name}</a>`).join('\n')}
+  <a href="/cua-hang" data-nav="/cua-hang">${navIcon('shop')} Cửa hàng</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">${navIcon('diamond')} Rút Linh Thạch</a>
+  <a href="/gioi-thieu" data-nav="/gioi-thieu">${navIcon('friends')} Giới thiệu bạn bè</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Bảng xếp hạng</a>
+  <a href="/huong-dan" data-nav="/huong-dan">${navIcon('book')} Hướng dẫn</a>
   </nav>
   <span class="top-right">
     <a class="top-search" href="/#search" aria-label="Tìm kiếm">${ICON_SEARCH}</a>
@@ -105,14 +117,14 @@ ${safeHeadCode(s.head_code)}
   </span>
 </header>
 <nav class="main-menu" id="mainmenu" hidden>
-  <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
-  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${g.name === 'Ngôn tình' ? '💕' : '💜'} ${g.name}</a>`).join('\n')}
-  <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
-  <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
-  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
-  <a href="/gioi-thieu" data-nav="/gioi-thieu">🤝 Giới thiệu bạn bè</a>
-  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">🏆 Bảng xếp hạng</a>
-  <a href="/huong-dan" data-nav="/huong-dan">📖 Hướng dẫn tích Linh Thạch</a>
+  <a href="/" data-nav="/">${navIcon('home')}Trang chủ</a>
+  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${navIcon('heart')} ${g.name}</a>`).join('\n')}
+  <a href="/cua-hang" data-nav="/cua-hang">${navIcon('shop')} Cửa hàng</a>
+  <a href="/nhiem-vu" data-nav="/nhiem-vu">${navIcon('quests')} Nhiệm vụ kiếm Linh Thạch</a>
+  <a href="/rut-linh-thach" data-nav="/rut-linh-thach">${navIcon('diamond')} Rút Linh Thạch</a>
+  <a href="/gioi-thieu" data-nav="/gioi-thieu">${navIcon('friends')} Giới thiệu bạn bè</a>
+  <a href="/bang-xep-hang" data-nav="/bang-xep-hang">${navIcon('trophy')} Bảng xếp hạng</a>
+  <a href="/huong-dan" data-nav="/huong-dan">${navIcon('book')} Hướng dẫn tích Linh Thạch</a>
 </nav>
 <main id="main" data-title="${h(title)}">
 ${body}
