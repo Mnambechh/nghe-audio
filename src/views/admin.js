@@ -106,6 +106,7 @@ export function tracksView({ tracks, stats, q, page, total, per, editor = null }
       <small>${t.published ? '' : '<em class="pill">Ẩn</em> '}${t.nparts} phần · ${fmtTime(t.duration)} · ${vnDate(t.created_at, true)}${t.creator ? ` · ✏️ ${h(t.creator)}` : ''}</small></span>
     <span class="tnum">${fmtNum(t.views)}<small>lượt nghe</small></span>
     <span class="tnum live-n">${t.live}<small>đang nghe</small></span>
+    ${mine ? '<span class="tedit" title="Sửa truyện">✏️</span>' : ''}
   </${mine ? 'a' : 'div'}>`;
   }).join('')}
   ${tracks.length ? '' : '<p class="muted pad">Chưa có audio nào. Bấm “Đăng audio” để bắt đầu.</p>'}

@@ -890,16 +890,16 @@
       return;
     }
     const g = game, ckLeft = Math.max(0, Math.ceil(ckLeftSec));
-    const q = (icon, title, desc, done, total, reward, btn) => {
+    const q = (icon, title, desc, done, total, reward, btn, listenMin = null) => {
       const pct = total ? Math.min(100, done / total * 100) : 0, fin = done >= total;
-      return `<div class="quest${fin ? ' done' : ''}"><span class="q-ico">${icon}</span>
+      return `<div class="quest${fin ? ' done' : ''}"${listenMin !== null ? ` data-listen-min="${listenMin}"` : ''}><span class="q-ico">${icon}</span>
         <span class="q-body"><b>${title}</b><small>${desc}</small>
           <span class="q-bar"><span style="width:${pct}%"></span></span><small class="q-prog">${done}/${total}</small></span>
         <span class="q-side"><span class="q-reward">${reward}</span>${fin ? `<span class="q-ok">✓ Xong</span><small class="q-again">làm lại sau <b class="q-reset">${fmtClock(questLeft())}</b></small>` : btn || ''}</span></div>`;
     };
     if (g.quests && g.quests.resetIn != null && !questResetAt) questResetAt = Date.now() + g.quests.resetIn * 1000;
     box.innerHTML = `<h2 class="h2 q-head">Hằng ngày <span class="q-reset-all">🔄 Làm mới sau <b class="q-reset">${fmtClock(questLeft())}</b></span></h2>
-      ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left">${ckLeft ? `Online thêm <b>${fmt(ckLeft)}</b> để điểm danh` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận'}</span>`, g.checkedIn ? 1 : 0, 1,
+      ${q('🎁', 'Điểm danh', g.checkedIn ? 'Hôm nay bạn đã điểm danh' : `<span class="q-ck-left" data-waiting="${ckLeft > 0}">${checkinHint(ckLeft, !pageActive())}</span>`, g.checkedIn ? 1 : 0, 1,
         `+${nf(g.ckStones)} 💎 · +${nf(g.ckExp)} EXP`, `<button class="q-btn q-ck-btn" type="button" data-act="checkin"${ckLeft ? ' disabled' : ''}>Điểm danh</button>`)}
       ${listenQuest(q)}
       ${(c => c ? q('💬', 'Bình luận hợp lệ', 'Bình luận đầu tiên được hiện trong ngày (làm mới lúc 0h)', c.done ? 1 : 0, 1, rewardText(c.stones, 0),
@@ -925,16 +925,36 @@
   const rewardText = (stones, exp) => [stones && `+${nf(stones)} 💎`, exp && `+${nf(exp)} EXP`].filter(Boolean).join(' · ') || '';
 
   // Nhiệm vụ nghe audio: mỗi mốc (20 phút, 30 phút…) một dòng, tiến độ chung là thời gian đã nghe hôm nay.
+  const listenSeconds = L => Math.floor(Math.min(L.need, L.sec + lq.pending + (lq.since ? Math.min(120, (Date.now() - lq.since) / 1000) : 0)));
   function listenQuest(q) {
     const L = game && game.quests && game.quests.listen;
     if (!L) return '';
-    const sec = Math.floor(Math.min(L.need, L.sec + lq.pending + (lq.since ? Math.min(120, (Date.now() - lq.since) / 1000) : 0)));
+    const sec = listenSeconds(L);
     return L.tiers.map(t => {
       const need = t.min * 60, s2 = Math.min(sec, need);
-      return q('🎧', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Đã nghe ${fmt(s2)} / ${t.min}:00 · tua không được tính`,
-        t.done ? 1 : Math.floor(s2 / 60), t.done ? 1 : t.min, rewardText(t.stones, t.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`)
+      return q('🎧', `Nghe audio ${t.min} phút`, t.done ? 'Đã nghe đủ hôm nay' : `Tua không được tính · Đã nghe <b class="q-listen-time">${fmt(s2)}</b> / ${t.min}:00`,
+        t.done ? 1 : Math.floor(s2 / 60), t.done ? 1 : t.min, rewardText(t.stones, t.exp), `<a class="q-btn" href="${APP.base}/">Đi nghe</a>`, t.min)
         .replace(/<small class="q-prog">[^<]*<\/small>/, `<small class="q-prog">${t.done ? '✓' : Math.floor(s2 / 60) + '/' + t.min + ' phút'}</small>`);
     }).join('');
+  }
+
+  function updateListenProgress() {
+    const L = game && game.quests && game.quests.listen;
+    if (!L) return;
+    const sec = listenSeconds(L);
+    for (const tier of L.tiers) {
+      if (tier.done) continue;
+      const row = $(`#quests [data-listen-min="${tier.min}"]`);
+      if (!row) continue;
+      const elapsed = Math.min(sec, tier.min * 60), minutes = Math.floor(elapsed / 60);
+      // Chỉ dựng lại nhiệm vụ khi vừa đạt một mốc; bộ đếm thường giữ nguyên các nút và phần chữ.
+      if ((minutes >= tier.min) !== row.classList.contains('done')) { loadQuests(); return; }
+      const time = $('.q-listen-time', row), progress = $('.q-prog', row), bar = $('.q-bar span', row);
+      const text = fmt(elapsed), label = minutes + '/' + tier.min + ' phút';
+      if (time && time.textContent !== text) time.textContent = text;
+      if (progress && progress.textContent !== label) progress.textContent = label;
+      if (bar) bar.style.width = Math.min(100, minutes / tier.min * 100) + '%';
+    }
   }
 
   // Bấm "Mở" nhiệm vụ link: trình duyệt mở link (tab mới), máy chủ ghi nhận và phát thưởng.
@@ -989,7 +1009,7 @@
   audio.addEventListener('ended', () => lqFlush(true));
   setInterval(() => lqFlush(false), 5000);
   // Đang ở trang Nhiệm vụ và đang phát: cập nhật tiến độ nghe mỗi giây.
-  setInterval(() => { if (lq.since && $('#quests') && !document.hidden) loadQuests(); }, 1000);
+  setInterval(() => { if (lq.since && $('#quests') && !document.hidden) updateListenProgress(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) lqFlush(true); });
 
   // ---------- Rút Linh Thạch ----------
@@ -1293,13 +1313,30 @@
       else onlinePending += sec;
     }).finally(() => { onlineSending = false; });
   }
+  function checkinHint(left, paused) {
+    return left ? `Mở web để điểm danh<span class="q-ck-paused"${paused ? '' : ' hidden'}> (tạm dừng khi rời trang)</span> · còn <b class="q-ck-time">${fmt(left)}</b>`
+      : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận';
+  }
   function renderCk() {
     const left = Math.max(0, Math.ceil(ckLeftSec)), paused = left > 0 && !pageActive();
     const t = $('.ck-time'), b = $('.ck-btn');
     if (t) t.textContent = left ? ' · ' + fmt(left) + (paused ? ' (tạm dừng)' : '') : ' · Sẵn sàng!';
     if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
     const ql = $('.q-ck-left'), qb = $('.q-ck-btn');
-    if (ql) ql.innerHTML = left ? `Mở web thêm <b>${fmt(left)}</b> để điểm danh${paused ? ' <i>(tạm dừng khi rời trang)</i>' : ''}` : 'Đã đủ thời gian, bấm <b>Điểm danh</b> để nhận';
+    if (ql) {
+      const waiting = String(left > 0);
+      // Chỉ thay cả dòng khi đổi trạng thái; mỗi giây chỉ cập nhật con số.
+      if (ql.dataset.waiting !== waiting) {
+        ql.innerHTML = checkinHint(left, paused);
+        ql.dataset.waiting = waiting;
+      }
+      if (left) {
+        const time = $('.q-ck-time', ql), pause = $('.q-ck-paused', ql);
+        const text = fmt(left);
+        if (time && time.textContent !== text) time.textContent = text;
+        if (pause) pause.hidden = !paused;
+      }
+    }
     if (qb) qb.disabled = left > 0;
     return left;
   }

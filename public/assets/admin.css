@@ -68,6 +68,7 @@ a.trow:hover { background: #f7faf8; }
 .tnum { text-align: right; font-weight: 700; min-width: 60px; display: flex; flex-direction: column; }
 .tnum small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .tact { display: flex; gap: 10px; align-items: center; }
+.tedit { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; font-size: 18px; }
 .tact form { margin: 0; }
 .tact button { border: 0; background: none; color: var(--danger); cursor: pointer; font: inherit; padding: 0; }
 .pill { font-style: normal; font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: #eee; color: #666; }
