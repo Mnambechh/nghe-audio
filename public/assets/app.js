@@ -1574,7 +1574,13 @@
     else el.innerHTML = '<span class="c-note">Đăng nhập Google chưa được bật.</span>';
   }
 
+  // Đăng xuất: hỏi xác nhận lần 2 bằng popup trên trang (tránh bấm nhầm).
   function doLogout() {
+    const demo = me && me.demo;
+    askConfirm(demo ? 'Thoát chế độ xem thử tài khoản này?' : `Bạn có chắc muốn <b>đăng xuất</b>${me ? ` khỏi tài khoản <b>${esc(me.name)}</b>` : ''}?`, demo ? 'Thoát' : 'Đăng xuất', '👋')
+      .then(y => { if (y) logoutNow(); });
+  }
+  function logoutNow() {
     api('/api/auth/logout', {}).then(() => {
       setMe(null);
       toast('Đã đăng xuất');
