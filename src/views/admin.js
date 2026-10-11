@@ -121,6 +121,7 @@ export function trackForm({ track, parts, err, editor = null }) {
   return `
 <div class="bar">
   <h1>${track.id ? 'Sửa audio' : 'Đăng audio mới'}</h1>
+  ${track.id ? `<a class="btn" href="${ADMIN}/track/new">+ Thêm mới</a>` : ''}
   ${track.id && track.slug ? `<a class="btn ghost" target="_blank" href="/track/${h(track.slug)}">Xem ↗</a>` : ''}
 </div>
 ${err ? `<div class="flash err">${h(err)}</div>` : ''}
@@ -188,7 +189,7 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
   ${track.id ? '<label class="check"><input type="checkbox" name="bump" value="1"> Đưa lên đầu “Mới cập nhật”</label>' : ''}
   <div class="row-actions sticky">
     <button class="btn" type="submit">Lưu</button>
-    ${track.id ? '' : '<button class="btn ghost" type="submit" name="and_new" value="1">Lưu & đăng tiếp</button>'}
+    ${track.id ? `<a class="btn ghost" href="${ADMIN}/track/new">+ Thêm mới</a>` : '<button class="btn ghost" type="submit" name="and_new" value="1">Lưu & đăng tiếp</button>'}
   </div>
 </form>
 ${track.id && !editor ? `<form method="post" action="${ADMIN}/track/${track.id}/delete" class="danger" data-confirm="Xóa audio này? Không thể hoàn tác.">

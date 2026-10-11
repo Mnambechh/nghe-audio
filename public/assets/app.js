@@ -105,6 +105,7 @@
   let cur = null;          // {id, slug, title, parts:[{title,url,duration}]}
   const AD_WAIT = 3000;    // bấm quảng cáo xong chờ 3 giây mới phát
   let adHold = 0;          // thời điểm hết 3 giây chờ (0 = không chờ)
+  let adWaitTimer = 0, adWaitTick = 0;
   let idx = 0;
   let pendingSeek = 0;
   let lastSave = 0, lastPing = 0, lastPos = 0, lastMs = 0;
@@ -151,6 +152,14 @@
 
   function start() {
     if (!cur) return;
+    // VIP phát ngay, kể cả khi còn thời gian chờ quảng cáo từ trước.
+    if (adFreeVip() && adHold) {
+      adHold = 0;
+      clearTimeout(adWaitTimer); clearInterval(adWaitTick);
+      const loader = $('.pl-carrot', player);
+      if (loader) loader.remove();
+      player.classList.remove('pl-waiting');
+    }
     // Lần trước tải hỏng (mất mạng / link lỗi): nạp lại nguồn, nghe tiếp đúng chỗ đã dừng.
     if (audio.error || audio.networkState === 3) {
       pendingSeek = lastT || store.get(posKey(cur.id, idx), 0) || 0;
@@ -174,10 +183,13 @@
 
   // Khóa quảng cáo: hiện popup nếu hết hạn mở khóa, bấm quảng cáo thì chạy fn.
   // Chế độ "mỗi lần phát": lần bấm phát nào (do người dùng bấm) cũng hiện quảng cáo; tự chuyển tập kế tiếp thì không.
+  function adFreeVip() {
+    return (((me ? me.vipUntil : store.get('vip_until', 0)) || 0) * 1000 > Date.now());
+  }
   function needAd() {
     if (!(APP.ad && APP.ad.ads && APP.ad.ads.length)) return false;
     // Promax VIP: không hiện quảng cáo.
-    if (((me ? me.vipUntil : store.get('vip_until', 0)) || 0) * 1000 > Date.now()) return false;
+    if (adFreeVip()) return false;
     return APP.ad.every || Date.now() > (store.get('ad_until', 0) || 0);
   }
   let adAction = null, adShown = null;
@@ -213,6 +225,7 @@
     $('#unlockbox').hidden = true;
     const fn = adAction; adAction = null;
     if (!fn) return;
+    if (adFreeVip()) return fn();
     // Bấm quảng cáo: chờ 3 giây (thanh thỏ chạy đến củ cà rốt) rồi mới phát; trong lúc chờ vẫn tải trước audio.
     adHold = Date.now() + AD_WAIT;
     fn(); // vẫn trong cùng thao tác bấm: nạp link + "mở khóa" phát trên di động (tắt tiếng, chưa phát thật)
@@ -248,9 +261,9 @@
     player.classList.add('pl-waiting');
     $('.pl-sub', player).textContent = statusText();
     const end = Date.now() + ms, sec = $('.pc-sec', el);
-    const tick = setInterval(() => { sec.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)) + 's'; }, 250);
-    setTimeout(() => {
-      clearInterval(tick);
+    adWaitTick = setInterval(() => { sec.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)) + 's'; }, 250);
+    adWaitTimer = setTimeout(() => {
+      clearInterval(adWaitTick);
       el.classList.add('pc-done');
       setTimeout(() => { el.remove(); player.classList.remove('pl-waiting'); }, 450);
       done();
