@@ -214,7 +214,7 @@ body.site-noir .btn-ghost, body.site-noir .chip, body.site-noir .ask-no { color:
 body.site-noir .chip.on { background: #33291a; color: #f2cd81; border-color: #ae8745; }
 body.site-noir .lg-tabs, body.site-noir .reset-form, body.site-noir .quest, body.site-noir .sh-item, body.site-noir .sh-chip, body.site-noir .ref-list, body.site-noir .ref-stats div, body.site-noir .wd-form, body.site-noir .wd-add, body.site-noir .prof-card, body.site-noir .lb-row { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; }
 body.site-noir .lg-tabs button.on { color: #f3cf88; background: #302719; box-shadow: none; }
-body.site-noir .lg-form input, body.site-noir .ref-link input, body.site-noir .wd-form input:not([type=radio]), body.site-noir .wd-add input, body.site-noir .wd-add select, body.site-noir .c-form textarea, body.site-noir .c-form input { color: var(--text); background: #0e1012; border: 1px solid #4d4434; border-radius: 6px; }
+body.site-noir .lg-form input, body.site-noir .ref-link input, body.site-noir .wd-form input:not([type=radio]), body.site-noir .wd-add input, body.site-noir .wd-add select, body.site-noir .c-form input { color: var(--text); background: #0e1012; border: 1px solid #4d4434; border-radius: 6px; }
 body.site-noir .quest.promax, body.site-noir .gd-promax, body.site-noir .ref-card, body.site-noir .wd-balance, body.site-noir .vip-card { background: linear-gradient(130deg, #302718, #151718); color: #efd7a4; border: 1px solid #7b6135; border-radius: 8px; box-shadow: none; }
 body.site-noir .quest { padding: 11px; gap: 10px; margin-bottom: 8px; }
 body.site-noir .q-ico { width: 38px; height: 38px; font-size: 20px; background: #2b2418; border-radius: 7px; }
