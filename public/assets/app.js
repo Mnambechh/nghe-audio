@@ -1998,7 +1998,7 @@
     $('.c-count', sec).textContent = `(${cState.total})`;
     const compose = $('.c-compose', sec);
     if (cMe && cMe.banned) compose.innerHTML = '<p class="c-note">Tài khoản của bạn đã bị khóa bình luận.</p>';
-    else if (cMe) compose.innerHTML = composeHtml() + `<p class="c-who">Đang bình luận với tên <b>${esc(cMe.name)}</b> · <button type="button" data-c="logout">Đăng xuất</button></p>`;
+    else if (cMe) compose.innerHTML = composeHtml();
     else {
       compose.innerHTML = `<div class="c-login"><p>Đăng nhập để bình luận, thả tim và nhận Linh Thạch</p><div class="g-btn" data-label="Đăng nhập Google để bình luận"></div></div>`;
       if (config.clientId) renderGoogleButton($('.g-btn', compose), config.clientId);

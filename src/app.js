@@ -1,7 +1,8 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
+import { homePage, genrePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
+import { GENRES } from './genres.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
 import { withdrawConfig, METHODS } from './withdraw.js';
@@ -81,6 +82,8 @@ async function handleInner(request, env, ctx) {
   pageCtx.authed = /(?:^|;\s*)aw_user=/.test(request.headers.get('Cookie') || '');
 
   if (path === '/') return html(homePage(pageCtx, await homeData(db, s, url)), 200, { 'Cache-Control': 'no-cache' });
+  const genre = GENRES.find(g => path === '/' + g.slug);
+  if (genre) return html(genrePage(pageCtx, genre, await genreData(db, s, url, genre)), 200, { 'Cache-Control': 'no-cache' });
 
   if (path === '/bang-xep-hang') {
     const kind = BOARDS.includes(url.searchParams.get('top')) ? url.searchParams.get('top') : 'level';
@@ -225,11 +228,24 @@ async function homeData(db, s, url) {
   return d;
 }
 
+async function genreData(db, s, url, genre) {
+  const perPage = Math.max(5, parseInt(s.per_page, 10) || 15);
+  // Khớp nguyên nhãn trong danh sách, không gộp các nhãn chỉ chứa tên thể loại.
+  const where = "WHERE published = 1 AND instr(',' || replace(tag, ' ', '') || ',', ?) > 0";
+  const label = ',' + genre.name.replace(/ /g, '') + ',';
+  const total = (await first(db, `SELECT COUNT(*) c FROM tracks ${where}`, label)).c;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const page = Math.min(Math.max(1, parseInt(url.searchParams.get('page'), 10) || 1), pages);
+  const tracks = await all(db, `SELECT * FROM tracks ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, label, perPage, (page - 1) * perPage);
+  return { total, pages, page, tracks: await withLive(db, tracks) };
+}
+
 async function sitemap(db, origin) {
   const tracks = await all(db, 'SELECT slug, updated_at FROM tracks WHERE published = 1 ORDER BY id DESC LIMIT 45000');
   const pages = await all(db, 'SELECT slug FROM pages');
   let x = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   x += `<url><loc>${h(origin)}/</loc><changefreq>daily</changefreq></url>\n`;
+  for (const g of GENRES) x += `<url><loc>${h(origin)}/${g.slug}</loc><changefreq>daily</changefreq></url>\n`;
   for (const t of tracks) x += `<url><loc>${h(origin)}/track/${h(t.slug)}</loc><lastmod>${new Date(t.updated_at * 1000).toISOString().slice(0, 10)}</lastmod></url>\n`;
   for (const p of pages) x += `<url><loc>${h(origin)}/trang/${h(p.slug)}</loc></url>\n`;
   return new Response(x + '</urlset>', { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });

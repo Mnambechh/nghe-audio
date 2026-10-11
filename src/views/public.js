@@ -2,9 +2,10 @@
 import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
 import { vipActive } from '../game.js';
+import { GENRES, genresOf } from '../genres.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '92';
+export const ASSET_V = '93';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -87,6 +88,7 @@ ${safeHeadCode(s.head_code)}
   </a>
   <nav class="top-nav">
   <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
+  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${g.name === 'Ngôn tình' ? '💕' : '💜'} ${g.name}</a>`).join('\n')}
   <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
@@ -102,6 +104,7 @@ ${safeHeadCode(s.head_code)}
 </header>
 <nav class="main-menu" id="mainmenu" hidden>
   <a href="/" data-nav="/"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Trang chủ</a>
+  ${GENRES.map(g => `<a href="/${g.slug}" data-nav="/${g.slug}">${g.name === 'Ngôn tình' ? '💕' : '💜'} ${g.name}</a>`).join('\n')}
   <a href="/cua-hang" data-nav="/cua-hang">🛍️ Cửa hàng</a>
   <a href="/nhiem-vu" data-nav="/nhiem-vu">📜 Nhiệm vụ kiếm Linh Thạch</a>
   <a href="/rut-linh-thach" data-nav="/rut-linh-thach">💎 Rút Linh Thạch</a>
@@ -250,20 +253,32 @@ function liveBadge(t) {
   return `<span class="live" data-live="${t.id}"${n ? '' : ' hidden'}><i></i><b>${n}</b> đang nghe</span>`;
 }
 
+const genreNames = GENRES.map(g => g.name);
+
+function trackTags(t) {
+  if (!t.tag) return '';
+  const genres = genresOf(t);
+  if (!genres.length) return `<span class="tag">${h(t.tag)}</span>`;
+  const other = String(t.tag).split(',').map(tag => tag.trim()).filter(tag => tag && !genreNames.includes(tag)).join(', ');
+  return `<span class="track-tags">${other ? `<span class="tag">${h(other)}</span>` : ''}`
+    + genres.map(g => `<span class="tag genre-${g === 'Đam mỹ' ? 'dam-my' : 'ngon-tinh'}" aria-label="Thể loại: ${g}">${g}</span>`).join('')
+    + '</span>';
+}
+
 function card(t, rank = null, views = null) {
   return `<a class="card${t.cover ? ' has-cover' : ''}" href="/track/${h(t.slug)}">`
     + (t.cover ? `<img class="card-cover" src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : '')
     + (rank !== null ? `<span class="rank r${rank}">${rank}</span>` : '')
     + `<span class="card-body"><b class="card-title">${h(t.title)}</b>`
-    + (t.tag ? `<span class="tag">${h(t.tag)}</span>` : '')
+    + trackTags(t)
     + `<span class="meta">${ICON_HEADPHONES}${fmtNum(views ?? t.views)} lượt nghe</span>`
     + liveBadge(t) + '</span></a>';
 }
 
 function row(t) {
-  return `<a class="row" href="/track/${h(t.slug)}">`
+  return `<a class="row${genresOf(t).length ? ' has-genres' : ''}" href="/track/${h(t.slug)}">`
     + `<span class="row-icon${t.cover ? ' has-cover' : ''}">${t.cover ? `<img src="${h(t.cover)}" alt="" loading="lazy" decoding="async">` : ''}${ICON_PLAY}</span>`
-    + `<span class="row-body"><span class="row-head"><b>${h(t.title)}</b>${t.tag ? `<span class="tag">${h(t.tag)}</span>` : ''}</span>`
+    + `<span class="row-body"><span class="row-head"><b>${h(t.title)}</b>${trackTags(t)}</span>`
     + `<span class="row-meta"><span class="meta">${ICON_HEADPHONES}${fmtNum(t.views)} lượt nghe</span>${liveBadge(t)}</span></span>`
     + (t.duration > 0 ? `<span class="dur">${fmtTime(t.duration)}</span>` : '')
     + '</a>';
@@ -360,6 +375,24 @@ export function homePage(ctx, d) {
   }, body);
 }
 
+export function genrePage(ctx, genre, d) {
+  let body = `<div class="wrap"><h1 class="h1">Truyện ${h(genre.name)}</h1>`
+    + `<p class="sub">${fmtInt(d.total)} audio thuộc thể loại ${h(genre.name)}</p>`
+    + `<div class="list">${d.tracks.map(row).join('')}</div>`;
+  if (!d.total) body += `<p class="empty">Chưa có truyện ${h(genre.name)}.</p>`;
+  if (d.pages > 1) {
+    const path = '/' + genre.slug;
+    const prev = d.page > 1 ? `<a href="${path}${d.page > 2 ? '?page=' + (d.page - 1) : ''}">← Trước</a>` : '<span class="off">← Trước</span>';
+    const next = d.page < d.pages ? `<a href="${path}?page=${d.page + 1}">Sau →</a>` : '<span class="off">Sau →</span>';
+    body += `<nav class="pager">${prev}<span>Trang ${d.page}/${d.pages}</span>${next}</nav>`;
+  }
+  return layout(ctx, {
+    title: `Truyện ${genre.name}${d.page > 1 ? ' - Trang ' + d.page : ''} | ${ctx.s.site_name}`,
+    desc: `Nghe truyện ${genre.name} audio miễn phí tại ${ctx.s.site_name}.`,
+    canonical: ctx.origin + '/' + genre.slug + (d.page > 1 ? '?page=' + d.page : ''),
+  }, body + '</div>');
+}
+
 export function trackPage(ctx, t, related) {
   const s = ctx.s;
   const plainDesc = t.description.replace(/\s+/g, ' ').trim();
@@ -397,7 +430,7 @@ export function trackPage(ctx, t, related) {
     <div class="hero-body">
       <h1>${h(t.title)}</h1>
       <div class="hero-meta">
-        ${t.tag ? `<span class="tag">${h(t.tag)}</span>` : ''}
+        ${trackTags(t)}
         <span class="meta">${ICON_HEADPHONES}${fmtNum(t.views)} lượt nghe</span>
         ${liveBadge(t)}
         <span class="meta">${vnDate(t.created_at)}</span>

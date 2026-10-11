@@ -733,6 +733,14 @@ b, strong { font-weight: 700; }
 .meta { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .live { font-weight: 700; }
 .tag { font-family: 'Quicksand', sans-serif; font-size: 11px; font-weight: 700; color: var(--dh-deep); background: var(--dh-pink); border: 1.5px solid var(--dh-pink-line); border-radius: 8px; padding: 2px 7px; }
+.track-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; }
+.tag.genre-dam-my { color: #623a87; background: #eee5ff; border-color: #d1b7f2; }
+.tag.genre-ngon-tinh { color: #98354e; background: #ffe1e8; border-color: #eeacbd; }
+.top-nav { overflow-x: auto; scrollbar-width: none; }
+.top-nav::-webkit-scrollbar { display: none; }
+.top-nav a { flex: none; }
+.row.has-genres .row-head { flex-wrap: wrap; }
+.row.has-genres .track-tags { flex: 0 0 100%; }
 
 /* Ô tìm kiếm */
 .searchbox input { height: 52px; border: 2px solid var(--dh-pink-line); border-radius: 999px; box-shadow: none; font-weight: 600; }
