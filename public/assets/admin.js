@@ -123,6 +123,24 @@ document.addEventListener('change', e => {
   document.querySelectorAll('input[name=ids]').forEach(c => { c.checked = e.target.checked; });
 });
 
+// Form audio: tích nhanh thể loại, giữ các nhãn đã nhập.
+(() => {
+  const form = document.getElementById('trackForm');
+  if (!form) return;
+  const tag = form.querySelector('[name="tag"]');
+  const boxes = Array.from(form.querySelectorAll('[data-genre]'));
+  const names = boxes.map(b => b.dataset.genre);
+  const tags = () => tag.value.split(',').map(t => t.trim()).filter(Boolean);
+  boxes.forEach(box => box.addEventListener('change', () => {
+    tag.value = [...tags().filter(t => !names.includes(t)), ...boxes.filter(b => b.checked).map(b => b.dataset.genre)].join(', ');
+    tag.dispatchEvent(new Event('input', { bubbles: true }));
+  }));
+  tag.addEventListener('input', () => {
+    const selected = tags();
+    boxes.forEach(box => { box.checked = selected.includes(box.dataset.genre); });
+  });
+})();
+
 // Form audio: đếm ký tự SEO + xem trước kết quả Google.
 (() => {
   const form = document.getElementById('trackForm');

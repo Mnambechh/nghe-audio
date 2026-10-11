@@ -131,6 +131,12 @@ ${err ? `<div class="flash err">${h(err)}</div>` : ''}
     <label>Nhãn<input name="tag" value="${h(track.tag)}" placeholder="Audio Full"></label>
     <label>Đường dẫn (để trống sẽ tự tạo)<input name="slug" value="${h(track.slug)}" placeholder="truyen-gi-audio-so-306"></label>
   </div>
+  <div class="field">
+    <span>Thể loại (chọn nhanh)</span>
+    <div class="row-actions">
+      ${['Đam mỹ', 'Ngôn tình'].map(genre => `<label class="check"><input type="checkbox" data-genre="${genre}"${String(track.tag || '').split(',').map(t => t.trim()).includes(genre) ? ' checked' : ''}> ${genre}</label>`).join('')}
+    </div>
+  </div>
   <label>Mô tả (hiện trên trang nghe)<textarea name="description" rows="3">${h(track.description)}</textarea></label>
 
   <div class="cover-box">
