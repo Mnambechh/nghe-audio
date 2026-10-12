@@ -855,11 +855,11 @@
       }
       $('#main').replaceWith(main);
       document.title = doc.title;
-      ['meta[name="description"]', 'link[rel="canonical"]'].forEach(sel => {
+      ['meta[name="description"]', 'meta[name="robots"]', 'link[rel="canonical"]'].forEach(sel => {
         const a = $(sel), b = doc.querySelector(sel);
         if (a && b) a.replaceWith(b);
       });
-      if (push) history.pushState({}, '', href);
+      if (push) history.pushState({}, '', res.redirected ? res.url + new URL(href, location.href).hash : href);
       window.scrollTo(0, 0);
       closeTopSearch();
       const menu = $('#mainmenu');

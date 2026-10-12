@@ -77,6 +77,20 @@ async function handleInner(request, env, ctx) {
   }
   if (path === '/sitemap.xml') return sitemap(db, url.origin);
 
+  // Link tìm kiếm cũ (?s=...) và URL mẫu chưa thay {search_term_string}
+  // không được trở thành các bản sao có thể lập chỉ mục của trang chủ.
+  if (path === '/' && (request.method === 'GET' || request.method === 'HEAD')) {
+    const params = url.searchParams;
+    const query = (params.has('q') ? params.get('q') : params.get('s') || '').trim();
+    const placeholder = /^\{search_term_string\}$/i.test(query);
+    if (params.has('s') || placeholder || (params.has('q') && !query)) {
+      params.delete('s');
+      if (query && !placeholder) params.set('q', query);
+      else params.delete('q');
+      return new Response(null, { status: 301, headers: { Location: '/' + url.search, 'Cache-Control': 'public, max-age=3600' } });
+    }
+  }
+
   const pageCtx = await publicContext(db, s, url);
   // Có cookie đăng nhập → vẽ sẵn chỗ avatar thay vì nút "Đăng nhập" (tránh nhấp nháy khi tải lại trang). Chỉ xem có cookie, không đọc DB.
   pageCtx.authed = /(?:^|;\s*)aw_user=/.test(request.headers.get('Cookie') || '');
