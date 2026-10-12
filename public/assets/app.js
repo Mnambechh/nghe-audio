@@ -659,7 +659,7 @@
       renderPage();
       applyServerResume();
     }
-    loadHistory();
+    loadHistory(); loadWalletHistory();
     loadProfile();
     loadQuests();
     loadNotifPage();
@@ -774,7 +774,7 @@
         return;
       case 'hist-clear':
         askConfirm('Xóa toàn bộ lịch sử nghe?', 'Xóa', '🗑️').then(y => {
-          if (y) api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); });
+          if (y) api('/api/history/delete', { all: true }).then(() => { histCache = null; loadHistory(); loadWalletHistory(); });
         });
         return;
       case 'ul-go': adGo(); return;   // không chặn mặc định: liên kết vẫn mở Shopee ở tab mới
@@ -1457,13 +1457,15 @@
     if (!card || !me) return;
     const g = game || { stones: 0, exp: 0, comments: 0, level: { lvl: me.lvl || 1, tier: me.tier || 0, realm: me.realm || 'Luyện Khí 1', cur: 0, need: 100, pct: 0 }, checkedIn: false, checkinIn: 0, unread: 0 };
     const L = g.level;
+    const pct = Math.max(0, Math.min(100, Number(L.pct) || 0));
+    const expStage = !L.need ? 'complete' : pct >= 80 ? 'breakthrough' : pct >= 60 ? 'radiant' : pct >= 30 ? 'growing' : 'calm';
     card.innerHTML = `<div class="ac-head"><span class="ac-name"><b${fxCls(me.fx)}>${esc(me.name)}</b>${me.vipUntil ? VIP_TICK : ''}</span><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
       <div class="ac-stones"><b>${nf(g.stones)}</b> Linh Thạch</div>
       ${me.vipUntil ? `<a class="ac-vip" href="${APP.base}/cua-hang">👑 Promax VIP · x2 EXP · x2 💎 · ${vipLeft(me.vipUntil)}</a>` : ''}
       <div class="ac-ck"><button type="button" class="ck-btn${g.checkedIn ? ' is-done' : ''}" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? '✓ ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
-      <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
-      <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Xếp hạng</a></nav>`;
+      <div class="ac-bar exp-${expStage}" role="progressbar" aria-label="Tiến độ EXP lên cấp" aria-valuemin="0" aria-valuemax="${L.need || 100}" aria-valuenow="${L.need ? Math.min(L.cur, L.need) : 100}" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.need ? pct : 100}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
+      <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/lich-su-thuong">${navIcon('diamond')} Lịch sử Linh Thạch & EXP</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Xếp hạng</a></nav>`;
     const av = $('.acct-btn');
     if (av) av.innerHTML = lvAv(me.name, me.avatar, L, 'acct-av', me);
     updateBell();
@@ -1719,6 +1721,7 @@
     const prevLvl = !changed && game && game.level ? game.level.lvl : 0;
     if ((me && me.id) !== (m && m.id)) {
       accountRevision++;
+      game = null;
       wd = null; shop = null; shopUserId = null;
       Object.keys(panelData).forEach(k => { panelData[k] = {}; });
     }
@@ -1788,7 +1791,7 @@
       avatarMaxMb = r.avatarMaxMb || 5;
       editorUrl = (r.me && r.editorUrl) || '';
       setMe(r.me, r.game);
-    }).catch(() => {}).finally(() => { if (sequence !== meSequence) return; meLoaded = true; applyServerResume(); loadHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadShop(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
+    }).catch(() => {}).finally(() => { if (sequence !== meSequence) return; meLoaded = true; applyServerResume(); loadHistory(); loadWalletHistory(); loadProfile(); loadQuests(); loadWithdraw(); loadShop(); loadNotifPage(); initRating(); initHeart(); initRailDots(); loadReferral(); });
   }
 
   // Đồng bộ EXP, Linh Thạch, cấp độ giữa các thiết bị: mỗi phút, và ngay khi quay lại tab/ứng dụng.
@@ -1817,7 +1820,7 @@
       setMe(null);
       toast('Đã đăng xuất');
       loadComments();
-      loadHistory();
+      loadHistory(); loadWalletHistory();
       loadProfile();
       loadQuests(); loadWithdraw(); loadShop();
     });
@@ -1881,6 +1884,56 @@
       }).join('') : '<p class="c-note">Bạn chưa nghe audio nào. Nghe xong sẽ hiện ở đây.</p>';
     });
   }
+
+  // Nhật ký chỉ lấy tài khoản đang đăng nhập, không lưu dữ liệu giao dịch vào localStorage.
+  let walletRequest = 0;
+  async function loadWalletHistory(reset = false, more = false) {
+    const box = $('#wallet-history');
+    if (!box || !meLoaded) return;
+    const list = $('.wallet-list', box), controls = $('.wallet-controls', box), button = $('.wallet-more', box);
+    if (!me) {
+      walletRequest++;
+      delete box.dataset.account;
+      controls.hidden = true; button.hidden = true;
+      $('.wallet-summary', box).textContent = '';
+      list.innerHTML = '<div class="c-login"><p>Đăng nhập để xem lịch sử Linh Thạch và EXP của bạn.</p><button class="btn-play inline" type="button" data-act="login">Đăng nhập</button></div>';
+      return;
+    }
+    const id = me.id, revision = accountRevision;
+    if (!reset && !more && box.dataset.account === String(id)) return;
+    const changedAccount = box.dataset.account !== String(id);
+    if (changedAccount) { list.textContent = 'Đang tải…'; $('.wallet-summary', box).textContent = ''; delete box.dataset.before; }
+    box.dataset.account = String(id);
+    const sequence = ++walletRequest, filter = $('#wallet-kind').value;
+    const params = new URLSearchParams({ kind: filter });
+    if (more && box.dataset.before) params.set('before', box.dataset.before);
+    controls.hidden = false; button.disabled = true; box.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(`${APP.base}/api/wallet?${params}`, { credentials: 'same-origin', cache: 'no-store' });
+      const r = await response.json();
+      if (sequence !== walletRequest || $('#wallet-history') !== box || revision !== accountRevision || !me || me.id !== id) return;
+      if (!response.ok || !r.ok) throw new Error('wallet');
+      const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + nf(Math.abs(n));
+      const time = t => new Date((Number(t) + (APP.tz || 7) * 3600) * 1000).toLocaleString('vi-VN', { timeZone: 'UTC' });
+      const html = r.items.map(row => `<article class="wallet-row"><div class="wallet-row-top"><b class="${row.amount < 0 ? 'wallet-out' : 'wallet-in'}">${signed(row.amount)} ${row.kind === 'exp' ? 'EXP' : 'Linh Thạch'}</b><span>Còn ${nf(row.balance)}</span></div><p>${esc(row.note || 'Giao dịch tài khoản')}</p><time>${esc(time(row.created_at))}</time></article>`).join('');
+      if (more) list.insertAdjacentHTML('beforeend', html);
+      else list.innerHTML = html || '<p class="c-note">Chưa có giao dịch trong bộ lọc này.</p>';
+      $('.wallet-summary', box).innerHTML = `<div><b>${nf(r.balance.stones)}</b><span>Linh Thạch hiện tại</span></div><div><b>${nf(r.balance.exp)}</b><span>Tổng EXP hiện tại</span></div>`;
+      if (r.items.length) box.dataset.before = r.items[r.items.length - 1].id;
+      button.hidden = !r.more;
+    } catch (e) {
+      if (sequence !== walletRequest || $('#wallet-history') !== box || revision !== accountRevision || !me || me.id !== id) return;
+      if (changedAccount) list.innerHTML = '<p class="c-note">Chưa tải được lịch sử. Bấm Làm mới để thử lại.</p>';
+      else toast('Chưa tải được lịch sử, hãy thử lại.');
+    } finally {
+      if (sequence === walletRequest && $('#wallet-history') === box) { button.disabled = false; box.removeAttribute('aria-busy'); }
+    }
+  }
+  document.addEventListener('change', e => { if (e.target.id === 'wallet-kind') loadWalletHistory(true); });
+  document.addEventListener('click', e => {
+    const button = e.target.closest('[data-wallet]');
+    if (button && !button.disabled) loadWalletHistory(button.dataset.wallet === 'refresh', button.dataset.wallet === 'more');
+  });
 
   // Ảnh đại diện lỗi (link Google hết hạn, ảnh hỏng…): thay bằng chữ cái đầu để không vỡ khung.
   document.addEventListener('error', e => {
@@ -2203,7 +2256,7 @@
         ${joined ? `<dt>Tham gia</dt><dd>${esc(joined)}</dd>` : ''}
         <dt>Đăng nhập bằng</dt><dd>Google</dd>
       </dl>
-      <p class="prof-links"><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a> · <button type="button" class="link-btn" data-act="logout">Đăng xuất</button></p>
+      <p class="prof-links"><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/lich-su-thuong">${navIcon('diamond')} Lịch sử Linh Thạch & EXP</a> · <button type="button" class="link-btn" data-act="logout">Đăng xuất</button></p>
     </div>`;
   }
 

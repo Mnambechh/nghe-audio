@@ -25,7 +25,7 @@ ${body}
 </html>`;
 }
 
-const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/shop', 'Cửa hàng'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
+const NAV = [['/admin/overview', 'Tổng quan'], ['/admin', 'Audio'], ['/admin/qc', 'Quảng cáo'], ['/admin/settings', 'Cài đặt & SEO'], ['/admin/members', 'Thành viên'], ['/admin/wallet-audit', 'Thưởng bất thường'], ['/admin/quests', 'Nhiệm vụ'], ['/admin/shop', 'Cửa hàng'], ['/admin/withdrawals', 'Rút Linh Thạch'], ['/admin/comments', 'Bình luận'], ['/admin/pages', 'Trang'], ['/admin/security', 'Bảo mật'], ['/admin/password', 'Tài khoản']];
 // Đường dẫn nội bộ /admin/... → đường dẫn thật trên web.
 const A = p => ADMIN + p.slice('/admin'.length);
 
@@ -723,6 +723,22 @@ ${groups.map(g => {
   </div>
 </div>`;
   }).join('') || '<p class="muted pad">Chưa có tài khoản nào dùng chung IP. 👍</p>'}`;
+}
+
+export function walletAuditView({ rows, stonesLimit, expLimit, page, more }) {
+  return `<h1>EXP & Linh Thạch bất thường</h1>
+    <p class="muted">Các dấu hiệu cần đối chiếu, không phải kết luận tài khoản gian lận. Mở hồ sơ để xem lịch sử và dùng các thao tác xử lý tài khoản hiện có.</p>
+    <div class="card"><p>Kiểm tra số dư âm, số dư lệch nhật ký, nguồn thưởng ngày bị ghi trùng và tổng thưởng ngày vượt giới hạn.</p>
+      <p class="muted">Trần theo cài đặt hiện tại, đã tính VIP x2: ${fmtInt(stonesLimit)} Linh Thạch và ${fmtInt(expLimit)} EXP/ngày. Không gộp khoản admin cộng, hoàn tiền, hoa hồng và thưởng đột phá. Thay đổi mức thưởng trong ngày có thể tạo cảnh báo cần đối chiếu.</p>
+      <p class="muted">Chờ 2 phút sau giao dịch mới đối chiếu số dư để tránh báo lệch khi yêu cầu đang xử lý. Nhật ký chỉ giữ 12 tháng; dữ liệu cũ thiếu nhật ký không được suy đoán là gian lận.</p></div>
+    <p>${rows.length ? `${rows.length} tài khoản cần kiểm tra trên trang ${page}` : page > 1 ? 'Trang này không có tài khoản cần kiểm tra.' : 'Chưa phát hiện dấu hiệu bất thường theo các kiểm tra hiện tại.'}</p>
+    <div class="table wallet-audit">${rows.map(u => `<div class="trow"><div class="tmain">
+      <b><a href="${ADMIN}/members/${u.id}#wallet">#${u.id} · ${h(u.name)}</a>${u.locked ? ' · Đã khóa' : ''}</b>
+      <small>${h(u.email)} · ${fmtInt(u.stones)} Linh Thạch · ${fmtInt(u.exp)} EXP</small>
+      <ul>${u.reasons.map(reason => `<li>${h(reason)}</li>`).join('')}</ul>
+      <a class="btn ghost" href="${ADMIN}/members/${u.id}#wallet">Đối chiếu & xử lý</a>
+    </div></div>`).join('')}</div>
+    ${page > 1 || more ? `<nav class="pager">${page > 1 ? `<a href="${ADMIN}/wallet-audit?page=${page - 1}">‹ Trang trước</a>` : ''}<span>Trang ${page}</span>${more ? `<a href="${ADMIN}/wallet-audit?page=${page + 1}">Trang sau ›</a>` : ''}</nav>` : ''}`;
 }
 
 // Lịch sử EXP / Linh Thạch của thành viên (mọi nguồn: điểm danh, bình luận, đánh giá, lên cấp, rút, admin).

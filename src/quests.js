@@ -111,11 +111,12 @@ export async function handleQuestApi(request, db, s, path, me, input) {
     const L = listenConfig(s);
     if (!L.enabled) return json({ ok: false }, 400);
     const t = now(), today = vnDay();
-    const u = await first(db, 'SELECT listen_day, listen_sec, listen_at FROM users WHERE id = ?', me.id);
+    const u = await first(db, 'SELECT listen_day, listen_sec, listen_at, seen_day, seen_at FROM users WHERE id = ?', me.id);
     const sameDay = u.listen_day === today;
     const before = sameDay ? u.listen_sec : 0;
     // Không cộng dư: chỉ tính tối đa đúng số giây thật đã trôi qua kể từ lần ghi trước (gửi dồn dập không tăng nhanh hơn thời gian thật).
-    const elapsed = sameDay && u.listen_at ? Math.max(0, t - u.listen_at) : 120;
+    const started = sameDay && u.listen_at ? u.listen_at : u.seen_day === today ? Math.max(dayStartTs(), u.seen_at || t) : t;
+    const elapsed = Math.max(0, t - started);
     const credit = Math.max(0, Math.min(Math.floor(+input.sec || 0), elapsed, 120));
     const after = Math.min(L.need, before + credit);
     // Chỉ ghi nếu chưa có yêu cầu nào khác chen vào (so khớp listen_at cũ) — gửi song song không cộng trùng thời gian.

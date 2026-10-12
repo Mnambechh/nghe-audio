@@ -88,32 +88,30 @@ export async function handleWithdrawApi(request, db, s, path, me, input, info) {
     const u = await first(db, 'SELECT id, stones, exp, created_at, banned, locked FROM users WHERE id = ?', me.id);
     const why = await blocker(db, s, u);
     if (why) return json({ ok: false, error: why }, 400);
-    const amount = Math.floor(+input.amount || 0);
+    const amount = Math.floor(Number(input.amount));
+    if (!Number.isSafeInteger(amount) || amount <= 0) return json({ ok: false, error: 'Số Linh Thạch không hợp lệ.' }, 400);
     if (amount < c.min) return json({ ok: false, error: `Rút tối thiểu ${c.min.toLocaleString('vi-VN')} Linh Thạch.` }, 400);
     const acc = await first(db, 'SELECT * FROM payout_accounts WHERE id = ? AND user_id = ?', parseInt(input.account_id, 10) || 0, me.id);
     if (!acc) return json({ ok: false, error: 'Chọn tài khoản nhận tiền.' }, 400);
     if (u.stones < amount) return json({ ok: false, error: 'Số Linh Thạch không đủ.' }, 400);
     const vnd = Math.floor(amount * c.rate), today = vnDay();
-    // 1) Tạo yêu cầu có điều kiện (không có yêu cầu chờ duyệt, chưa vượt số lần/ngày) trong MỘT câu lệnh:
-    //    gửi nhiều yêu cầu cùng lúc thì chỉ một cái được tạo.
-    const ins = await db.prepare(`INSERT INTO withdrawals (user_id, amount, vnd, method, bank, number, holder, status, day, ip, created_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?
-      WHERE NOT EXISTS (SELECT 1 FROM withdrawals WHERE user_id = ? AND status = 'pending')
-        AND (? = 0 OR (SELECT COUNT(*) FROM withdrawals WHERE user_id = ? AND day = ? AND status != 'rejected') < ?)`)
-      .bind(me.id, amount, vnd, acc.method, acc.bank, acc.number, acc.holder, today, info.ip, now(), me.id, c.daily, me.id, today, c.daily).run();
-    if (!ins.meta.changes) return json({ ok: false, error: 'Bạn đang có yêu cầu chờ duyệt hoặc đã hết lượt rút hôm nay.' }, 400);
-    const wid = ins.meta.last_row_id;
-    // 2) Trừ Linh Thạch có điều kiện đủ số dư; không đủ thì hủy yêu cầu vừa tạo.
-    const r = await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(amount, me.id, amount).run();
-    if (!r.meta.changes) {
-      await db.prepare('DELETE FROM withdrawals WHERE id = ?').bind(wid).run();
-      return json({ ok: false, error: 'Số Linh Thạch không đủ.' }, 400);
-    }
-    await db.batch([
-      db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
+    if (!Number.isSafeInteger(vnd) || vnd < 0) return json({ ok: false, error: 'Số tiền quy đổi không hợp lệ.' }, 400);
+    // Tạo yêu cầu, trừ số dư và ghi lịch sử trong cùng giao dịch D1.
+    // Điều kiện số dư/quyền/lượt rút được kiểm tra lại lúc ghi, tránh dữ liệu đọc cũ.
+    const result = await db.batch([
+      db.prepare(`INSERT INTO withdrawals (user_id, amount, vnd, method, bank, number, holder, status, day, ip, created_at)
+        SELECT id, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ? FROM users
+        WHERE id = ? AND locked = 0 AND banned = 0 AND stones >= ?
+          AND NOT EXISTS (SELECT 1 FROM withdrawals WHERE user_id = ? AND status = 'pending')
+          AND (? = 0 OR (SELECT COUNT(*) FROM withdrawals WHERE user_id = ? AND day = ? AND status != 'rejected') < ?)`)
+        .bind(amount, vnd, acc.method, acc.bank, acc.number, acc.holder, today, info.ip, now(), me.id, amount, me.id, c.daily, me.id, today, c.daily),
+      db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND changes() > 0').bind(amount, me.id),
+      db.prepare(`INSERT INTO member_log (user_id, action, amount, note, created_at)
+        SELECT ?, ?, ?, ?, ? WHERE changes() > 0`)
         .bind(me.id, 'withdraw', -amount, `Yêu cầu rút về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''} ${acc.number}`, now()),
-      walletStmt(db, me.id, 'stones', -amount, `Rút Linh Thạch về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''}`),
+      walletStmt(db, me.id, 'stones', -amount, `Rút Linh Thạch về ${METHODS[acc.method]}${acc.bank ? ' ' + acc.bank : ''}`, true),
     ]);
+    if (!result[0].meta.changes) return json({ ok: false, error: 'Số dư không đủ, có yêu cầu chờ duyệt hoặc đã hết lượt rút hôm nay.' }, 400);
     return json({ ok: true, amount, vnd });
   }
 

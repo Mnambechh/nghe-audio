@@ -53,7 +53,7 @@ export async function handleApi(request, db, path, ctx, info) {
     request = new Request(request, { body });
   }
   if (path.startsWith('/api/comments') || path.startsWith('/api/auth/') || path.startsWith('/api/history') || path.startsWith('/api/profile') || path === '/api/me'
-    || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/heart' || path === '/api/referral' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/') || path === '/api/shop' || path.startsWith('/api/shop/')) return handleCommentsApi(request, db, path, info, ctx);
+    || path === '/api/wallet' || path === '/api/notifications' || path === '/api/checkin' || path === '/api/online' || path === '/api/heart' || path === '/api/referral' || path === '/api/rate' || path.startsWith('/api/withdraw') || path.startsWith('/api/quest/') || path === '/api/shop' || path.startsWith('/api/shop/')) return handleCommentsApi(request, db, path, info, ctx);
 
   // Cập nhật số đang nghe cho các thẻ trên trang.
   if (path === '/api/live') return json({ ok: true, live: await liveCounts(db) });

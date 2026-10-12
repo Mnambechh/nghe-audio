@@ -92,6 +92,9 @@ export async function migrate(db) {
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
   if (await missing(db, 'history')) await db.batch(SCHEMA_V4.map(s => db.prepare(s)));
+  // Chỉ email đã được chứng minh quyền sở hữu mới được giữ mật khẩu khi gộp Google.
+  try { await db.prepare('SELECT email_verified FROM users LIMIT 1').first(); }
+  catch { await db.prepare('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0').run(); }
   // Bản 6: tu luyện (EXP, Linh Thạch, điểm danh), đánh giá truyện, thông báo.
   if (await missing(db, 'notifications')) {
     await db.batch([
@@ -211,6 +214,7 @@ export async function migrate(db) {
       `CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_log(user_id, kind, id DESC)`,
     ].map(q => db.prepare(q)));
   }
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_wallet_created ON wallet_log(created_at, user_id, kind)').run();
   // Bản 29: gói Promax VIP (users.vip_until) + đếm lượt bán từng gói trong cửa hàng.
   try { await db.prepare('SELECT vip_until FROM users LIMIT 1').first(); }
   catch {

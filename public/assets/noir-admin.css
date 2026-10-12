@@ -92,6 +92,10 @@ html.admin-noir body::before {
 .admin-noir .st-ok, .admin-noir .totp-key.copied { background: #1e3324; color: #acd6a1; border-color: #426848; }
 .admin-noir .st-warn, .admin-noir .confirm-box, .admin-noir .ipg-hot { background: #302719; color: #e8c78d; border-color: #78603a; }
 .admin-noir .st-bad { background: #351f20; color: #eab0ac; border-color: #794247; }
+.admin-noir .wallet-audit .tmain { min-width: 0; overflow-wrap: anywhere; }
+.admin-noir .wallet-audit ul { margin: 8px 0; padding-left: 22px; color: #e4c997; font-size: 14px; }
+.admin-noir .row-actions .inline-form { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.admin-noir .row-actions .inline-form .sel { min-width: 0; max-width: 100%; }
 .admin-noir .st-admin { background: #252637; color: #bcbde9; border-color: #585975; }
 .admin-noir .st-editor { background: #30202a; color: #e1b0cd; border-color: #725365; }
 .admin-noir .mi:hover { background: #252836; }

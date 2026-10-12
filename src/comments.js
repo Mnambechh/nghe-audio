@@ -12,6 +12,7 @@ import { handleShopApi, shopData, fxOf, frameOf } from './shop.js';
 import { badge } from './levels.js';
 import { matchWords } from './wordfilter.js';
 import { handleWithdrawApi } from './withdraw.js';
+import { walletData } from './wallet.js';
 
 const USER_COOKIE = 'aw_user';
 const USER_DAYS = 60;
@@ -28,8 +29,9 @@ async function userSecret(db) {
   const row = await first(db, "SELECT v FROM settings WHERE k = 'user_secret'");
   if (row && row.v) return row.v;
   const v = randomId(40);
-  await saveSettings(db, { user_secret: v });
-  return v;
+  await db.prepare(`INSERT INTO settings (k, v) VALUES ('user_secret', ?)
+    ON CONFLICT(k) DO UPDATE SET v = excluded.v WHERE settings.v IS NULL OR settings.v = ''`).bind(v).run();
+  return (await first(db, "SELECT v FROM settings WHERE k = 'user_secret'")).v;
 }
 
 // Người dùng đang đăng nhập (hoặc null).
@@ -123,6 +125,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     if (!enabled || !trackId) return json({ ok: true, me: publicUser(me), config, total: 0, items: [] });
     const rows = await all(db, `SELECT c.id, c.parent_id, c.body, c.status, c.likes, c.created_at, c.user_id, u.name, u.avatar, u.exp, u.vip_until, u.name_fx, u.name_fx_until, u.frame_img, u.frame_scale, u.frame_until
       FROM comments c JOIN users u ON u.id = c.user_id
+      JOIN tracks t ON t.id = c.track_id AND t.published = 1
       WHERE c.track_id = ? AND (c.status = 'approved' OR (c.status = 'pending' AND c.user_id = ?))
       ORDER BY c.created_at DESC LIMIT 300`, trackId, me ? me.id : -1);
     let liked = new Set();
@@ -140,6 +143,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
 
   // Thông tin người đang đăng nhập (cho thanh đầu trang).
   if (path === '/api/me') {
+    if (request.method !== 'GET') return json({ ok: false }, 405);
     const me = await currentUser(request, db);
     // Ghi thời điểm hoạt động, IP, thiết bị (tối đa 1 lần / 5 phút để đỡ ghi D1).
     if (me && !me.demo && now() - (me.last_seen || 0) > 300) {
@@ -160,7 +164,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     const trackId = parseInt(url.searchParams.get('track'), 10) || 0;
     const me = await currentUser(request, db);
     const [tr, mine] = await Promise.all([
-      first(db, 'SELECT hearts FROM tracks WHERE id = ?', trackId),
+      first(db, 'SELECT hearts FROM tracks WHERE id = ? AND published = 1', trackId),
       me ? first(db, 'SELECT 1 x FROM track_hearts WHERE user_id = ? AND track_id = ?', me.id, trackId) : null,
     ]);
     return json({ ok: true, count: tr ? tr.hearts : 0, mine: !!mine });
@@ -178,6 +182,14 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
   }
 
   // Lịch sử nghe của người đang đăng nhập.
+  if (path === '/api/wallet') {
+    if (request.method !== 'GET') return json({ ok: false }, 405);
+    const me = await currentUser(request, db);
+    if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+    // Chỉ lấy ID từ cookie đã xác thực; bỏ qua mọi user_id gửi từ máy khách.
+    return json(await walletData(db, me.id, url.searchParams));
+  }
+
   if (path === '/api/history' && request.method === 'GET') {
     const me = await currentUser(request, db);
     if (!me) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
@@ -235,20 +247,31 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     // Tài khoản MỚI: giới hạn số tài khoản mỗi IP và chặn đăng ký qua proxy / VPN (chống clone, tài khoản ảo).
     if (isNew) {
       // Đã đăng ký bằng email trước đó (cùng địa chỉ Gmail): gộp vào tài khoản cũ thay vì tạo tài khoản mới.
-      const old = g.email ? await first(db, "SELECT id FROM users WHERE email = ? AND sub LIKE 'email:%'", String(g.email).toLowerCase()) : null;
-      if (old) { await db.prepare('UPDATE users SET sub = ? WHERE id = ?').bind(g.sub, old.id).run(); isNew = false; }
+      const old = g.email ? await first(db, "SELECT id FROM users WHERE email = ? COLLATE NOCASE AND sub LIKE 'email:%'", g.email) : null;
+      if (old) {
+        // Người khác có thể đăng ký trước bằng email chưa xác minh. Khi chủ email
+        // đăng nhập Google, hủy mật khẩu/phiên đó; vẫn giữ lịch sử và tài sản tài khoản.
+        await db.prepare(`UPDATE users SET sub = ?, pass_hash = CASE WHEN email_verified = 1 THEN pass_hash ELSE '' END,
+          email_verified = 1, session_ver = session_ver + 1 WHERE id = ? AND sub LIKE 'email:%'`).bind(g.sub, old.id).run();
+        isNew = false;
+      }
       else {
         const block = await newAccountGuard(db, s, info, g.email);
         if (block) return block;
       }
     }
-    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const ipLimit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
+    await db.prepare(`INSERT INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen, email_verified)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+      WHERE ? = 0 OR EXISTS (SELECT 1 FROM users WHERE sub = ?)
+        OR (SELECT COUNT(*) FROM users WHERE reg_ip = ?) < ?
       ON CONFLICT(sub) DO UPDATE SET email = excluded.email, last_login = excluded.last_login, last_ip = excluded.last_ip, country = excluded.country,
-        device = excluded.device, last_seen = excluded.last_seen,
+        device = excluded.device, last_seen = excluded.last_seen, email_verified = 1,
         name = CASE WHEN users.name_locked = 1 THEN users.name ELSE excluded.name END,
         avatar = CASE WHEN users.avatar_locked = 1 THEN users.avatar ELSE excluded.avatar END`)
-      .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t).run();
+      .bind(g.sub, g.name, g.email, g.avatar, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t, ipLimit, g.sub, info.ip, ipLimit).run();
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE sub = ?', g.sub);
+    if (!u) return json({ ok: false, error: 'Mạng này đã đạt giới hạn tạo tài khoản.' }, 403);
     if (u.locked) return json({ ok: false, error: 'Tài khoản của bạn đã bị khóa. Liên hệ quản trị viên nếu có nhầm lẫn.' }, 403);
     // Tài khoản mới đến từ link giới thiệu: ghi nhận người mời (đã kiểm tra chống tự mời / cùng IP).
     const refCookie = isNew ? await attachReferrer(db, s, request, u.id, info.ip) : '';
@@ -277,9 +300,15 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     if (block) return block;
     const t = now();
     const name = (email.split('@')[0].replace(/[^\p{L}\p{N}._-]/gu, '').slice(0, 30)) || 'Đạo hữu';
+    const ipLimit = Math.max(0, parseInt(s.reg_per_ip, 10) || 0);
     const ins = await db.prepare(`INSERT OR IGNORE INTO users (sub, name, email, avatar, created_at, last_login, reg_ip, last_ip, country, device, last_seen, pass_hash)
-      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?)`).bind('email:' + email, name, email, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t, await hashPassword(pass)).run();
-    if (!ins.meta.changes) return json({ ok: false, error: 'Email này đã có tài khoản.' }, 409);
+      SELECT ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE ? = 0 OR (SELECT COUNT(*) FROM users WHERE reg_ip = ?) < ?`)
+      .bind('email:' + email, name, email, t, t, info.ip, info.ip, info.country, deviceOf(info.ua), t, await hashPassword(pass), ipLimit, info.ip, ipLimit).run();
+    if (!ins.meta.changes) {
+      const exists = await first(db, 'SELECT 1 x FROM users WHERE email = ? COLLATE NOCASE', email);
+      return json({ ok: false, error: exists ? 'Email này đã có tài khoản.' : 'Mạng này đã đạt giới hạn tạo tài khoản.' }, exists ? 409 : 403);
+    }
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE id = ?', ins.meta.last_row_id);
     const refCookie = await attachReferrer(db, s, request, u.id, info.ip, refCode);
     return loginResponse(db, u, refCookie);
@@ -322,7 +351,7 @@ export async function handleCommentsApi(request, db, path, info, ctx) {
     // Đánh dấu đã dùng trong một câu lệnh có điều kiện → link chỉ dùng được 1 lần kể cả khi bấm nhiều lần cùng lúc.
     const row = await first(db, 'UPDATE password_resets SET used = 1 WHERE token_hash = ? AND used = 0 AND expires > ? RETURNING user_id', th, now());
     if (!row) return json({ ok: false, error: 'Link đã hết hạn hoặc đã được dùng. Hãy yêu cầu link mới.' }, 400);
-    await db.prepare('UPDATE users SET pass_hash = ?, session_ver = session_ver + 1 WHERE id = ?').bind(await hashPassword(pass), row.user_id).run();
+    await db.prepare('UPDATE users SET pass_hash = ?, email_verified = 1, session_ver = session_ver + 1 WHERE id = ?').bind(await hashPassword(pass), row.user_id).run();
     await db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ?').bind(row.user_id).run();
     const u = await first(db, 'SELECT id, name, avatar, banned, exp, locked, session_ver FROM users WHERE id = ?', row.user_id);
     if (!u || u.locked) return json({ ok: false, error: 'Tài khoản đã bị khóa.' }, 403);

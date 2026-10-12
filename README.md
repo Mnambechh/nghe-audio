@@ -3,6 +3,8 @@
 Web nghe audio truyện chạy trên **Cloudflare Pages + Functions + D1**, audio lưu ở **R2**.
 Không cần server, không cần cài thư viện. Mỗi lần đẩy code lên GitHub, Cloudflare tự cập nhật web.
 
+Lịch sử giao dịch cá nhân nằm trong bảng tài khoản → **Lịch sử Linh Thạch & EXP**. Admin xem nhật ký trong hồ sơ thành viên và mục **Thưởng bất thường** để đối chiếu các dấu hiệu cần kiểm tra. Chi tiết sửa bảo mật và cách chạy kiểm tra cục bộ: [rà soát 12/10/2026](docs/security-review-2026-10-12.md).
+
 ## Cài đặt lần đầu (khoảng 10 phút)
 
 ### Bước 1: Tạo cơ sở dữ liệu D1

@@ -15,6 +15,7 @@ import { verifyTotp, randomBase32, otpauthUri } from './totp.js';
 import { mailConfig, sendMail } from './mailer.js';
 import { checkIp, hostingByAsn } from './proxycheck.js';
 import { NAME_FX } from './shop.js';
+import { walletAnomalies } from './wallet.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -735,22 +736,24 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       const where = `${METHODS[w.method] || w.method}${w.bank ? ' ' + w.bank : ''}`;
       const money = w.vnd.toLocaleString('vi-VN') + 'đ';
       if (act === 'paid') {
-        await db.prepare("UPDATE withdrawals SET status = 'paid', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id).run();
+        const r = await db.prepare("UPDATE withdrawals SET status = 'paid', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id).run();
+        if (!r.meta.changes) return go(ADMIN + '/withdrawals', ['err', 'Yêu cầu đã được xử lý ở phiên khác.']);
         await notify(db, w.user_id, 'withdraw', { text: `Đã chuyển ${money} về ${where} (rút ${w.amount.toLocaleString('vi-VN')} Linh Thạch)${note ? ' · ' + note : ''}` });
         return go(ADMIN + '/withdrawals', ['ok', `Đã đánh dấu đã chuyển ${money}.`]);
       }
       if (act === 'reject') {
-        const r = await db.prepare("UPDATE withdrawals SET status = 'rejected', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id).run();
-        if (r.meta.changes) {
-          await db.batch([
-            db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(w.amount, w.user_id),
-            db.prepare('INSERT INTO member_log (user_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?)')
-              .bind(w.user_id, 'withdraw_refund', w.amount, note || 'Từ chối yêu cầu rút', now()),
-            walletStmt(db, w.user_id, 'stones', w.amount, 'Hoàn lại do yêu cầu rút bị từ chối'),
-          ]);
+        const result = await db.batch([
+          db.prepare("UPDATE withdrawals SET status = 'rejected', admin_note = ?, processed_at = ? WHERE id = ? AND status = 'pending'").bind(note, now(), id),
+          db.prepare('UPDATE users SET stones = stones + ? WHERE id = ? AND changes() > 0').bind(w.amount, w.user_id),
+          db.prepare(`INSERT INTO member_log (user_id, action, amount, note, created_at)
+            SELECT ?, ?, ?, ?, ? WHERE changes() > 0`)
+            .bind(w.user_id, 'withdraw_refund', w.amount, note || 'Từ chối yêu cầu rút', now()),
+          walletStmt(db, w.user_id, 'stones', w.amount, 'Hoàn lại do yêu cầu rút bị từ chối', true),
+        ]);
+        if (result[0].meta.changes) {
           await notify(db, w.user_id, 'withdraw', { text: `Yêu cầu rút ${w.amount.toLocaleString('vi-VN')} Linh Thạch bị từ chối, đã hoàn lại${note ? ' · Lý do: ' + note : ''}` });
         }
-        return go(ADMIN + '/withdrawals', ['ok', 'Đã từ chối và hoàn Linh Thạch.']);
+        return go(ADMIN + '/withdrawals', result[0].meta.changes ? ['ok', 'Đã từ chối và hoàn Linh Thạch.'] : ['err', 'Yêu cầu đã được xử lý ở phiên khác.']);
       }
       return go(ADMIN + '/withdrawals');
     }
@@ -766,6 +769,11 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
   }
 
   // Thành viên: danh sách
+  if (path === '/admin/wallet-audit') {
+    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
+    return view(V.walletAuditView(await walletAnomalies(db, s, url.searchParams.get('page'))));
+  }
+
   if (path === '/admin/members') {
     // Thao tác hàng loạt trên các thành viên được chọn.
     if (isPost) {

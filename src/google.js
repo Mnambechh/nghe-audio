@@ -41,6 +41,7 @@ export async function verifyGoogleToken(token, clientId, getKeys = googleKeys) {
   if (c.aud !== clientId) throw new Error('Token không dành cho web này');
   if (!c.exp || c.exp < now - 60) throw new Error('Token đã hết hạn');
   if (!c.sub) throw new Error('Thiếu mã người dùng');
+  if (c.email && c.email_verified !== true) throw new Error('Email Google chưa được xác minh');
   return {
     sub: String(c.sub),
     name: String(c.name || c.given_name || (c.email || '').split('@')[0] || 'Người nghe').slice(0, 60),

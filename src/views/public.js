@@ -6,7 +6,7 @@ import { GENRES, genresOf } from '../genres.js';
 import { DEFAULT_WORDMARK, usesDefaultLogo } from './brand.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '116';
+export const ASSET_V = '117';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -668,6 +668,20 @@ export function historyPage(ctx) {
     <div class="bar-line"><h1 class="h1">Lịch sử nghe</h1><button type="button" class="link-btn" data-act="hist-clear" hidden>Xóa tất cả</button></div>
     <div id="history" class="list"><p class="c-note">Đang tải…</p></div></div>`;
   return layout(ctx, { title: `Lịch sử nghe - ${ctx.s.site_name}`, canonical: ctx.origin + '/lich-su', noindex: true }, body);
+}
+
+export function walletPage(ctx) {
+  const body = `<div class="wrap narrow"><a class="back" href="/">← Trang chủ</a>
+    <h1 class="h1">Lịch sử Linh Thạch & EXP</h1>
+    <p class="sub">Theo dõi khoản nhận, sử dụng và số dư sau mỗi giao dịch. Nhật ký cũ có thể được dọn sau 12 tháng.</p>
+    <div id="wallet-history">
+      <div class="wallet-summary" aria-live="polite"></div>
+      <div class="wallet-controls" hidden><label>Lọc lịch sử<select id="wallet-kind"><option value="">Tất cả</option><option value="stones">Linh Thạch</option><option value="exp">EXP</option></select></label>
+        <button class="btn-ghost inline" type="button" data-wallet="refresh">Làm mới</button></div>
+      <div class="wallet-list"><p class="c-note">Đang tải…</p></div>
+      <button class="btn-ghost inline wallet-more" type="button" data-wallet="more" hidden>Xem thêm</button>
+    </div></div>`;
+  return layout(ctx, { title: `Lịch sử Linh Thạch & EXP - ${ctx.s.site_name}`, canonical: ctx.origin + '/lich-su-thuong', noindex: true }, body);
 }
 
 export function profilePage(ctx) {

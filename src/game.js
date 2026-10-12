@@ -70,10 +70,10 @@ export async function notify(db, userId, type, { actor = 0, track = 0, comment =
 // ---------- Lịch sử EXP / Linh Thạch ----------
 
 // Câu lệnh ghi một dòng lịch sử; số dư lấy sau khi đã cập nhật (gọi sau UPDATE, hoặc đặt sau nó trong batch).
-export function walletStmt(db, userId, kind, amount, note) {
+export function walletStmt(db, userId, kind, amount, note, onlyIfChanged = false) {
   const col = kind === 'exp' ? 'exp' : 'stones';
   return db.prepare(`INSERT INTO wallet_log (user_id, kind, amount, balance, note, created_at)
-    SELECT id, ?, ?, ${col}, ?, ? FROM users WHERE id = ?`).bind(kind, amount, String(note || '').slice(0, 200), now(), userId);
+    SELECT id, ?, ?, ${col}, ?, ? FROM users WHERE id = ?${onlyIfChanged ? ' AND changes() > 0' : ''}`).bind(kind, amount, String(note || '').slice(0, 200), now(), userId);
 }
 
 export async function walletLog(db, userId, kind, amount, note) {
@@ -91,28 +91,38 @@ export async function walletLog(db, userId, kind, amount, note) {
 // Cộng EXP, tự xử lý lên cấp. Trả về danh sách phần thưởng để hiện thông báo góc màn hình.
 export async function awardExp(db, s, userId, amount, note = '') {
   if (!userId || !amount) return [];
-  const mul = amount > 0 && !/^Admin/.test(note) ? await vipMul(db, userId) : 1;
-  amount *= mul;
-  if (mul > 1) note += ' (VIP x2)';
-  const row = await first(db, 'UPDATE users SET exp = exp + ? WHERE id = ? RETURNING exp', amount, userId);
-  if (!row) return [];
-  await walletLog(db, userId, 'exp', amount, note);
-  const rewards = [{ type: 'exp', n: amount }];
-  const before = levelInfo(row.exp - amount).lvl;
-  const after = levelInfo(row.exp);
-  if (after.lvl > before) {
+  if (!Number.isFinite(amount)) throw new Error('EXP không hợp lệ');
+  // So khớp EXP đọc trước: hai phần thưởng đồng thời không cùng nhận thưởng lên cấp.
+  // EXP, Linh Thạch đột phá và lịch sử cùng hoàn tác nếu một bước ghi lỗi.
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const u = await first(db, 'SELECT exp, vip_until FROM users WHERE id = ?', userId);
+    if (!u) return [];
+    const mul = amount > 0 && !/^Admin/.test(note) && vipActive(u) ? 2 : 1;
+    const gained = amount * mul, after = levelInfo(u.exp + gained), before = levelInfo(u.exp).lvl;
     let bonus = 0;
     for (let l = before + 1; l <= after.lvl; l++) bonus += levelupStones(s, l);
-    bonus *= mul; // VIP: thưởng đột phá cũng x2
-    if (bonus) {
-      await db.prepare('UPDATE users SET stones = stones + ? WHERE id = ?').bind(bonus, userId).run();
-      await walletLog(db, userId, 'stones', bonus, `Thưởng đột phá ${after.realm} (Cấp ${after.lvl})`);
+    bonus *= mul;
+    const expNote = note + (mul > 1 ? ' (VIP x2)' : '');
+    const bonusNote = `Thưởng đột phá ${after.realm} (Cấp ${after.lvl})`;
+    const result = await db.batch([
+      db.prepare('UPDATE users SET exp = exp + ?, stones = stones + ? WHERE id = ? AND exp = ?')
+        .bind(gained, bonus, userId, u.exp),
+      walletStmt(db, userId, 'exp', gained, expNote, true),
+      ...(bonus ? [walletStmt(db, userId, 'stones', bonus, bonusNote, true)] : []),
+    ]);
+    if (!result[0].meta.changes) continue;
+    const rewards = [{ type: 'exp', n: gained }];
+    if (after.lvl > before) {
+      if (bonus) {
+        try { await payCommission(db, userId, bonus, bonusNote, s); } catch (e) { /* không chặn phần thưởng đã ghi */ }
+      }
+      await notify(db, userId, 'levelup', { text: `Chúc mừng đột phá ${after.realm} (Cấp ${after.lvl})${bonus ? ` · +${bonus} Linh Thạch` : ''}` });
+      rewards.push({ type: 'levelup', lvl: after.lvl, realm: after.realm, tier: after.tier });
+      if (bonus) rewards.push({ type: 'stones', n: bonus });
     }
-    await notify(db, userId, 'levelup', { text: `Chúc mừng đột phá ${after.realm} (Cấp ${after.lvl})${bonus ? ` · +${bonus} Linh Thạch` : ''}` });
-    rewards.push({ type: 'levelup', lvl: after.lvl, realm: after.realm, tier: after.tier });
-    if (bonus) rewards.push({ type: 'stones', n: bonus });
+    return rewards;
   }
-  return rewards;
+  throw new Error('Tài khoản đang được cập nhật, vui lòng thử lại');
 }
 
 // Gọi khi một bình luận được hiện (tự duyệt hoặc admin duyệt).
@@ -202,6 +212,7 @@ export async function handleGameApi(request, db, s, path, me, input) {
     }
     // Giữ 1 lượt trong ngày (nguyên tử): tối đa heart_daily truyện / ngày.
     const today = vnDay(), max = num(s, 'heart_daily');
+    if (max <= 0) return json({ ok: false, limit: true, error: 'Thả tim nhận thưởng đang tạm đóng.' }, 429);
     const slot = await db.prepare(`UPDATE users SET heart_n = CASE WHEN heart_day = ? THEN heart_n + 1 ELSE 1 END, heart_day = ?
       WHERE id = ? AND (heart_day != ? OR heart_n < ?)`).bind(today, today, me.id, today, max).run();
     if (!slot.meta.changes) return json({ ok: false, limit: true, error: `Mỗi ngày chỉ thả tim được ${max} truyện, mai quay lại nhé!` }, 429);
@@ -228,12 +239,12 @@ export async function handleGameApi(request, db, s, path, me, input) {
   if (path === '/api/online') {
     const t = now(), today = vnDay();
     const need = num(s, 'checkin_wait');
-    const u = await first(db, 'SELECT seen_day, online_sec, online_at, checkin_day FROM users WHERE id = ?', me.id);
+    const u = await first(db, 'SELECT seen_day, seen_at, online_sec, online_at, checkin_day FROM users WHERE id = ?', me.id);
     if (u.checkin_day === today) return json({ ok: true, sec: need, need, left: 0 });
     const same = u.seen_day === today;
     const before = same ? u.online_sec : 0;
     // Không cộng dư: tối đa đúng số giây thật đã trôi qua kể từ lần ghi trước (gửi dồn dập không tăng nhanh hơn thời gian thật).
-    const gap = same && u.online_at ? Math.max(0, t - u.online_at) : 20;
+    const gap = same ? Math.max(0, t - (u.online_at || u.seen_at || t)) : 0;
     const credit = Math.max(0, Math.min(Math.floor(+input.sec || 0), 20, gap));
     const after = Math.min(need, before + credit);
     const w = await db.prepare(`UPDATE users SET seen_day = ?, seen_at = CASE WHEN seen_day = ? THEN seen_at ELSE ? END, online_sec = ?, online_at = ?
@@ -271,14 +282,15 @@ export async function handleGameApi(request, db, s, path, me, input) {
       return json({ ok: true, mine: r ? r.stars : 0 });
     }
     if (tooFast('rate' + me.id, 5, 10000)) return json({ ok: false, silent: true, error: 'Thao tác quá nhanh.' }, 429);
-    const stars = parseInt(input.stars, 10);
-    if (!(stars >= 1 && stars <= 10)) return json({ ok: false, error: 'Số sao không hợp lệ.' }, 400);
+    const stars = Number(input.stars);
+    if (!Number.isInteger(stars) || stars < 1 || stars > 10) return json({ ok: false, error: 'Số sao không hợp lệ.' }, 400);
     const track = await first(db, 'SELECT title FROM tracks WHERE id = ? AND published = 1', trackId);
     if (!track) return json({ ok: false }, 404);
     if (await first(db, 'SELECT 1 x FROM ratings WHERE user_id = ? AND track_id = ?', me.id, trackId)) {
       return json({ ok: false, error: 'Bạn đã đánh giá truyện này rồi.' }, 400);
     }
     const today = vnDay(), max = num(s, 'rate_daily');
+    if (max <= 0) return json({ ok: false, error: 'Đánh giá nhận thưởng đang tạm đóng.' }, 429);
     // Giữ chỗ 1 lượt trong ngày bằng một câu lệnh nguyên tử (gửi nhiều yêu cầu cùng lúc cũng không vượt giới hạn).
     const slot = await db.prepare(`UPDATE users SET rate_n = CASE WHEN rate_day = ? THEN rate_n + 1 ELSE 1 END, rate_day = ?
       WHERE id = ? AND (rate_day != ? OR rate_n < ?)`).bind(today, today, me.id, today, max).run();

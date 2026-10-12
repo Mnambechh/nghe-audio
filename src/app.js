@@ -1,7 +1,7 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
 import { h, html, vnDay, fromBase64 } from './util.js';
-import { homePage, genrePage, trackPage, staticPage, notFoundPage, historyPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
+import { homePage, genrePage, trackPage, staticPage, notFoundPage, historyPage, walletPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
 import { GENRES } from './genres.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
 import { listenConfig, commentConfig } from './quests.js';
@@ -113,6 +113,7 @@ async function handleInner(request, env, ctx) {
   if (path === '/rut-linh-thach') return html(withdrawPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/tai-khoan') return html(profilePage(pageCtx), 200, { 'Cache-Control': 'no-store' });
   if (path === '/lich-su') return html(historyPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
+  if (path === '/lich-su-thuong') return html(walletPage(pageCtx), 200, { 'Cache-Control': 'no-store' });
 
   let m = path.match(/^\/track\/([a-z0-9-]+)$/);
   if (m) {

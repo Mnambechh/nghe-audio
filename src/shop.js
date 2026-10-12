@@ -2,7 +2,7 @@
 // Gói (tên, hiệu ứng, giá, số ngày) do admin cài trong trang quản trị.
 import { all, first } from './db.js';
 import { json, now } from './util.js';
-import { walletLog, tooFast, vipActive } from './game.js';
+import { walletStmt, tooFast, vipActive } from './game.js';
 
 // Các hiệu ứng có sẵn: mã → [tên, dãy màu]. Màu dùng để vẽ CSS (public/assets/app.css + admin.css).
 export const NAME_FX = {
@@ -68,51 +68,55 @@ export async function handleShopApi(request, db, s, path, me, input) {
 
   if (path === '/api/shop/buy') {
     const item = await first(db, 'SELECT * FROM shop_items WHERE id = ? AND active = 1 AND deleted = 0', parseInt(input.id, 10) || 0);
-    // Gói Promax VIP: bỏ quảng cáo, tích xanh, x2 EXP, x2 Linh Thạch kiếm được trong N ngày (mua thêm = cộng dồn ngày).
-    if (item && item.kind === 'vip') {
-      const price = Math.max(0, Math.floor(item.price)), days = Math.max(1, Math.floor(item.days) || 7), t = now();
-      const paid = price ? await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(price, me.id, price).run() : { meta: { changes: 1 } };
-      if (!paid.meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
-      const row = await first(db, 'UPDATE users SET vip_until = MAX(COALESCE(vip_until, 0), ?) + ? WHERE id = ? RETURNING vip_until', t, days * 86400, me.id);
-      if (price) await walletLog(db, me.id, 'stones', -price, `Cửa hàng: ${item.name}`);
-      await db.prepare('UPDATE shop_items SET sold = sold + 1 WHERE id = ?').bind(item.id).run();
-      return json({ ok: true, kind: 'vip', fx: '', until: row ? row.vip_until : t + days * 86400, name: item.name, price });
+    if (!item || !['vip', 'frame', 'fx'].includes(item.kind)
+      || (item.kind === 'frame' ? !FRAME_RE.test(item.img) : item.kind === 'fx' && !Object.hasOwn(NAME_FX, item.fx))) {
+      return json({ ok: false, error: 'Gói này không còn bán.' }, 404);
     }
-    if (!item || (item.kind === 'frame' ? !FRAME_RE.test(item.img) : !NAME_FX[item.fx])) return json({ ok: false, error: 'Gói này không còn bán.' }, 404);
+    const price = Math.max(0, Math.floor(item.price));
+    const days = item.kind === 'vip' ? Math.max(1, Math.floor(item.days) || 7) : Math.max(0, Math.floor(item.days));
+    if (!Number.isSafeInteger(price) || !Number.isSafeInteger(days) || !Number.isSafeInteger(now() + days * 86400)) {
+      return json({ ok: false, error: 'Gói này chưa được cấu hình hợp lệ.' }, 400);
+    }
+    const t = now(), note = `Cửa hàng: ${item.name}`;
+    const sold = db.prepare('UPDATE shop_items SET sold = sold + 1 WHERE id = ? AND changes() > 0').bind(item.id);
+    const log = price ? [walletStmt(db, me.id, 'stones', -price, note, true)] : [];
+    // D1 batch là một giao dịch: không ai nhìn thấy vật phẩm/VIP chưa trả tiền,
+    // lỗi ở bất kỳ bước nào cũng hoàn tác số dư, quyền sở hữu và lịch sử.
+    // changes() truyền kết quả bước trước; không trừ được tiền thì mọi bước sau bỏ qua.
+    if (item.kind === 'vip') {
+      const result = await db.batch([
+        db.prepare(`UPDATE users SET stones = stones - ?, vip_until = MAX(COALESCE(vip_until, 0), ?) + ?
+          WHERE id = ? AND locked = 0 AND stones >= ?
+            AND EXISTS (SELECT 1 FROM shop_items WHERE id = ? AND active = 1 AND deleted = 0)
+          RETURNING vip_until`).bind(price, t, days * 86400, me.id, price, item.id),
+        sold, ...log,
+      ]);
+      if (!result[0].meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch hoặc gói đã ngừng bán.' }, 400);
+      return json({ ok: true, kind: 'vip', fx: '', until: result[0].results[0].vip_until, name: item.name, price });
+    }
     const key = keyOf(item);
-    const price = Math.max(0, Math.floor(item.price)), days = Math.max(0, Math.floor(item.days));
-    const t = now();
     const prev = await first(db, 'SELECT until FROM user_fx WHERE user_id = ? AND fx = ?', me.id, key);
     if (prev && prev.until === 0) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn vật phẩm này rồi.' }, 400);
-
-    let newUntil;
-    if (!days) {
-      // Gói vĩnh viễn: giữ chỗ trước (câu lệnh có điều kiện) → bấm mua song song chỉ 1 lần bị trừ tiền.
-      const claim = await db.prepare(`INSERT INTO user_fx (user_id, fx, until, created_at) VALUES (?, ?, 0, ?)
-          ON CONFLICT(user_id, fx) DO UPDATE SET until = 0 WHERE user_fx.until != 0`).bind(me.id, key, t).run();
-      if (!claim.meta.changes) return json({ ok: false, error: 'Bạn đã sở hữu vĩnh viễn vật phẩm này rồi.' }, 400);
-      const paid = price ? await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(price, me.id, price).run() : { meta: { changes: 1 } };
-      if (!paid.meta.changes) {
-        // Không đủ Linh Thạch: trả lại trạng thái cũ.
-        if (prev) await db.prepare('UPDATE user_fx SET until = ? WHERE user_id = ? AND fx = ?').bind(prev.until, me.id, key).run();
-        else await db.prepare('DELETE FROM user_fx WHERE user_id = ? AND fx = ?').bind(me.id, key).run();
-        return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
-      }
-      newUntil = 0;
-    } else {
-      // Gói có hạn: trừ tiền (có điều kiện đủ số dư) rồi cộng thêm ngày (mua nhiều lần = gia hạn dồn).
-      const paid = price ? await db.prepare('UPDATE users SET stones = stones - ? WHERE id = ? AND stones >= ?').bind(price, me.id, price).run() : { meta: { changes: 1 } };
-      if (!paid.meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch.' }, 400);
-      const row = await first(db, `INSERT INTO user_fx (user_id, fx, until, created_at) VALUES (?, ?, ?, ?)
-          ON CONFLICT(user_id, fx) DO UPDATE SET until = CASE WHEN user_fx.until = 0 THEN 0 ELSE MAX(user_fx.until, ?) + ? END
-          RETURNING until`, me.id, key, t + days * 86400, t, t, days * 86400);
-      newUntil = row ? row.until : t + days * 86400;
-    }
-    if (price) await walletLog(db, me.id, 'stones', -price, `Cửa hàng: ${item.name}`);
-    await db.prepare('UPDATE shop_items SET sold = sold + 1 WHERE id = ?').bind(item.id).run();
-    // Mua xong tự dùng luôn vật phẩm vừa mua.
-    await equip(db, me, item, newUntil);
-    return json({ ok: true, kind: item.kind, fx: item.kind === 'frame' ? '' : item.fx, until: newUntil, name: item.name, price });
+    const equipStmt = item.kind === 'frame'
+      ? db.prepare(`UPDATE users SET frame_id = ?, frame_img = ?, frame_scale = ?,
+          frame_until = (SELECT until FROM user_fx WHERE user_id = ? AND fx = ?)
+          WHERE id = ? AND changes() > 0`).bind(item.id, item.img, item.scale || 160, me.id, key, me.id)
+      : db.prepare(`UPDATE users SET name_fx = ?, name_fx_until = (SELECT until FROM user_fx WHERE user_id = ? AND fx = ?)
+          WHERE id = ? AND changes() > 0`).bind(item.fx, me.id, key, me.id);
+    const result = await db.batch([
+      db.prepare(`UPDATE users SET stones = stones - ? WHERE id = ? AND locked = 0 AND stones >= ?
+          AND NOT EXISTS (SELECT 1 FROM user_fx WHERE user_id = ? AND fx = ? AND until = 0)
+          AND EXISTS (SELECT 1 FROM shop_items WHERE id = ? AND active = 1 AND deleted = 0)`)
+        .bind(price, me.id, price, me.id, key, item.id),
+      db.prepare(`INSERT INTO user_fx (user_id, fx, until, created_at)
+          SELECT ?, ?, ?, ? WHERE changes() > 0
+          ON CONFLICT(user_id, fx) DO UPDATE SET until = CASE WHEN ? = 0 THEN 0 ELSE MAX(user_fx.until, ?) + ? END
+          RETURNING until`).bind(me.id, key, days ? t + days * 86400 : 0, t, days, t, days * 86400),
+      equipStmt, sold, ...log,
+    ]);
+    if (!result[0].meta.changes) return json({ ok: false, error: 'Bạn không đủ Linh Thạch, đã sở hữu vĩnh viễn hoặc gói đã ngừng bán.' }, 400);
+    return json({ ok: true, kind: item.kind, fx: item.kind === 'frame' ? '' : item.fx,
+      until: result[1].results[0].until, name: item.name, price });
   }
 
   // Đổi hiệu ứng tên / khung đang dùng (chỉ chọn được thứ mình sở hữu và còn hạn). Rỗng / 0 = tắt.
