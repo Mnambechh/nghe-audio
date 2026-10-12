@@ -315,6 +315,11 @@ body.site-noir a:focus-visible, body.site-noir button:focus-visible { outline: 2
 
 @media (min-width: 1024px) {
   body.site-noir .top-nav { flex-wrap: wrap; overflow: visible; }
+  body.site-noir .wrap:not(.narrow) { max-width: 1600px; }
+  body.site-noir .rail { grid-auto-columns: clamp(200px, 14vw, 224px); }
+  body.site-noir .noir-feature { padding-inline: max(68px, calc((100% - 1560px) / 2)); }
+  body.site-noir .noir-feature-copy { max-width: 460px; }
+  body.site-noir .noir-feature-dots { right: max(64px, calc((100% - 1560px) / 2)); }
 }
 @media (max-width: 900px) {
   body.site-noir .noir-feature { grid-template-columns: 150px minmax(0, 1fr); gap: 20px; padding: 14px 64px; min-height: 228px; }
