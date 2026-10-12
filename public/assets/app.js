@@ -223,7 +223,6 @@
     pendingSeek = opts.at != null ? opts.at : (p.duration && saved > p.duration - 8 ? 0 : saved);
     setSource(p.url);
     audio.defaultPlaybackRate = audio.playbackRate = speed;
-    store.set('last', { track: cur, idx });
     store.set('lastidx_' + cur.id, idx);
     player.hidden = false;
     body.classList.add('has-player');
@@ -580,6 +579,9 @@
     if (cur && !audio.paused && Date.now() - lastPing > 60000) ping(true);
   }, 1000);
   window.addEventListener('pagehide', () => { savePos(); syncHistory('beacon'); if (!audio.paused) ping(false); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { savePos(); syncHistory('beacon'); }
+  });
 
   // ---------- Thanh tua (cả thanh dưới và trình phát mở rộng) ----------
   document.addEventListener('input', e => {
@@ -2586,8 +2588,9 @@
   });
 
   // ---------- Khởi động ----------
-  const last = store.get('last');
-  if (last && last.track && last.track.parts && last.track.parts.length) load(last.track, last.idx || 0);
+  // Thanh phát chỉ tồn tại trong phiên trang hiện tại. Tải lại không khôi phục
+  // bài đang phát; vị trí từng tập và lịch sử tài khoản vẫn được giữ để nghe tiếp.
+  store.del('last');
   initPage();
   focusSearchFromHash();
   // Tải lại trang khi đã đăng nhập: vẽ ngay avatar đã nhớ (chỉ để nhìn, chưa bấm được) trong lúc chờ máy chủ trả thông tin.
