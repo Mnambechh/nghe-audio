@@ -377,6 +377,7 @@ export const DEFAULT_SETTINGS = {
   seo_description: 'Nghe audio truyện full miễn phí, không cần tài khoản.',
   seo_keywords: 'audio truyện, truyện audio, nghe truyện',
   logo: '',
+  default_logo: '1',
   favicon: '',
   theme_color: '#16a36a',
   footer_text: 'Nghe audio trực tuyến miễn phí.',

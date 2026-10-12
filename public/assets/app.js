@@ -1458,7 +1458,7 @@
     card.innerHTML = `<div class="ac-head"><span class="ac-name"><b${fxCls(me.fx)}>${esc(me.name)}</b>${me.vipUntil ? VIP_TICK : ''}</span><button type="button" data-act="logout" title="Đăng xuất" aria-label="Đăng xuất">${ICON_OUT}</button></div>
       <div class="ac-stones"><b>${nf(g.stones)}</b> Linh Thạch</div>
       ${me.vipUntil ? `<a class="ac-vip" href="${APP.base}/cua-hang">👑 Promax VIP · x2 EXP · x2 💎 · ${vipLeft(me.vipUntil)}</a>` : ''}
-      <div class="ac-ck"><button type="button" class="ck-btn" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? 'ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
+      <div class="ac-ck"><button type="button" class="ck-btn${g.checkedIn ? ' is-done' : ''}" data-act="checkin"${g.checkedIn ? ' disabled' : ''}>${g.checkedIn ? '✓ ĐÃ ĐIỂM DANH' : 'ĐIỂM DANH'}</button><span class="ck-time"></span></div>
       <div class="ac-stats"><span title="Tổng EXP">☆ ${nf(g.exp)}</span> · <span title="Bình luận">💬 ${nf(g.comments)}</span> · <span>Cấp ${L.lvl}</span> · ${realmTag(L)}</div>
       <div class="ac-bar" title="${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP lên cấp ${L.lvl + 1}` : 'Cấp tối đa'}"><span style="width:${L.pct}%"></span><em>${L.need ? `${nf(L.cur)}/${nf(L.need)} EXP` : 'Viên mãn'}</em><i>Cấp ${L.lvl}</i></div>
       <nav class="ac-links"><a href="${APP.base}/tai-khoan">${navIcon('user')} Thông tin tài khoản</a><a href="${APP.base}/lich-su">${navIcon('history')} Lịch sử nghe</a><a href="${APP.base}/thong-bao">${navIcon('bell')} Thông báo</a>${editorUrl ? `<a href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>` : ''}<a href="${APP.base}/bang-xep-hang" class="ac-lb">${navIcon('trophy')} Xếp hạng</a></nav>`;
@@ -1490,9 +1490,10 @@
   }
   function renderCk() {
     const left = Math.max(0, Math.ceil(ckLeftSec)), paused = left > 0 && !pageActive();
+    const done = !!(game && game.checkedIn);
     const t = $('.ck-time'), b = $('.ck-btn');
-    if (t) t.textContent = left ? ' · ' + fmt(left) + (paused ? ' (tạm dừng)' : '') : ' · Sẵn sàng!';
-    if (b) { b.disabled = left > 0; b.classList.toggle('ready', !left); }
+    if (t) t.textContent = done ? '' : left ? ' · ' + fmt(left) + (paused ? ' (tạm dừng)' : '') : ' · Sẵn sàng!';
+    if (b) { b.disabled = done || left > 0; b.classList.toggle('ready', !b.disabled); b.classList.toggle('is-done', done); }
     const ql = $('.q-ck-left'), qb = $('.q-ck-btn');
     if (ql) {
       const waiting = String(left > 0);
@@ -1508,7 +1509,7 @@
         if (pause) pause.hidden = !paused;
       }
     }
-    if (qb) qb.disabled = left > 0;
+    if (qb) qb.disabled = done || left > 0;
     return left;
   }
   function tickCk() {
@@ -1734,16 +1735,15 @@
     renderEditorNav();
   }
 
-  // Biên tập viên: thêm "Đăng truyện" vào menu (đường dẫn /bien-tap, máy chủ chỉ mở cho đúng người có quyền).
+  // Giữ "Đăng truyện" trong menu mobile; trên PC dùng liên kết ở thẻ tài khoản.
   function renderEditorNav() {
     const existing = $$('.editor-link');
-    if (editorUrl && me && existing.length === 2 && existing.every(a => a.getAttribute('href') === editorUrl)) return;
+    if (editorUrl && me && existing.length === 1 && existing[0].closest('#mainmenu') && existing[0].getAttribute('href') === editorUrl) return;
     $$('.editor-link').forEach(a => a.remove());
     if (!editorUrl || !me) return;
     const html = `<a class="editor-link" href="${esc(editorUrl)}" target="_self">${navIcon('pencil')} Đăng truyện</a>`;
-    const mm = $('#mainmenu'), tn = $('.top-nav');
+    const mm = $('#mainmenu');
     if (mm) mm.insertAdjacentHTML('beforeend', html);
-    if (tn) tn.insertAdjacentHTML('beforeend', html);
   }
 
   // Admin đang xem thử tài khoản thành viên: hiện thanh cảnh báo + nút thoát.
@@ -1932,21 +1932,39 @@
   let featureCarousel = null;
   function initFeatureCarousel() {
     const box = $('.noir-carousel');
+    if (featureCarousel && featureCarousel.box !== box) featureCarousel.dispose();
     if (!box) { featureCarousel = null; return; }
     if (box.dataset.bound) return;
     box.dataset.bound = '1';
     const slides = $('.noir-slides', box), count = slides.children.length;
-    let target = null, settleTimer = null, width = slides.clientWidth;
+    let target = null, settleTimer = null, autoTimer = null, interacting = false, disposed = false, width = slides.clientWidth;
+    function scheduleAuto() {
+      clearTimeout(autoTimer);
+      if (disposed || count < 2 || document.hidden || interacting) return;
+      autoTimer = setTimeout(() => {
+        if (box.isConnected && !document.hidden && !interacting) step(1);
+      }, 3000);
+    }
+    const release = () => { if (interacting) { interacting = false; scheduleAuto(); } };
+    const visibility = () => { interacting = false; scheduleAuto(); };
     const index = () => Math.round(slides.scrollLeft / Math.max(1, width));
     const go = (i, instant = false) => {
       clearTimeout(settleTimer);
       target = ((i % count) + count) % count;
       slides.scrollTo({ left: target * width,
         behavior: instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      scheduleAuto();
     };
     // Tính từ đích đang chuyển để bấm nhanh không mất lượt chuyển.
     const step = n => go((target === null ? index() : target) + n);
-    featureCarousel = { resize() {
+    featureCarousel = { box, dispose() {
+      disposed = true;
+      clearTimeout(autoTimer);
+      clearTimeout(settleTimer);
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+    }, resize() {
       const current = target === null ? index() : target;
       width = slides.clientWidth;
       go(current, true);
@@ -1962,9 +1980,12 @@
       $$('[data-feature-index]', box).forEach((btn, i) => btn.setAttribute('aria-current', String(i === current)));
       clearTimeout(settleTimer);
       settleTimer = setTimeout(() => { target = null; }, 150);
+      if (target === null) scheduleAuto();
     }, { passive: true });
     slides.addEventListener('pointerdown', () => {
       clearTimeout(settleTimer);
+      interacting = true;
+      clearTimeout(autoTimer);
       target = null;
       slides.scrollTo({ left: slides.scrollLeft, behavior: 'instant' });
     }, { passive: true });
@@ -1973,6 +1994,10 @@
       e.preventDefault();
       step(e.key === 'ArrowLeft' ? -1 : 1);
     });
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+    scheduleAuto();
   }
   // Kéo kệ bằng chuột; thao tác chạm vẫn dùng cuộn tự nhiên của trình duyệt.
   let railDrag = null, railClickBlock = null;

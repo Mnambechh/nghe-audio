@@ -429,6 +429,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
       const data = {};
       for (const k of ['site_name', 'site_tagline', 'seo_title', 'seo_description', 'seo_keywords', 'footer_text', 'head_code']) data[k] = str(f, k);
       data.header_show_name = f.get('header_show_name') ? '1' : '0';
+      if (f.has('default_logo_form')) data.default_logo = f.get('default_logo') ? '1' : '0';
       data.comments_enabled = f.get('comments_enabled') ? '1' : '0';
       data.withdraw_enabled = f.get('withdraw_enabled') ? '1' : '0';
       data.comment_moderation = f.get('comment_moderation') ? '1' : '0';
@@ -453,6 +454,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
           if (up || f.get(k + '_remove')) {
             await deleteMedia(db, s[k]);
             data[k] = up || '';
+            if (k === 'logo') data.default_logo = up ? '0' : '1';
           }
         }
       } catch (e) {

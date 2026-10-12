@@ -3,9 +3,10 @@ import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
 import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
+import { DEFAULT_WORDMARK, usesDefaultLogo } from './brand.js';
 const VIP_TICK = '<svg class="vtick" viewBox="0 0 24 24" role="img" aria-label="Đã xác thực Promax VIP"><title>Promax VIP</title><circle cx="12" cy="12" r="11" fill="#1877f2"/><path fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter" d="M7.3 12.4l3.2 3.2 6.2-6.4"/></svg>';
 
-export const ASSET_V = '113';
+export const ASSET_V = '114';
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
 const abs = (origin, u) => (!u || /^https?:\/\//i.test(u) ? u : origin + u);
 
@@ -55,6 +56,8 @@ export function layout(ctx, meta, body) {
   const desc = meta.desc || s.seo_description;
   const canonical = meta.canonical || ctx.origin + '/';
   const favicon = s.favicon || s.logo;
+  const defaultLogo = usesDefaultLogo(s);
+  const brandName = defaultLogo ? 'TruyenGi.info' : s.site_name;
 
   let adConfig = null;
   if (s.ad_enabled === '1' && ctx.ads && ctx.ads.length) {
@@ -101,9 +104,9 @@ ${safeHeadCode(s.head_code)}
 </head>
 <body class="site-noir">
 <header class="topbar">
-  <a class="brand" href="/" aria-label="${h(s.site_name)}" title="${h(s.site_name)}">
-    ${s.logo ? `<img src="${h(s.logo)}" alt="" height="34">` : '<span class="brand-dot"></span>'}
-    ${s.header_show_name === '1' ? `<span>${h(s.site_name)}</span>` : ''}
+  <a class="brand${defaultLogo ? ' brand-wordmark' : ''}" href="/" aria-label="${h(brandName)}" title="${h(brandName)}">
+    ${defaultLogo ? DEFAULT_WORDMARK : `<img src="${h(s.logo)}" alt="" height="34">`}
+    ${!defaultLogo && s.header_show_name === '1' ? `<span>${h(s.site_name)}</span>` : ''}
   </a>
   <nav class="top-nav">
   <a href="/" data-nav="/">${navIcon('home')}Trang chủ</a>

@@ -5,6 +5,7 @@ import { ADMIN, EVENT_LABELS, deviceOf } from '../security.js';
 import { levelInfo } from '../levels.js';
 import { matchWords } from '../wordfilter.js';
 import { NAME_FX } from '../shop.js';
+import { DEFAULT_WORDMARK, usesDefaultLogo } from './brand.js';
 import { parseLevelTiers } from '../game.js';
 
 const asset = f => `/assets/${f}?v=${ASSET_V}`;
@@ -32,7 +33,7 @@ export function adminLayout(s, path, flash, content, editor = null) {
   const cur = path === '/admin' || path.startsWith('/admin/track') ? '/admin' : path.startsWith('/admin/page') ? '/admin/pages' : path.startsWith('/admin/members') ? '/admin/members' : path;
   return shell(`Quản trị - ${s.site_name}`, `<body>
 <header class="qt-top">
-  <a class="qt-brand" href="${ADMIN}">${h(s.site_name)} <small>${editor ? 'biên tập' : 'admin'}</small></a>
+  <a class="qt-brand" href="${ADMIN}" aria-label="${h(usesDefaultLogo(s) ? 'TruyenGi.info' : s.site_name)}">${usesDefaultLogo(s) ? DEFAULT_WORDMARK : `<img class="qt-logo" src="${h(s.logo)}" alt="" height="34">`} <small>${editor ? 'biên tập' : 'admin'}</small></a>
   <nav class="qt-nav">${(editor ? NAV.filter(([p]) => p === '/admin' || p === '/admin/qc') : NAV).map(([p, l]) => `<a href="${A(p)}" class="${cur === p ? 'on' : ''}">${l}</a>`).join('')}</nav>
   <div class="qt-right">
     ${editor ? `<span class="muted">✏️ ${h(editor.name)}</span>` : ''}
@@ -297,6 +298,7 @@ export function settingsView(s, origin) {
   return `
 <h1>Cài đặt & SEO</h1>
 <form method="post" class="form card" enctype="multipart/form-data">
+  <input type="hidden" name="default_logo_form" value="1">
   <h2>Thông tin web</h2>
   <div class="grid2">
     <label>Tên website<input name="site_name" required value="${h(s.site_name)}"></label>
@@ -306,6 +308,8 @@ export function settingsView(s, origin) {
     ${img('logo', 'Logo (PNG/JPG/WebP, tối đa 1MB)')}
     ${img('favicon', 'Favicon (để trống sẽ dùng logo)')}
   </div>
+  <label class="check"><input type="checkbox" name="default_logo" value="1"${usesDefaultLogo(s) ? ' checked' : ''}> Dùng logo chữ TruyenGi.info mặc định</label>
+  <p class="muted">Bỏ chọn để dùng ảnh logo đã tải. Tải ảnh logo mới sẽ tự chuyển sang logo riêng.</p>
   <label class="check"><input type="checkbox" name="header_show_name" value="1"${s.header_show_name === '1' ? ' checked' : ''}> Hiện chữ tên website cạnh logo trên thanh đầu trang</label>
   <div class="grid2">
     <label>Màu chủ đạo<input name="theme_color" type="color" value="${h(s.theme_color)}"></label>

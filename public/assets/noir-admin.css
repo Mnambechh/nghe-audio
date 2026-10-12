@@ -25,6 +25,10 @@ html.admin-noir body::before {
 }
 .admin-noir .qt-top { background: #101214f5; border-bottom: 1px solid #765c303f; padding: 8px 16px; }
 .admin-noir .qt-brand { color: #eccc8e; font-family: inherit; font-size: 18px; font-weight: 600; }
+.admin-noir .qt-brand { display: inline-flex; align-items: baseline; gap: 8px; }
+.admin-noir .qt-brand .wordmark { display: inline-flex; align-items: baseline; flex: none; color: #e4c891; font-family: Georgia, "Times New Roman", serif; font-size: clamp(20px, 2vw, 28px); font-weight: 400; line-height: 1.2; letter-spacing: 0; white-space: nowrap; }
+.admin-noir .qt-brand .wordmark b { font: inherit; font-weight: 700; }
+.admin-noir .qt-logo { width: auto; height: 34px; max-width: 160px; object-fit: contain; }
 .admin-noir .qt-brand small { color: #bda578; font-family: system-ui, sans-serif; font-size: 14px; }
 .admin-noir .qt-nav a { color: #b9b6ae; border-radius: 4px; padding: 6px 10px; font-size: 15px; }
 .admin-noir .qt-nav a.on { color: #f1d59a; background: #2b2419; }
@@ -98,6 +102,8 @@ html.admin-noir body::before {
 .admin-noir a:focus-visible, .admin-noir button:focus-visible { outline: 2px solid #ebc97e; outline-offset: 3px; }
 @media (max-width: 560px) {
   .admin-noir .qt-top { padding: 8px 12px; }
+  .admin-noir .qt-brand .wordmark { font-size: clamp(20px, 5vw, 24px); }
+  .admin-noir .qt-logo { height: 30px; max-width: 118px; }
   .admin-noir .qt-main { padding: 16px 12px 48px; }
   .admin-noir h1 { font-size: 24px; }
 }
