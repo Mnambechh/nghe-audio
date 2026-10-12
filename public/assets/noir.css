@@ -342,7 +342,7 @@ body.site-noir a:focus-visible, body.site-noir button:focus-visible { outline: 2
   body.site-noir .noir-carousel::before { opacity: .6; background-position: right center; }
   body.site-noir .noir-book .cover-genres { top: 3px; right: 3px; }
   body.site-noir .noir-book .cover-genres .tag { font-size: 12px; padding: 1px 3px; }
-  body.site-noir .rail { grid-auto-columns: calc((100% - 16px) / 3); gap: 8px; }
+  body.site-noir .rail { grid-auto-columns: calc((100% - 8px) / 2); gap: 8px; }
   body.site-noir .card-body { padding: 7px 6px; }
   body.site-noir .card-title { font-size: 16px; }
   body.site-noir .card-body .meta, body.site-noir .card-body .live { font-size: 14px; gap: 3px; }
