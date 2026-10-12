@@ -219,7 +219,7 @@ body.site-noir .hero-art::before { content: ""; position: absolute; inset: 6px; 
 body.site-noir .hero-art .hero-cover { top: 10%; left: 10%; width: 80%; height: 80%; border-radius: 50%; border: 2px solid #d0ad68; box-shadow: 0 4px 14px #0006; }
 body.site-noir .hero-art:not(.has-cover) .eq { display: inline-flex; }
 body.site-noir .hero-art .dur { bottom: 4px; padding: 3px 7px; font-size: 14px; color: #f3d99c; background: #171a1b; border: 1px solid #79613b; }
-body.site-noir .hero h1 { font-family: inherit; font-size: 24px; line-height: 1.5; font-weight: 600; color: #f3d99c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.site-noir .hero h1 { font-family: inherit; font-size: 24px; line-height: 1.5; font-weight: 600; color: #f3d99c; white-space: normal; overflow-wrap: anywhere; }
 body.site-noir .hero-meta { gap: 6px 10px; }
 body.site-noir .hero-meta .meta, body.site-noir .hero-meta .live { font-size: 14px; }
 body.site-noir .hero-actions { gap: 10px; margin-top: 14px; }
