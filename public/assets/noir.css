@@ -309,13 +309,11 @@ body.site-noir a:focus-visible, body.site-noir button:focus-visible { outline: 2
   body.site-noir .rail { grid-auto-columns: 132px; gap: 10px; }
 }
 @media (max-width: 719px) {
-  body.site-noir .hero { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px 12px; padding: 14px 12px; text-align: left; }
-  body.site-noir .hero-art, body.site-noir .hero-art.has-cover { grid-column: 1; grid-row: 1 / span 2; width: 120px; height: 120px; }
-  body.site-noir .hero-body { display: contents; }
-  body.site-noir .hero h1 { grid-column: 2; align-self: end; font-size: 22px; margin: 0; }
-  body.site-noir .hero-meta { grid-column: 2; align-self: start; justify-content: flex-start; gap: 5px; }
-  body.site-noir .hero-meta .meta, body.site-noir .hero-meta .live { font-size: 13px; }
-  body.site-noir .hero .rating, body.site-noir .hero-actions, body.site-noir .hero .resume { grid-column: 1 / -1; margin-top: 0; }
+  body.site-noir .hero { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 18px 12px; text-align: center; }
+  body.site-noir .hero-art, body.site-noir .hero-art.has-cover { width: clamp(176px, 52vw, 208px); height: clamp(176px, 52vw, 208px); }
+  body.site-noir .hero-body { display: block; width: 100%; }
+  body.site-noir .hero h1 { font-size: 22px; margin: 0 0 10px; }
+  body.site-noir .hero-meta { justify-content: center; gap: 6px 10px; }
   body.site-noir .hero .rating, body.site-noir .hero-actions { justify-content: center; }
   body.site-noir .hero-actions .btn-play, body.site-noir .hero-actions .btn-ghost { height: 48px; padding: 0 22px; }
   body.site-noir .comments { padding: 12px; }
