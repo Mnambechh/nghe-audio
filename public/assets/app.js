@@ -285,6 +285,9 @@
     $('.ul-note', m).textContent = cfg.note;
     const btn = $('.ul-btn', m);
     btn.textContent = cfg.button || ad.url;
+    const link = $('.ul-url', m);
+    $('.ul-url-text', link).textContent = ad.url;
+    link.setAttribute('aria-label', 'Mở link quảng cáo: ' + ad.url);
     const card = $('.ul-card', m);
     card.hidden = !ad.image;
     if (ad.image) $('img', card).src = ad.image;
@@ -292,7 +295,7 @@
     $('.ul-old', card).textContent = ad.old_price || '';
     $('.ul-price', card).textContent = ad.price || '';
     $('.ul-meta', card).hidden = !(ad.title || ad.price);
-    [btn, card].forEach(a => { a.href = ad.url; });
+    [btn, card, link].forEach(a => { a.href = ad.url; });
     adAction = fn; adShown = ad;
     m.hidden = false;
     // Trình chặn quảng cáo ẩn nút: không khóa người nghe, phát luôn.

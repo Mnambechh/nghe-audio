@@ -280,6 +280,10 @@ body.site-noir .acct-card .ac-head { border-bottom-color: var(--line); }
 body.site-noir .acct-card a, body.site-noir .acct-card button { color: inherit; }
 body.site-noir .btn-play, body.site-noir .q-btn, body.site-noir .sh-buy, body.site-noir .wd-submit, body.site-noir .ask-ok, body.site-noir .ul-btn, body.site-noir .c-send { background: linear-gradient(110deg, #ecc773, #ca984b); color: #211809; border-radius: 6px; box-shadow: none; }
 body.site-noir .btn-ghost, body.site-noir .chip, body.site-noir .ask-no { color: var(--text); background: #1c1e20; border: 1px solid #645235; border-radius: 6px; }
+body.site-noir .ul-url { display: flex; justify-content: center; align-items: flex-start; gap: 8px; max-width: 100%; margin: 14px auto; padding: 9px 12px; border: 1px solid #796039; border-radius: 18px; background: #1b1d19; color: #e2cc9f; font: 14px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; text-align: left; text-decoration: none; }
+body.site-noir .ul-url > span:first-child { flex: none; }
+body.site-noir .ul-url-text { min-width: 0; overflow-wrap: anywhere; }
+body.site-noir .ul-url:hover { border-color: #b99a61; background: #25251d; }
 body.site-noir .chip.on { background: #33291a; color: #f2cd81; border-color: #ae8745; }
 body.site-noir .lg-tabs, body.site-noir .reset-form, body.site-noir .quest, body.site-noir .sh-item, body.site-noir .sh-chip, body.site-noir .ref-list, body.site-noir .ref-stats div, body.site-noir .wd-form, body.site-noir .wd-add, body.site-noir .prof-card, body.site-noir .lb-row { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; }
 body.site-noir .lg-tabs button.on { color: #f3cf88; background: #302719; box-shadow: none; }
