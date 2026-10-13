@@ -1,6 +1,6 @@
 // Điểm vào: định tuyến mọi yêu cầu không phải file tĩnh.
 import { migrate, loadSettings, cached, all, first, liveCounts, withLive } from './db.js';
-import { h, html, vnDay, fromBase64 } from './util.js';
+import { h, html, vnDay, fromBase64, dateIso } from './util.js';
 import { homePage, genrePage, trackPage, staticPage, notFoundPage, historyPage, walletPage, profilePage, leaderboardPage, questsPage, notificationsPage, guidePage, referralPage, resetPage, withdrawPage, shopPage } from './views/public.js';
 import { GENRES } from './genres.js';
 import { leaderboard, BOARDS, parseLevelTiers, LEVELUP_TIERS_DEFAULT, levelupStones } from './game.js';
@@ -28,9 +28,24 @@ export async function handle(request, env, ctx) {
 async function handleInner(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
+  // Tài nguyên khám phá công khai: không phụ thuộc phiên/cài đặt hay danh sách
+  // chặn IP của ứng dụng. Chỉ mở GET/HEAD; các trang/API khác vẫn được bảo vệ.
+  if (path === '/robots.txt' || path === '/sitemap.xml') {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
+    }
+    if (path === '/robots.txt') {
+      return new Response(request.method === 'HEAD' ? null : `User-agent: *\nDisallow: /api/\nSitemap: ${url.origin}/sitemap.xml\n`, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=300' },
+      });
+    }
+  }
   const db = env.DB;
-  if (!db) return html(noDbPage(), 500);
+  if (!db) return path === '/sitemap.xml'
+    ? new Response(null, { status: 503, headers: { 'Retry-After': '300', 'Cache-Control': 'no-store' } })
+    : html(noDbPage(), 500);
   await migrate(db);
+  if (path === '/sitemap.xml') return sitemap(db, url.origin, request.method === 'HEAD');
 
   const info = clientInfo(request);
   info.proxyKey = env.PROXYCHECK_KEY || '';
@@ -69,13 +84,6 @@ async function handleInner(request, env, ctx) {
     if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
     return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
-
-  if (path === '/robots.txt') {
-    return new Response(`User-agent: *\nDisallow: /api/\nSitemap: ${url.origin}/sitemap.xml\n`, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
-  }
-  if (path === '/sitemap.xml') return sitemap(db, url.origin);
 
   // Link tìm kiếm cũ (?s=...) và URL mẫu chưa thay {search_term_string}
   // không được trở thành các bản sao có thể lập chỉ mục của trang chủ.
@@ -262,15 +270,29 @@ async function genreData(db, s, url, genre) {
   return { total, pages, page, tracks: await withLive(db, tracks) };
 }
 
-async function sitemap(db, origin) {
-  const tracks = await all(db, 'SELECT slug, updated_at FROM tracks WHERE published = 1 ORDER BY id DESC LIMIT 45000');
-  const pages = await all(db, 'SELECT slug FROM pages');
+function sitemapDate(value) {
+  // Bản nhập dữ liệu có thể lưu giây, mili giây hoặc ISO. Ngày không hợp lệ
+  // không được làm cả sitemap lỗi 500; lastmod là trường tùy chọn.
+  return dateIso(value, { pastOnly: true }).slice(0, 10);
+}
+
+async function sitemap(db, origin, head = false) {
+  const headers = { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' };
+  if (head) return new Response(null, { headers });
+  const [tracks, pages] = await Promise.all([
+    all(db, 'SELECT slug, updated_at FROM tracks WHERE published = 1 ORDER BY id DESC LIMIT 45000'),
+    all(db, 'SELECT slug FROM pages'),
+  ]);
   let x = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   x += `<url><loc>${h(origin)}/</loc><changefreq>daily</changefreq></url>\n`;
   for (const g of GENRES) x += `<url><loc>${h(origin)}/${g.slug}</loc><changefreq>daily</changefreq></url>\n`;
-  for (const t of tracks) x += `<url><loc>${h(origin)}/track/${h(t.slug)}</loc><lastmod>${new Date(t.updated_at * 1000).toISOString().slice(0, 10)}</lastmod></url>\n`;
-  for (const p of pages) x += `<url><loc>${h(origin)}/trang/${h(p.slug)}</loc></url>\n`;
-  return new Response(x + '</urlset>', { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });
+  for (const t of tracks) {
+    if (!/^[a-z0-9-]+$/.test(t.slug)) continue;
+    const date = sitemapDate(t.updated_at);
+    x += `<url><loc>${h(origin)}/track/${h(t.slug)}</loc>${date ? `<lastmod>${date}</lastmod>` : ''}</url>\n`;
+  }
+  for (const p of pages) if (/^[a-z0-9-]+$/.test(p.slug)) x += `<url><loc>${h(origin)}/trang/${h(p.slug)}</loc></url>\n`;
+  return new Response(x + '</urlset>', { headers });
 }
 
 // Ảnh tải lên (logo, quảng cáo) được lưu trong D1, phục vụ kèm bộ nhớ đệm dài hạn.

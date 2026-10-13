@@ -32,8 +32,19 @@ export function vnDay(daysAgo = 0) {
   return new Date(Date.now() + TZ_OFFSET - daysAgo * 86400e3).toISOString().slice(0, 10);
 }
 
+// Đọc ngày nhập từ giây Unix, mili giây Unix hoặc ISO; dữ liệu hỏng trả rỗng.
+export function dateIso(value, { pastOnly = false } = {}) {
+  const numeric = typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(String(value || ''));
+  const n = Number(value);
+  const ts = numeric ? (n > 1e11 ? n : n * 1000) : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? Date.parse(value) : NaN;
+  if (!Number.isFinite(ts) || ts <= 0 || ts > 253402300799999 || (pastOnly && ts > Date.now() + 300000)) return '';
+  return new Date(ts).toISOString();
+}
+
 export function vnDate(ts, withTime = false) {
-  const d = new Date(ts * 1000 + TZ_OFFSET).toISOString();
+  const iso = dateIso(ts);
+  if (!iso) return '—';
+  const d = new Date(Date.parse(iso) + TZ_OFFSET).toISOString();
   const s = `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
   return withTime ? `${s} ${d.slice(11, 16)}` : s;
 }

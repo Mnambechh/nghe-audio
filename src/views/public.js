@@ -1,5 +1,5 @@
 // Giao diện người nghe.
-import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate } from '../util.js';
+import { h, jsonScript, fmtTime, fmtNum, fmtInt, vnDate, dateIso } from '../util.js';
 import { fxOf, frameOf } from '../shop.js';
 import { vipActive } from '../game.js';
 import { GENRES, genresOf } from '../genres.js';
@@ -462,6 +462,8 @@ export function genrePage(ctx, genre, d) {
 
 export function trackPage(ctx, t, related) {
   const s = ctx.s;
+  const publishedAt = dateIso(t.created_at, { pastOnly: true });
+  const modifiedAt = dateIso(t.updated_at, { pastOnly: true }) || publishedAt;
   const plainDesc = t.description.replace(/\s+/g, ' ').trim();
   const mins = Math.max(1, Math.round((t.duration || 0) / 60));
   // SEO: ưu tiên nội dung admin nhập; để trống thì tự tạo câu mô tả tự nhiên, đủ từ khóa, dài ~150 ký tự.
@@ -478,8 +480,8 @@ export function trackPage(ctx, t, related) {
     '@context': 'https://schema.org', '@type': 'AudioObject', name: t.title, description: desc, url: canonical, inLanguage: 'vi', keywords,
     ...(t.cover ? { image: ctx.origin + t.cover, thumbnailUrl: ctx.origin + t.cover } : {}),
     genre: t.tag || undefined, publisher: { '@type': 'Organization', name: s.site_name, url: ctx.origin },
-    dateModified: new Date((t.updated_at || t.created_at) * 1000).toISOString(),
-    uploadDate: new Date(t.created_at * 1000).toISOString(), duration: `PT${t.duration}S`, contentUrl: parts[0]?.url || '',
+    dateModified: modifiedAt || undefined,
+    uploadDate: publishedAt || undefined, duration: `PT${t.duration}S`, contentUrl: parts[0]?.url || '',
     interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ListenAction', userInteractionCount: t.views },
   };
   if (t.rating_count > 0) {
@@ -538,8 +540,8 @@ export function trackPage(ctx, t, related) {
     { '@type': 'ListItem', position: 1, name: s.site_name, item: ctx.origin + '/' },
     { '@type': 'ListItem', position: 2, name: t.title, item: canonical }] };
   const extraHead = `<meta property="og:audio" content="${h(parts[0] ? parts[0].url : '')}">
-<meta property="article:published_time" content="${new Date(t.created_at * 1000).toISOString()}">
-<meta property="article:modified_time" content="${new Date((t.updated_at || t.created_at) * 1000).toISOString()}">
+${publishedAt ? `<meta property="article:published_time" content="${publishedAt}">` : ''}
+${modifiedAt ? `<meta property="article:modified_time" content="${modifiedAt}">` : ''}
 <script type="application/ld+json">${jsonScript(crumbs)}</script>`;
   return layout(ctx, { title: seoTitle, desc, keywords, canonical, ogType: 'music.song', extraHead, image: t.cover ? ctx.origin + t.cover : '' }, body);
 }

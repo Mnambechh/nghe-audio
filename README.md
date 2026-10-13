@@ -5,6 +5,8 @@ Không cần server, không cần cài thư viện. Mỗi lần đẩy code lên
 
 Lịch sử giao dịch cá nhân nằm trong bảng tài khoản → **Lịch sử Linh Thạch & EXP**. Admin xem nhật ký trong hồ sơ thành viên và mục **Thưởng bất thường** để đối chiếu các dấu hiệu cần kiểm tra. Chi tiết sửa bảo mật và cách chạy kiểm tra cục bộ: [rà soát 12/10/2026](docs/security-review-2026-10-12.md).
 
+Nếu Search Console báo không đọc được sitemap dù trình duyệt hiển thị XML: gửi lại URL đầy đủ `https://truyengi.info/sitemap.xml` sau khi bản mới triển khai. XML không cần stylesheet. `GET/HEAD /sitemap.xml` và `/robots.txt` là tài nguyên công khai, không bị danh sách chặn IP trong ứng dụng chặn; các trang/API khác vẫn được bảo vệ. Nếu vẫn lỗi, kiểm tra DNS và Cloudflare Security Events cho hai đường dẫn này: lớp chặn/challenge Cloudflare xảy ra trước khi code chạy. Kiểm tra cục bộ bằng `tests/sitemap-check.mjs`, dùng cùng Miniflare như bộ kiểm tra bảo mật; việc đọc được sitemap không bảo đảm mọi URL được Google lập chỉ mục ngay.
+
 ## Cài đặt lần đầu (khoảng 10 phút)
 
 ### Bước 1: Tạo cơ sở dữ liệu D1
