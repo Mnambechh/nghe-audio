@@ -121,7 +121,13 @@ export async function handleApi(request, db, path, ctx, info) {
       const adId = parseInt(input.id, 10) || 0;
       if (input.ev !== 'click' && input.ev !== 'show') return json({ ok: false }, 400);
       const col = input.ev === 'click' ? 'clicks' : 'shows';
-      if (adId > 0) await db.prepare(`UPDATE ads SET ${col} = ${col} + 1 WHERE id = ?`).bind(adId).run();
+      if (adId > 0) await db.batch([
+        db.prepare(`UPDATE ads SET ${col} = ${col} + 1 WHERE id = ?`).bind(adId),
+        db.prepare(`INSERT INTO ad_stats_daily (ad_id, day, shows, clicks)
+          SELECT id, ?, ?, ? FROM ads WHERE id = ?
+          ON CONFLICT(ad_id, day) DO UPDATE SET shows = shows + excluded.shows, clicks = clicks + excluded.clicks`)
+          .bind(vnDay(), input.ev === 'show' ? 1 : 0, input.ev === 'click' ? 1 : 0, adId),
+      ]);
       return json({ ok: true });
     }
   }

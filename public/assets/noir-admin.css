@@ -96,6 +96,16 @@ html.admin-noir body::before {
 .admin-noir .wallet-audit ul { margin: 8px 0; padding-left: 22px; color: #e4c997; font-size: 14px; }
 .admin-noir .row-actions .inline-form { min-width: 0; max-width: 100%; flex-wrap: wrap; }
 .admin-noir .row-actions .inline-form .sel { min-width: 0; max-width: 100%; }
+.admin-noir .ad-period { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.admin-noir .ad-period label { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.admin-noir .ad-period input { min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.admin-noir .ad-report p { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .admin-noir .ad-list .trow { flex-wrap: wrap; }
+  .admin-noir .ad-list .tmain { flex-basis: calc(100% - 64px); }
+  .admin-noir .ad-list .tnum:nth-of-type(3) { display: flex; }
+  .admin-noir .ad-list .tact { margin-left: auto; }
+}
 .admin-noir .st-admin { background: #252637; color: #bcbde9; border-color: #585975; }
 .admin-noir .st-editor { background: #30202a; color: #e1b0cd; border-color: #725365; }
 .admin-noir .mi:hover { background: #252836; }

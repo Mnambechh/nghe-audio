@@ -207,24 +207,47 @@ ${track.id && !editor ? `<form method="post" action="${ADMIN}/track/${track.id}/
 
 // ---------- Quảng cáo ----------
 
-export function adsView(s, ads, edit, editor = null) {
+export function adsView(s, ads, edit, editor = null, period) {
+  const originalTotals = ads.reduce((t, a) => ({ shows: t.shows + a.shows, clicks: t.clicks + a.clicks }), { shows: 0, clicks: 0 });
+  ads = ads.map(a => ({ ...a, total_shows: a.shows, total_clicks: a.clicks,
+    shows: period.day === 'all' ? a.shows : a.day_shows, clicks: period.day === 'all' ? a.clicks : a.day_clicks }));
+  const count = n => period.available ? fmtInt(n) : '—';
+  const dateLabel = day => day.split('-').reverse().join('/');
+  const periodLabel = period.day === 'all' ? 'Tổng tích lũy' : `Ngày ${dateLabel(period.day)}`;
+  const periodLink = (day, id = edit?.id) => '?' + new URLSearchParams({ day, ...(id ? { edit: id } : {}) });
   const e = edit || { id: 0, title: '', image: '', price: '', old_price: '', url: '', active: 1 };
-  const ctr = a => a.shows ? (a.clicks / a.shows * 100).toFixed(1).replace('.', ',') + '%' : '–';
+  const ctr = a => !period.available ? '—' : a.shows ? (a.clicks / a.shows * 100).toFixed(1).replace('.', ',') + '%' : '–';
+  const total = ads.reduce((t, a) => ({ shows: t.shows + a.shows, clicks: t.clicks + a.clicks }), { shows: 0, clicks: 0 });
+  const report = `<section class="card ad-report">
+    <h2>${h(periodLabel)}</h2>
+    <form method="get" class="ad-period">
+      ${edit?.id ? `<input type="hidden" name="edit" value="${edit.id}">` : ''}
+      <label>Ngày thống kê<input type="date" name="day" value="${h(period.day === 'all' ? period.yesterday : period.day)}" max="${h(period.today)}" required></label>
+      <button class="btn" type="submit">Xem</button>
+      <a class="btn ghost" href="${h(periodLink(period.yesterday))}">Hôm qua</a>
+      <a class="btn ghost" href="${h(periodLink(period.today))}">Hôm nay</a>
+      <a class="btn ghost" href="${h(periodLink('all'))}">Tổng tích lũy</a>
+    </form>
+    <p class="ad-report-total"><b>${count(total.shows)}</b> lượt hiện · <b>${count(total.clicks)}</b> lượt bấm · tỉ lệ bấm <b>${ctr(total)}</b></p>
+    <p class="muted">Số liệu ghi nhận trên web, theo giờ ${h(period.timezone)}. Mặc định hiển thị ngày hôm trước.</p>
+    ${period.day !== 'all' ? `<p class="muted">Bắt đầu ghi theo ngày từ ${h(vnDate(period.startedAt, true))}; ngày đầu chỉ gồm lượt sau thời điểm này. ${!period.available ? 'Ngày đang chọn chưa có dữ liệu tách riêng; dấu — không có nghĩa là 0 lượt.' : period.day === period.today ? 'Số liệu hôm nay đang tiếp tục cập nhật.' : ''}</p>` : ''}
+    <p class="muted">Toàn bộ thời gian: ${fmtInt(originalTotals.shows)} lượt hiện · ${fmtInt(originalTotals.clicks)} lượt bấm.</p>
+  </section>`;
   // Biên tập viên: chỉ xem thống kê, không có form sửa / xóa (máy chủ cũng chặn mọi thao tác gửi lên).
   if (editor) {
-    const tot = ads.reduce((t, a) => ({ shows: t.shows + (a.shows || 0), clicks: t.clicks + (a.clicks || 0) }), { shows: 0, clicks: 0 });
     return `
 <h1>Quảng cáo Shopee</h1>
 <p class="muted">Bạn đang xem ở chế độ <b>Biên tập viên</b>: chỉ xem lượt hiển thị và lượt bấm, không chỉnh sửa được quảng cáo.</p>
 <div class="card"><p>Trạng thái: ${s.ad_enabled === '1' ? '<em class="pill ok">Đang bật</em>' : '<em class="pill">Đang tắt</em>'} · hiện lại sau mỗi <b>${h(s.ad_interval_hours)}</b> giờ</p>
-  <p>Tổng: <b>${fmtInt(tot.shows)}</b> lượt hiện · <b>${fmtInt(tot.clicks)}</b> lượt bấm · tỉ lệ bấm <b>${ctr(tot)}</b></p></div>
-<div class="table">
-  ${ads.map(a => `<div class="trow">
+</div>
+${report}
+<div class="table ad-list" data-report-day="${h(period.day)}">
+  ${ads.map(a => `<div class="trow" data-ad-id="${a.id}">
     ${a.image ? `<img class="thumb sm" src="${h(a.image)}" alt="">` : ''}
     <span class="tmain"><b>${h(a.title || 'Sản phẩm #' + a.id)}</b>
       <small>${a.active ? '<em class="pill ok">Đang chạy</em>' : '<em class="pill">Tắt</em>'}${a.price ? ' ' + h(a.price) : ''}</small></span>
-    <span class="tnum">${fmtInt(a.shows)}<small>lượt hiện</small></span>
-    <span class="tnum">${fmtInt(a.clicks)}<small>lượt bấm</small></span>
+    <span class="tnum ad-shows" title="Tổng tích lũy: ${fmtInt(a.total_shows)} lượt hiện">${count(a.shows)}<small>lượt hiện</small></span>
+    <span class="tnum ad-clicks" title="Tổng tích lũy: ${fmtInt(a.total_clicks)} lượt bấm">${count(a.clicks)}<small>lượt bấm</small></span>
     <span class="tnum">${ctr(a)}<small>tỉ lệ bấm</small></span>
   </div>`).join('') || '<p class="muted pad">Chưa có sản phẩm quảng cáo.</p>'}
 </div>`;
@@ -269,20 +292,21 @@ export function adsView(s, ads, edit, editor = null) {
   <label class="check"><input type="checkbox" name="active" value="1"${e.active ? ' checked' : ''}> Đang chạy</label>
   <div class="row-actions">
     <button class="btn" type="submit">Lưu sản phẩm</button>
-    ${e.id ? `<a class="btn ghost" href="${ADMIN}/qc">Hủy</a>` : ''}
+    ${e.id ? `<a class="btn ghost" href="${h(periodLink(period.day, 0))}">Hủy</a>` : ''}
   </div>
 </form>
 
+${report}
 <h2>Danh sách (hiển thị ngẫu nhiên trong các sản phẩm đang chạy)</h2>
-<div class="table">
-  ${ads.map(a => `<div class="trow">
+<div class="table ad-list" data-report-day="${h(period.day)}">
+  ${ads.map(a => `<div class="trow" data-ad-id="${a.id}">
     ${a.image ? `<img class="thumb sm" src="${h(a.image)}" alt="">` : ''}
     <span class="tmain"><b>${h(a.title || a.url)}</b>
       <small>${a.active ? '<em class="pill ok">Đang chạy</em>' : '<em class="pill">Tắt</em>'} ${h(a.url)}</small></span>
-    <span class="tnum">${fmtInt(a.shows)}<small>lượt hiện</small></span>
-    <span class="tnum">${fmtInt(a.clicks)}<small>lượt bấm</small></span>
+    <span class="tnum ad-shows" title="Tổng tích lũy: ${fmtInt(a.total_shows)} lượt hiện">${count(a.shows)}<small>lượt hiện</small></span>
+    <span class="tnum ad-clicks" title="Tổng tích lũy: ${fmtInt(a.total_clicks)} lượt bấm">${count(a.clicks)}<small>lượt bấm</small></span>
     <span class="tact">
-      <a href="?edit=${a.id}#qcform">Sửa</a>
+      <a href="${h(periodLink(period.day, a.id))}#qcform">Sửa</a>
       <form method="post" data-confirm="Xóa sản phẩm này?"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="${a.id}"><button>Xóa</button></form>
     </span>
   </div>`).join('')}

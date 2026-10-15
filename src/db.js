@@ -89,6 +89,16 @@ async function missing(db, table) {
 export async function migrate(db) {
   if (migrated) return;
   if (await missing(db, 'cache')) await db.batch(SCHEMA.map(s => db.prepare(s)));
+  // Thống kê quảng cáo theo ngày: giữ nguyên tổng cũ, không đoán số liệu quá khứ.
+  if (await missing(db, 'ad_stats_daily')) {
+    await db.batch([
+      db.prepare(`CREATE TABLE IF NOT EXISTS ad_stats_daily (
+        ad_id INTEGER NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+        day TEXT NOT NULL, shows INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (ad_id, day))`),
+      db.prepare("INSERT INTO settings (k, v) VALUES ('ad_stats_started_at', ?) ON CONFLICT(k) DO NOTHING").bind(String(now())),
+    ]);
+  }
   if (await missing(db, 'security_log')) await db.batch(SCHEMA_V2.map(s => db.prepare(s)));
   if (await missing(db, 'comments')) await db.batch(SCHEMA_V3.map(s => db.prepare(s)));
   if (await missing(db, 'history')) await db.batch(SCHEMA_V4.map(s => db.prepare(s)));

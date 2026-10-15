@@ -16,6 +16,7 @@ import { mailConfig, sendMail } from './mailer.js';
 import { checkIp, hostingByAsn } from './proxycheck.js';
 import { NAME_FX } from './shop.js';
 import { walletAnomalies } from './wallet.js';
+import { adReport, adReportDay } from './ad-stats.js';
 
 const SESSION_COOKIE = 'aw_admin';
 const FLASH_COOKIE = 'aw_flash';
@@ -374,6 +375,7 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
 
   // Quảng cáo
   if (path === '/admin/qc') {
+    const back = `${ADMIN}/qc?day=${adReportDay(url.searchParams.get('day'))}`;
     if (isPost) {
       const f = await request.formData();
       const act = f.get('action');
@@ -389,17 +391,17 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
           ad_note: str(f, 'ad_note'),
         });
         await clearCache(db);
-        return go(ADMIN + '/qc', ['ok', 'Đã lưu cài đặt quảng cáo.']);
+        return go(back, ['ok', 'Đã lưu cài đặt quảng cáo.']);
       }
       if (act === 'save') {
         const adUrl = str(f, 'url');
-        if (!/^https?:\/\//i.test(adUrl)) return go(ADMIN + '/qc', ['err', 'Link quảng cáo phải bắt đầu bằng https://']);
+        if (!/^https?:\/\//i.test(adUrl)) return go(back, ['err', 'Link quảng cáo phải bắt đầu bằng https://']);
         const old = adId ? await first(db, 'SELECT image FROM ads WHERE id = ?', adId) : null;
         let image;
         try {
           image = await saveUpload(db, f.get('image_file'));
         } catch (e) {
-          return go(ADMIN + '/qc', ['err', e.message]);
+          return go(back, ['err', e.message]);
         }
         image = image || str(f, 'image');
         if (old && old.image !== image) await deleteMedia(db, old.image);
@@ -407,20 +409,20 @@ export async function handleAdmin(request, env, db, s, path, url, info, editorUs
         if (adId) await db.prepare('UPDATE ads SET title=?, image=?, price=?, old_price=?, url=?, active=? WHERE id=?').bind(...vals, adId).run();
         else await db.prepare('INSERT INTO ads (title, image, price, old_price, url, active) VALUES (?,?,?,?,?,?)').bind(...vals).run();
         await clearCache(db);
-        return go(ADMIN + '/qc', ['ok', 'Đã lưu quảng cáo.']);
+        return go(back, ['ok', 'Đã lưu quảng cáo.']);
       }
       if (act === 'delete' && adId) {
         const old = await first(db, 'SELECT image FROM ads WHERE id = ?', adId);
         if (old) await deleteMedia(db, old.image);
         await db.prepare('DELETE FROM ads WHERE id = ?').bind(adId).run();
         await clearCache(db);
-        return go(ADMIN + '/qc', ['ok', 'Đã xóa quảng cáo.']);
+        return go(back, ['ok', 'Đã xóa quảng cáo.']);
       }
-      return go(ADMIN + '/qc');
+      return go(back);
     }
-    const ads = await all(db, 'SELECT * FROM ads ORDER BY id DESC');
+    const { ads, period } = await adReport(db, url.searchParams.get('day'));
     const editId = parseInt(url.searchParams.get('edit'), 10) || 0;
-    return view(V.adsView(s, ads, editor ? null : ads.find(a => a.id === editId), editor));
+    return view(V.adsView(s, ads, editor ? null : ads.find(a => a.id === editId), editor, period));
   }
 
   // Cài đặt chung & SEO

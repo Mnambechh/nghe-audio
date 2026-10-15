@@ -69,7 +69,7 @@ Chống spam: mỗi người cách nhau tối thiểu 15 giây, tối đa 50 bì
 
 ## Quản trị
 - **Audio:** đăng/sửa/xóa truyện, nhiều phần, dán nhiều link một lần, ẩn/hiện, đưa lên đầu.
-- **Quảng cáo:** sản phẩm Shopee (link, ảnh, giá), hiển thị ngẫu nhiên. Chỉnh được số giờ giữa hai lần hiện (6 = mỗi 6 tiếng, 24 = mỗi ngày). Có thống kê lượt hiện và lượt bấm.
+- **Quảng cáo:** sản phẩm Shopee (link, ảnh, giá), hiển thị ngẫu nhiên. Chỉnh được số giờ giữa hai lần hiện (6 = mỗi 6 tiếng, 24 = mỗi ngày). Admin và biên tập viên mặc định xem lượt hiện/lượt bấm của **hôm qua** (ngày 14 xem ngày 13), có thể chọn ngày khác hoặc tổng tích lũy. Số liệu tách ngày theo múi giờ của web (mặc định UTC+7), bắt đầu từ khi bản cập nhật chạy; ngày đầu chỉ có lượt sau thời điểm đó. Tổng cũ được giữ nguyên, các ngày trước khi ghi theo ngày hiển thị **—**, không suy đoán là 0. Kiểm tra cục bộ bằng `tests/ad-stats-check.mjs`, dùng cùng Miniflare như bộ kiểm tra bảo mật.
 - **Cài đặt & SEO:** tên web, logo, favicon, màu chủ đạo, title, description, từ khóa, mã Google Analytics/Search Console. Sitemap tự tạo tại `/sitemap.xml`.
 - **Trang:** Giới thiệu, Liên hệ, Chính sách… hiện ở chân trang.
 - Ảnh logo và ảnh quảng cáo tải lên tối đa **1MB**, lưu thẳng trong D1.
